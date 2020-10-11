@@ -1,0 +1,5 @@
+# Ignore private files
+private/**
+
+# Ignore Jupyter Notebooks
+JupyterNotebooks/**
