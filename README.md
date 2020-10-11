@@ -8,7 +8,6 @@ In attempts to further simplify our administrative operations so that we can foc
    - [API docs](https://docs.discourse.org/)
    - `GET` calls only require API key and API user in headers
    - `POST` calls require API key, API user, and content-type in the headers
-   - See verified example scripts in `/examples` directory
 <br><br>
 
 ### Smartwaiver 
