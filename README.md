@@ -1,6 +1,6 @@
 # ATXHS Neon Integrations
 
-In attempts to further simplify our administrative operations so that we can focus on making cool stuff rather than route work, we're working to integrate our member management software - NeonCRM - with all our other systems.
+In attempts to further simplify our administrative operations so that we can focus on making cool stuff rather than route work, we're working to integrate our member management software - NeonCRM - with all our other systems.  Neon's API appears to only support HTTP GET.  Any API calls that make changes to the system will need to have data passed as parameters in the URL. [Neon API docs](https://developer.neoncrm.com/getting-started/)
 
 ## Systems to integrate:
 ### Discourse 
@@ -13,7 +13,7 @@ In attempts to further simplify our administrative operations so that we can foc
 ### Smartwaiver 
    - System for member agreement & waiver forms 
    - [API docs](https://api.smartwaiver.com/docs/v4/#api-_)
-
+   - To authenticate, add 'sw-api-key' to the headers with the API key.
 <br><br>
 
 ### Key fob system 
