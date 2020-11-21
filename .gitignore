@@ -1,5 +1,8 @@
 # Ignore private files
-private/**
+*private/**
 
 # Ignore Jupyter Notebooks
 JupyterNotebooks/**
+
+# Ignore Mac stuff
+.DS_Store
