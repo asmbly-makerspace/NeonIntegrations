@@ -16,7 +16,7 @@ In attempts to further simplify our administrative operations so that we can foc
 ### Smartwaiver - COMPLETED
 
 See [SWintegration.py](https://github.com/ATXHS/NeonIntegrations/blob/main/SWintegration.py).  
-- Needs to be set to relative date range and setup on a monitored cron job.
+#### Needs to be set to relative date range and setup on a monitored cron job.
 
 - System for member agreement & waiver forms
 - [API docs](https://api.smartwaiver.com/docs/v4/#api-_)
