@@ -6,6 +6,10 @@ import requests
 from pprint import pprint
 import json
 import base64
+from datetime import date
+
+today = date.today()
+print("Today's date:", today)
 
 
 # Neon Account Info
@@ -99,12 +103,12 @@ data = f'''
         {{
             "field": "Membership Expiration Date",
             "operator": "GREATER_THAN",
-            "value": {today}
+            "value": "{today}"
         }},
         {{
             "field": "Membership Start Date",
             "operator": "LESS_THAN",
-            "value": {today}
+            "value": "{today}"
         }}
     ],
     "outputFields": [
