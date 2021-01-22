@@ -5,12 +5,12 @@
 import requests
 from pprint import pprint
 import json
+import csv
 import base64
+import datetime
 from datetime import date
 
 today = date.today()
-print("Today's date:", today)
-
 
 # Neon Account Info
 N_APIkey = ''
@@ -37,43 +37,38 @@ def apiCall(httpVerb, url, data, headers):
         print(f"HTTP verb {httpVerb} not recognized")
 
     response = response.json()
-    pprint(response)
+    #pprint(response)
 
     return response
 
-
 ##### NEON #####
 # Get list of custom fields for events
-httpVerb = 'GET'
-resourcePath = '/customFields'
-queryParams = '?category=Account'
-data = ''
-
-url = N_baseURL + resourcePath + queryParams
+# httpVerb = 'GET'
+# resourcePath = '/customFields'
+# queryParams = '?category=Account'
+# data = ''
+# url = N_baseURL + resourcePath + queryParams
 # print("### CUSTOM FIELDS ###\n")
 # responseFields = apiCall(httpVerb, url, data, N_headers)
 
 
 ##### NEON #####
 # Get possible search fields for POST to /accounts/search
-httpVerb = 'GET'
-resourcePath = '/accounts/search/searchFields'
-queryParams = ''
-data = ''
-
-url = N_baseURL + resourcePath + queryParams
+# httpVerb = 'GET'
+# resourcePath = '/accounts/search/searchFields'
+# queryParams = ''
+# data = ''
+# url = N_baseURL + resourcePath + queryParams
 # print("### SEARCH FIELDS ###\n")
 # responseSearchFields = apiCall(httpVerb, url, data, N_headers)
 
-
 ##### NEON #####
 # Get possible output fields for POST to /accounts/search
-httpVerb = 'GET'
-resourcePath = '/accounts/search/outputFields'
-queryParams = ''
-data = ''
-
-url = N_baseURL + resourcePath + queryParams
+# httpVerb = 'GET'
+# resourcePath = '/accounts/search/outputFields'
+# queryParams = ''
+# data = ''
+# url = N_baseURL + resourcePath + queryParams
 # print("### OUTPUT FIELDS ###\n")
 # responseOutputFields = apiCall(httpVerb, url, data, N_headers)
 
@@ -89,11 +84,8 @@ url = N_baseURL + resourcePath + queryParams
 # 'Membership Name',
 # 'Membership Start Date',
 
-
-
 ##### NEON #####
-# Get accounts where custom field KeyAccess equals Yes
-# active members
+# Start by getting list of members who expire in the future
 httpVerb = 'POST'
 resourcePath = '/accounts/search'
 queryParams = ''
@@ -102,12 +94,7 @@ data = f'''
     "searchFields": [
         {{
             "field": "Membership Expiration Date",
-            "operator": "GREATER_THAN",
-            "value": "{today}"
-        }},
-        {{
-            "field": "Membership Start Date",
-            "operator": "LESS_THAN",
+            "operator": "GREATER_AND_EQUAL",
             "value": "{today}"
         }}
     ],
@@ -127,31 +114,42 @@ data = f'''
     }}
 }}
 '''
-# data = '''
-# {
-#     "searchFields": [
-#         {
-#             "field": "KeyAccess",
-#             "operator": "EQUAL",
-#             "value": 13
-#         }
-#     ],
-#     "outputFields": [
-#         "First Name", 
-#         "Last Name",
-#         "Preferred Name",
-#         "Account ID",
-#         "Membership Expiration Date",
-#         83,
-#         85
-#     ],
-#     "pagination": {
-#     "currentPage": 0,
-#     "pageSize": 200
-#     }
-# }
-# '''
-# outputFields 83 = KeyAccess, 85 = DiscourseID
 
 url = N_baseURL + resourcePath + queryParams
-responseActive = apiCall(httpVerb, url, data, N_headers)
+neon_accounts = {}
+responseAccounts = apiCall(httpVerb, url, data, N_headers)
+
+#re-shuffle the data into a format that's a little easier to work with
+for acct in responseAccounts["searchResults"]:
+    neon_accounts[acct["Account ID"]] = acct
+
+#Because Neon API is dumb, the "expiration date" of an account might not be real -- 
+#The API counts failed renewals as valid as long as automatic renewal is enabled
+httpVerb = 'GET'
+resourcePath = '/accounts/search'
+queryParams = ''
+data = ''
+
+for account in neon_accounts:
+    #An account is valid if it posesses at least one membership record with an
+    #end date >= today and a transaction status of SUCCEEDED
+    neon_accounts[account]["validMembership"] = False
+
+    resourcePath="/accounts/"+account+"/memberships"
+    url = N_baseURL + resourcePath + queryParams
+    memberships = apiCall(httpVerb, url, data, N_headers)
+
+    for membership in memberships["memberships"]:
+        if datetime.datetime.strptime(membership["termEndDate"], '%Y-%m-%d').date() >= today:
+            if membership["status"] == "SUCCEEDED":
+                #print(membership["id"]+" expires in the future and it SUCCEEDED")
+                neon_accounts[account]["validMembership"] = True
+            elif membership["status"] == "FAILED":
+                #print(membership["id"]+" expires in the future and it FAILED")
+                pass
+            else:
+                print(membership["id"]+" STATUS EXCEPTION WTF "+membership["status"])
+
+for account in neon_accounts:
+    if neon_accounts[account]["validMembership"] == True:
+        print(account+" Is a valid account")
