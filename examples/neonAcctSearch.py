@@ -5,7 +5,6 @@
 import requests
 from pprint import pprint
 import json
-import csv
 import base64
 import datetime
 from datetime import date
@@ -13,7 +12,7 @@ from datetime import date
 today = date.today()
 
 # Neon Account Info
-N_APIkey = ''
+N_APIkey = '' #DO NOT SUBMIT
 N_APIuser = 'atxhs'
 N_auth = f'{N_APIuser}:{N_APIkey}'
 N_baseURL = 'https://api.neoncrm.com/v2'
@@ -86,6 +85,8 @@ def apiCall(httpVerb, url, data, headers):
 
 ##### NEON #####
 # Start by getting list of members who expire in the future
+# outputFields 85 = DiscourseID  TODO = keycard number
+# TODO handle pagination for >200 accounts
 httpVerb = 'POST'
 resourcePath = '/accounts/search'
 queryParams = ''
@@ -105,7 +106,6 @@ data = f'''
         "Account ID",
         "Membership Expiration Date",
         "Membership Start Date",
-        83,
         85
     ],
     "pagination": {{
@@ -118,6 +118,8 @@ data = f'''
 url = N_baseURL + resourcePath + queryParams
 neon_accounts = {}
 responseAccounts = apiCall(httpVerb, url, data, N_headers)
+
+# exit()
 
 #re-shuffle the data into a format that's a little easier to work with
 for acct in responseAccounts["searchResults"]:
@@ -150,6 +152,11 @@ for account in neon_accounts:
             else:
                 print(membership["id"]+" STATUS EXCEPTION WTF "+membership["status"])
 
+print("Account ID,DiscourseID,Preferred Name,First Name,Last Name,Expiration Date")
 for account in neon_accounts:
     if neon_accounts[account]["validMembership"] == True:
-        print(account+" Is a valid account")
+        discourseIdStr = ""
+        if neon_accounts[account]["DiscourseID"] is not None:
+            discourseIdStr = neon_accounts[account]["DiscourseID"]
+        print(neon_accounts[account]["Account ID"]+","+discourseIdStr+","+neon_accounts[account]["Preferred Name"]+
+            ","+neon_accounts[account]["First Name"]+","+neon_accounts[account]["Last Name"]+","+neon_accounts[account]["Membership Expiration Date"])
