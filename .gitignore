@@ -1,6 +1,10 @@
 # Ignore private files
 *private/**
 
+# Ignore config file (for API keys)
+*config.py
+*__pycache__
+
 # Ignore Jupyter Notebooks
 JupyterNotebooks/**
 
