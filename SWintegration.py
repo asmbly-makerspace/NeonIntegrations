@@ -3,22 +3,22 @@
 #       Neon API docs - https://developer.neoncrm.com/api-v2/      #
 ###################################################################
 
-import requests
 from pprint import pprint
 from datetime import date
+from dateutil.relativedelta import relativedelta
+import requests
 import json
 import base64
 import pandas as pd
 
+from config import N_APIkey, N_APIuser, S_APIkey
+
 
 ### Smartwaiver Info
-S_APIkey = ''
 S_baseURL = 'https://api.smartwaiver.com'
 S_headers = {'Content-Type':'application/json','sw-api-key': S_APIkey}
 
 ### Neon Account Info
-N_APIkey    = ''
-N_APIuser   = 'atxhs'
 N_auth      = f'{N_APIuser}:{N_APIkey}'
 N_baseURL   = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
@@ -61,8 +61,12 @@ resourcePath = '/v4/waivers'
 # endDate = date(2020, 9, 1).isoformat()
 # startDate = date(2020, 9, 1).isoformat()
 # endDate = date(2020, 11, 20).isoformat()
-startDate = date(2020, 11, 20).isoformat()
-endDate = date(2020, 12, 5).isoformat()
+# startDate = date(2020, 11, 20).isoformat()
+# endDate = date(2020, 12, 5).isoformat()
+# startDate = date(2020, 12, 5).isoformat()
+# endDate = date.today()
+endDate = date.today()
+startDate = endDate - relativedelta(months=3) # Past 3 months
 queryParams = f'?templateId=5f037d852d421&limit=100&fromDts={startDate}&toDts={endDate}'
 data = ''
 url = S_baseURL + resourcePath + queryParams
