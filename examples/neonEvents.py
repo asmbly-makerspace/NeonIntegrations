@@ -2,18 +2,16 @@
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 #################################################################
 
-import requests
 from pprint import pprint
+import requests
 import json
-import hashlib
 import base64
 import time
-import hmac
+
+from config import N_APIkey, N_APIuser
 
 
 # Neon Account Info
-N_APIkey = ''
-N_APIuser = 'atxhs'
 N_auth = f'{N_APIuser}:{N_APIkey}'
 N_baseURL = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
@@ -89,7 +87,7 @@ data = '''
         {
             "field": "Event Category",
             "operator": "EQUAL",
-            "value": "Woodworking"
+            "value": "Orientation"
         }
     ],
     "outputFields": [
@@ -98,7 +96,10 @@ data = '''
         "Event Start Date",
         "Event Start Time",
         "Event End Date",
-        "Event End Time"
+        "Event End Time",
+        "Event Capacity",
+        "Event Registration Attendee Count"
+
     ],
     "pagination": {
     "currentPage": 0,
@@ -108,5 +109,5 @@ data = '''
 '''
 
 url = N_baseURL + resourcePath + queryParams
-print("### WOODWORKING EVENTS ###\n")
-responseWoodworkingEvents = apiCall(httpVerb, url, data, N_headers)
+print("### ORIENTATION EVENTS ###\n")
+responseEvents = apiCall(httpVerb, url, data, N_headers)

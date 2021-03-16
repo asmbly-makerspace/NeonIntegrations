@@ -3,22 +3,21 @@
 #       Neon API docs - https://developer.neoncrm.com/api-v2/      #
 ###################################################################
 
-import requests
 from pprint import pprint
 from datetime import date
+import requests
 import json
 import base64
 import pandas as pd
 
+from config import N_APIkey, N_APIuser, S_APIkey
+
 
 ### Smartwaiver Info
-S_APIkey = ''
 S_baseURL = 'https://api.smartwaiver.com'
 S_headers = {'Content-Type':'application/json','sw-api-key': S_APIkey}
 
 ### Neon Account Info
-N_APIkey    = ''
-N_APIuser   = 'atxhs'
 N_auth      = f'{N_APIuser}:{N_APIkey}'
 N_baseURL   = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()

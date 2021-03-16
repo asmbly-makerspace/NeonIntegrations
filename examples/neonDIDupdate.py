@@ -3,23 +3,21 @@
 #      Discourse API docs - https://docs.discourse.org/         #
 ################################################################
 
-import requests
 from pprint import pprint
+import requests
 import json
 import base64
 
+from config import N_APIkey, N_APIuser, D_APIkey, D_APIuser
+
 
 ### Neon Account Info
-N_APIkey    = ''
-N_APIuser   = 'atxhs'
 N_auth      = f'{N_APIuser}:{N_APIkey}'
 N_baseURL   = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
 N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}', 'NEON-API-VERSION': '2.1'}
 
 ### Discourse Account Info
-D_APIkey  = ''
-D_APIuser = ''
 D_baseURL = 'https://yo.atxhs.org'
 D_headers = {'Api-Key':D_APIkey,'Api-Username':D_APIuser}
 

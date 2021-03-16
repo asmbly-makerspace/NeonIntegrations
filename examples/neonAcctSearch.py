@@ -2,15 +2,15 @@
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 #################################################################
 
-import requests
 from pprint import pprint
+import requests
 import json
 import base64
 
+from config import N_APIkey, N_APIuser
+
 
 # Neon Account Info
-N_APIkey = ''
-N_APIuser = 'atxhs'
 N_auth = f'{N_APIuser}:{N_APIkey}'
 N_baseURL = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
@@ -61,6 +61,10 @@ url = N_baseURL + resourcePath + queryParams
 # print("### SEARCH FIELDS ###\n")
 # responseSearchFields = apiCall(httpVerb, url, data, N_headers)
 
+# # Membership relevant search fields:
+# 'Membership Start Date' - specific to most current membership (not a reflection of when they first joined)
+# 'Membership Expiration Date' - specific to most current membership
+
 
 ##### NEON #####
 # Get possible output fields for POST to /accounts/search
@@ -73,7 +77,7 @@ url = N_baseURL + resourcePath + queryParams
 # print("### OUTPUT FIELDS ###\n")
 # responseOutputFields = apiCall(httpVerb, url, data, N_headers)
 
-# # Membership related output fields
+# # Membership related output fields:
 # 'Membership Amount Paid',
 # 'Membership Change Type',
 # 'Membership Cost',
@@ -85,7 +89,7 @@ url = N_baseURL + resourcePath + queryParams
 # 'Membership Name',
 # 'Membership Start Date',
 
-
+today = "2020-12-22"
 
 ##### NEON #####
 # Get accounts where custom field KeyAccess equals Yes
@@ -98,11 +102,6 @@ data = f'''
     "searchFields": [
         {{
             "field": "Membership Expiration Date",
-            "operator": "GREATER_THAN",
-            "value": {today}
-        }},
-        {{
-            "field": "Membership Start Date",
             "operator": "LESS_THAN",
             "value": {today}
         }}
@@ -123,31 +122,13 @@ data = f'''
     }}
 }}
 '''
-# data = '''
-# {
-#     "searchFields": [
-#         {
-#             "field": "KeyAccess",
-#             "operator": "EQUAL",
-#             "value": 13
-#         }
-#     ],
-#     "outputFields": [
-#         "First Name", 
-#         "Last Name",
-#         "Preferred Name",
-#         "Account ID",
-#         "Membership Expiration Date",
-#         83,
-#         85
-#     ],
-#     "pagination": {
-#     "currentPage": 0,
-#     "pageSize": 200
-#     }
-# }
-# '''
 # outputFields 83 = KeyAccess, 85 = DiscourseID
+# ,
+#         {{
+#             "field": "Membership Start Date",
+#             "operator": "LESS_THAN",
+#             "value": {today}
+#         }}
 
 url = N_baseURL + resourcePath + queryParams
 responseActive = apiCall(httpVerb, url, data, N_headers)

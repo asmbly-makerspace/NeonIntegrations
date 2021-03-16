@@ -2,14 +2,14 @@
 #      Discourse API docs - https://docs.discourse.org/         #
 ################################################################
 
-import requests
 from pprint import pprint
+import requests
 import json
+
+from config import D_APIkey, D_APIuser
 
 
 ### Discourse Account Info
-D_APIkey  = ''
-D_APIuser = ''
 D_baseURL = 'https://yo.atxhs.org'
 D_headers = {'Api-Key':D_APIkey,'Api-Username':D_APIuser}
 
