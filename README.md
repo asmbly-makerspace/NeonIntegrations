@@ -1,12 +1,20 @@
 # ATXHS Neon Integrations
 
-In attempts to further simplify our administrative operations so that we can focus on making cool stuff rather than route work, we're working to integrate our member management software - NeonCRM - with all our other systems.  [Neon API docs](https://developer.neoncrm.com/api-v2/#/)
+In attempts to further simplify our administrative operations so that we can focus on making cool stuff rather than route work, we're working to integrate our member management software - NeonCRM - with all our other systems.  Completed scripts ready to set for automation are saved in the root directory.  Scripts in `/examples` are work in progress.  
+
+### [Neon API docs](https://developer.neoncrm.com/api-v2/#/)
+
+<br>
+<hr>
 
 ## How to contribute:
 
 First, thanks for collaborating!  If you are part of the organization, please create a branch to work then submit a pull request to main.  If you are outside the organization, we still welcome your collaboration!  Just fork the repo, then submit a pull request.
 
 NOTE:  You will need to create a separate file `config.py` with API keys (this will be ignored by git).  Variables used are `N_APIkey`, `N_APIuser`, `D_APIkey`, `D_APIuser`, and `S_APIkey`.
+
+<br>
+<hr>
 
 ## Systems to integrate:
 
@@ -48,6 +56,8 @@ See [SWintegration.py](https://github.com/ATXHS/NeonIntegrations/blob/main/SWint
 <br><br>
 
 <hr>
+
+
 
 ## About this repo
 

@@ -1,6 +1,13 @@
 ########### ATXHS NeonCRM & Discourse API Integrations ############
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 #################################################################
+#################################################################
+#  This helper script cleans up our Events page in the backend  #
+#  of Neon.  The default view shows all active events.          #
+#  Currently is no way to automatically move past events to     #
+#  archived within the product...                               #
+#       ... this script is our solution for that.               #
+#################################################################
 
 from pprint import pprint
 import requests
@@ -17,6 +24,7 @@ N_auth = f'{N_APIuser}:{N_APIkey}'
 N_baseURL = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
 N_headers = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}', 'NEON-API-VERSION': '2.1'}
+
 
 ## Helper function for API calls
 def apiCall(httpVerb, url, data, headers):

@@ -2,6 +2,12 @@
 # Smartwaiver API docs - https://api.smartwaiver.com/docs/v4/#api-_ #
 #       Neon API docs - https://developer.neoncrm.com/api-v2/      #
 ###################################################################
+###################################################################
+#  This helper script gets signed member agreements from the      #
+#  last 3 months and attempts to link them to account in Neon.    #
+#  When matches are found, the "WaiverCompleted" field in Neon    #
+#  is marked "Yes" for that account.                              #
+###################################################################
 
 from pprint import pprint
 from datetime import date
@@ -14,15 +20,15 @@ import pandas as pd
 from config import N_APIkey, N_APIuser, S_APIkey
 
 
-### Smartwaiver Info
-S_baseURL = 'https://api.smartwaiver.com'
-S_headers = {'Content-Type':'application/json','sw-api-key': S_APIkey}
-
 ### Neon Account Info
 N_auth      = f'{N_APIuser}:{N_APIkey}'
 N_baseURL   = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
 N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}', 'NEON-API-VERSION': '2.1'}
+
+### Smartwaiver Info
+S_baseURL = 'https://api.smartwaiver.com'
+S_headers = {'Content-Type':'application/json','sw-api-key': S_APIkey}
 
 
 ## Helper function for API calls
@@ -56,15 +62,15 @@ def apiCall(httpVerb, url, data, headers):
 # https://api.smartwaiver.com/docs/v4/#api-Waivers-WaiverList
 httpVerb = 'GET'
 resourcePath = '/v4/waivers'
-# Dates previously run left commented out for reference
-# startDate = date(2020, 5, 1).isoformat()
-# endDate = date(2020, 9, 1).isoformat()
-# startDate = date(2020, 9, 1).isoformat()
-# endDate = date(2020, 11, 20).isoformat()
-# startDate = date(2020, 11, 20).isoformat()
-# endDate = date(2020, 12, 5).isoformat()
-# startDate = date(2020, 12, 5).isoformat()
-# endDate = date.today()
+    # Dates previously run left commented out for reference
+    # startDate = date(2020, 5, 1).isoformat()
+    # endDate = date(2020, 9, 1).isoformat()
+    # startDate = date(2020, 9, 1).isoformat()
+    # endDate = date(2020, 11, 20).isoformat()
+    # startDate = date(2020, 11, 20).isoformat()
+    # endDate = date(2020, 12, 5).isoformat()
+    # startDate = date(2020, 12, 5).isoformat()
+    # endDate = date.today()
 endDate = date.today()
 startDate = endDate - relativedelta(months=3) # Past 3 months
 queryParams = f'?templateId=5f037d852d421&limit=100&fromDts={startDate}&toDts={endDate}'
