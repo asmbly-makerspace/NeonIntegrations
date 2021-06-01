@@ -1,4 +1,4 @@
-# ATXHS Neon Integrations
+# Asmbly Neon Integrations
 
 In attempts to further simplify our administrative operations so that we can focus on making cool stuff rather than route work, we're working to integrate our member management software - NeonCRM - with all our other systems.  Completed scripts ready to set for automation are saved in the root directory.  Scripts in `/examples` are work in progress.  
 
@@ -27,7 +27,9 @@ NOTE:  You will need to create a separate file `config.py` with API keys (this w
 - Neon -> Discourse to update Discourse group membership
 <br><br>
 
-### Smartwaiver - COMPLETED
+### Smartwaiver - DEPRECATING
+
+We are switching to signNow and will use their Zapier Neon CRM integration.
 
 See [SWintegration.py](https://github.com/ATXHS/NeonIntegrations/blob/main/SWintegration.py).  
 #### Needs to be set to run on a schedule.  Could be a monitored cron job or something else (AWS Lambda?).
@@ -42,10 +44,9 @@ See [SWintegration.py](https://github.com/ATXHS/NeonIntegrations/blob/main/SWint
     - https://api.smartwaiver.com/docs/v4/#api-Waivers-WaiverList
 <br><br>
 
-### Key fob system
+### OpenPath
 
 - Used for access into the space
-- We will need to research how to interact with this system (system change for better integration is in the works)
 <br><br>
 
 ### Skedda
@@ -61,4 +62,4 @@ See [SWintegration.py](https://github.com/ATXHS/NeonIntegrations/blob/main/SWint
 
 ## About this repo
 
-This is an open-source project for ATX Hackerspace.  Keep any API tokens or other private information should be stored in the `/private` directory or `config.py` both of which are ignored by git.  If you are interested in working on this project with us, please reach out to [it@atxhs.org](mailto:it@atxhs.org).
+This is an open-source project for Asmbly Makerspace, Inc. 501(c)3.  Keep any API tokens or other private information should be stored in the `/private` directory or `config.py` both of which are ignored by git.  If you are interested in working on this project with us, please reach out to [it@asmbly.org](mailto:it@asmbly.org).
