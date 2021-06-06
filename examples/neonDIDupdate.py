@@ -4,12 +4,11 @@
 ################################################################
 
 from pprint import pprint
-import requests
 import json
 import base64
 
 from config import N_APIkey, N_APIuser, D_APIkey, D_APIuser
-
+from util import apiCall
 
 ### Neon Account Info
 N_auth      = f'{N_APIuser}:{N_APIkey}'
@@ -22,28 +21,6 @@ D_baseURL = 'https://yo.atxhs.org'
 D_headers = {'Api-Key':D_APIkey,'Api-Username':D_APIuser}
 
 
-## Helper function for API calls
-def apiCall(httpVerb, url, data, headers):
-    # Make request
-    if httpVerb == 'GET':
-        response = requests.get(url, data=data, headers=headers)
-    elif httpVerb == 'POST':
-        response = requests.post(url, data=data, headers=headers)
-    elif httpVerb == 'PUT':
-        response = requests.put(url, data=data, headers=headers)
-    elif httpVerb == 'PATCH':
-        response = requests.patch(url, data=data, headers=headers)
-    elif httpVerb == 'DELETE':
-        response = requests.delete(url, data=data, headers=headers)
-    else:
-        print(f"HTTP verb {httpVerb} not recognized")
-
-    response = response.json()
-    ## Uncomment the following line to see the full response
-    # pprint(response)
-
-    return response
-
 ## Helper function to find the index of a list based on specified key and value
 def findI(list, key, value):
     for i, dict in enumerate(list):
@@ -54,34 +31,27 @@ def findI(list, key, value):
 
 ##### DISCOURSE #####
 # Get a list of all active users on Discourse
+# Discourse queries return max 100 results, so if we get 100 try for another page
 httpVerb ='GET'
-resourcePath = '/admin/users/list/active.json'
+page = 0
 data = ''
-url = D_baseURL + resourcePath
-memberResponse = apiCall(httpVerb, url, data, D_headers)
+fullDlist = []
 
-# Assign variable to hold full response starting with a value from the first call
-fullDlist = memberResponse
-print(f'{len(fullDlist)} active users retrieved from Discourse. Querying for more data...')
-
-# Set page variable to start at 2 and increment with each call
-# This is used as an additional parameter in subsequent calls 
-page = 2
-# Response is limited to a max of 100 entries, if the response returns 100, keep trying to get more data
-while len(memberResponse) == 100:
-    newPath = f'{resourcePath}?page={page}'
-    url = D_baseURL + newPath
+while True:
+    resourcePath = f'/admin/users/list/active.json?page={page}'
+    url = D_baseURL + resourcePath
     memberResponse = apiCall(httpVerb, url, data, D_headers)
-    print(f'Getting page {page}...')
     fullDlist = fullDlist + memberResponse
-    print(f'{len(fullDlist)} users collected.')
-    page += 1
-
-# Print to file
-with open('./Discourse/usersFull.json', 'w') as outfile:
-    json.dump(fullDlist, outfile, indent=4)
-
-print(f'{len(fullDlist)} active users on Discourse. Records saved to file as ./Discourse/usersFull.json')
+    if len(memberResponse) < 100:
+        print(f'{len(fullDlist)} active users retrieved from Discourse... saving to file as ./Discourse/usersFull.json')
+        # Print to file
+        #TODO create directory if it doesn't exist
+        with open('./Discourse/usersFull.json', 'w') as outfile:
+            json.dump(fullDlist, outfile, indent=4)
+        break
+    else:
+        print(f'{len(fullDlist)} active users retrieved from Discourse... Querying for more data.')
+        page += 1
 
 # Checking for weirdness... the weirdness is not coming from here.
 for i, response in enumerate(fullDlist):
@@ -98,49 +68,54 @@ for i, response in enumerate(fullDlist):
 ##### NEON #####
 # Get accounts where custom field DiscourseID is blank
 # members without DiscourseID saved in their account
+
+page = 0
 httpVerb = 'POST'
 resourcePath = '/accounts/search'
 queryParams = ''
-data = '''
-{
+fullSearchResults = []
+
+while True:
+    # Neon does pagination as a data parameter, so need to update data for each page
+    # outputFiels 85 = DiscourseID
+    data = f'''
+{{
     "searchFields": [
-        {
+        {{
             "field": "DiscourseID",
             "operator": "BLANK",
             "value": ""
-        }
+        }}
     ],
     "outputFields": [
         "First Name", 
         "Last Name",
         "Preferred Name",
         "Account ID",
-        83,
         85
     ],
-    "pagination": {
-    "currentPage": 0,
-    "pageSize": 200
-    }
-}
+    "pagination": {{
+    "currentPage": {page},
+    "pageSize": 100
+    }}
+}}
 '''
-# outputFiels 83 = KeyAccess, 85 = DiscourseID
-### Custom field info about DiscourseID
-# {'component': 'Account',
-#   'constituentReadOnly': False,
-#   'dataType': 'Text',
-#   'displayType': 'OneLineText',
-#   'groupId': '3',
-#   'id': '85',
-#   'name': 'DiscourseID',
-#   'status': 'ACTIVE'}
-url = N_baseURL + resourcePath + queryParams
-dIDmissingResponse = apiCall(httpVerb, url, data, N_headers)
-print(f'{len(dIDmissingResponse["searchResults"])} accounts in Neon missing Discourse IDs. Checking user list from Discourse to update accounts in Neon...')
+    url = N_baseURL + resourcePath + queryParams
+    dIDmissingResponse = apiCall(httpVerb, url, data, N_headers)
+    pprint(dIDmissingResponse.get("pagination"))
+    fullSearchResults = fullSearchResults + dIDmissingResponse.get("searchResults")
+    #intentionally incrementing page before checking totalPages 
+    #"page" is 0-based, "totalPages" is 1-based
+    page += 1
+    if page >= dIDmissingResponse.get("pagination").get("totalPages"):
+        break
 
+print(f'{len(fullSearchResults)} accounts in Neon missing Discourse IDs. Checking user list from Discourse to update accounts in Neon...')
+
+noDIDlist = []
 
 # Loop through response from Neon and update accounts where there is a matching name in Discourse
-for acct in dIDmissingResponse["searchResults"]:
+for acct in fullSearchResults:
     # Combine fields from Neon response to variable for fullname
     fullname = f'{acct["First Name"]} {acct["Last Name"]}'
     acctID = acct["Account ID"]
@@ -181,54 +156,13 @@ for acct in dIDmissingResponse["searchResults"]:
             '''
             url = N_baseURL + resourcePath + queryParams
             patch = apiCall(httpVerb, url, data, N_headers)
+    else:
+        #couldn't match a DiscourseID for this Neon account
+        noDIDlist.append(acct)
 
 
-# Second check for accounts without DiscourseID
-# See what's left after update
-##### NEON #####
-# Get accounts where custom field DiscourseID is blank
-# members without DiscourseID saved in their account
-httpVerb = 'POST'
-resourcePath = '/accounts/search'
-queryParams = ''
-data = '''
-{
-    "searchFields": [
-        {
-            "field": "DiscourseID",
-            "operator": "BLANK",
-            "value": ""
-        }
-    ],
-    "outputFields": [
-        "First Name", 
-        "Last Name",
-        "Preferred Name",
-        "Account ID",
-        83,
-        85
-    ],
-    "pagination": {
-    "currentPage": 0,
-    "pageSize": 200
-    }
-}
-'''
-# outputFiels 83 = KeyAccess, 85 = DiscourseID
-### Custom field info about DiscourseID
-# {'component': 'Account',
-#   'constituentReadOnly': False,
-#   'dataType': 'Text',
-#   'displayType': 'OneLineText',
-#   'groupId': '3',
-#   'id': '85',
-#   'name': 'DiscourseID',
-#   'status': 'ACTIVE'}
-url = N_baseURL + resourcePath + queryParams
-dIDmissingResponse = apiCall(httpVerb, url, data, N_headers)
-
-print(f'{len(dIDmissingResponse["searchResults"])} accounts in Neon still missing Discourse IDs. Report saved to file as ./Neon/dIDmissing.json for further review.')
+print(f'{len(noDIDlist)} accounts in Neon still missing Discourse IDs. Report saved to file as ./Neon/dIDmissing.json for further review.')
 
 # Print to file
 with open('./Neon/dIDmissing.json', 'w') as outfile:
-    json.dump(fullDlist, outfile, indent=4)
+    json.dump(noDIDlist, outfile, indent=4)
