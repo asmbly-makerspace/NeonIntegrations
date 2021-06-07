@@ -1,9 +1,11 @@
 # Ignore private files
 *private/**
+teachers.json
 
 # Ignore config file (for API keys)
 *config.py
 *__pycache__
+*.code-workspace
 
 # Ignore Jupyter Notebooks
 JupyterNotebooks/**
