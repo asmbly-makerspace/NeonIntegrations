@@ -6,6 +6,7 @@
 from pprint import pprint
 import json
 import base64
+import os
 
 from config import N_APIkey, N_APIuser, D_APIkey, D_APIuser
 from util import apiCall
@@ -20,15 +21,6 @@ N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_sig
 D_baseURL = 'https://yo.atxhs.org'
 D_headers = {'Api-Key':D_APIkey,'Api-Username':D_APIuser}
 
-
-## Helper function to find the index of a list based on specified key and value
-def findI(list, key, value):
-    for i, dict in enumerate(list):
-        if dict[key] == value:
-            return i
-    return -1
-
-
 ##### DISCOURSE #####
 # Get a list of all active users on Discourse
 # Discourse queries return max 100 results, so if we get 100 try for another page
@@ -37,109 +29,102 @@ page = 0
 data = ''
 fullDlist = []
 
-while True:
-    resourcePath = f'/admin/users/list/active.json?page={page}'
-    url = D_baseURL + resourcePath
-    memberResponse = apiCall(httpVerb, url, data, D_headers)
-    fullDlist = fullDlist + memberResponse
-    if len(memberResponse) < 100:
-        print(f'{len(fullDlist)} active users retrieved from Discourse... saving to file as ./Discourse/usersFull.json')
-        # Print to file
-        #TODO create directory if it doesn't exist
-        with open('./Discourse/usersFull.json', 'w') as outfile:
-            json.dump(fullDlist, outfile, indent=4)
-        break
-    else:
-        print(f'{len(fullDlist)} active users retrieved from Discourse... Querying for more data.')
-        page += 1
+#testing flag.  this should probably be a command-line arguement
+dryRun = False
 
-# Checking for weirdness... the weirdness is not coming from here.
-for i, response in enumerate(fullDlist):
-    dID = response['username']
-    if " " in dID:
-        print(f'WARNING! Discourse username found is not in a valid format. Value: {dID}\nCheck response at index {index}.')
-    elif "|" in dID:
-        print(f'WARNING! Discourse username found is not in a valid format. Value: {dID}\nCheck response at index {index}.')
-    else:
-        # print("All good")
-        continue
+discourseFilename = "Discourse/usersFull.json"
+neonFilename = "Neon/memberAccounts.json"
+neonDImissingFilename = "Neon/dIDmissing.json"
 
-
-##### NEON #####
-# Get accounts where custom field DiscourseID is blank
-# members without DiscourseID saved in their account
-
-page = 0
-httpVerb = 'POST'
-resourcePath = '/accounts/search'
-queryParams = ''
-fullSearchResults = []
-
-while True:
-    # Neon does pagination as a data parameter, so need to update data for each page
-    # outputFiels 85 = DiscourseID
-    data = f'''
-{{
-    "searchFields": [
-        {{
-            "field": "DiscourseID",
-            "operator": "BLANK",
-            "value": ""
-        }}
-    ],
-    "outputFields": [
-        "First Name", 
-        "Last Name",
-        "Preferred Name",
-        "Account ID",
-        85
-    ],
-    "pagination": {{
-    "currentPage": {page},
-    "pageSize": 100
-    }}
-}}
-'''
-    url = N_baseURL + resourcePath + queryParams
-    dIDmissingResponse = apiCall(httpVerb, url, data, N_headers)
-    pprint(dIDmissingResponse.get("pagination"))
-    fullSearchResults = fullSearchResults + dIDmissingResponse.get("searchResults")
-    #intentionally incrementing page before checking totalPages 
-    #"page" is 0-based, "totalPages" is 1-based
-    page += 1
-    if page >= dIDmissingResponse.get("pagination").get("totalPages"):
-        break
-
-print(f'{len(fullSearchResults)} accounts in Neon missing Discourse IDs. Checking user list from Discourse to update accounts in Neon...')
-
+neonAccountList = []
 noDIDlist = []
+matchedDiscourseIDs = 0
+fixedDiscourseIDs = 0
+
+#first off, check that we have a Neon account list before spending a bunch of time on the Discourse API
+with open(neonFilename) as neonFile:
+    neonAccountJson = json.load(neonFile)
+    for account in neonAccountJson:
+        neonAccountList.append(neonAccountJson.get(account))
+
+
+#check if we have user data cached.  If we do, use it.
+if os.path.exists(discourseFilename) and os.access(discourseFilename, os.R_OK):
+    with open(discourseFilename) as discourseFile:
+        fullDlist = json.load(discourseFile)
+else:
+    #before doing all the Discourse-fetching, make sure we can write our output file
+    outfile = open(neonFilename, 'w')
+
+    while True:
+        resourcePath = f'/admin/users/list/active.json?page={page}'
+        url = D_baseURL + resourcePath
+        memberResponse = apiCall(httpVerb, url, data, D_headers)
+        fullDlist = fullDlist + memberResponse
+        if len(memberResponse) < 100:
+            break
+        else:
+            print(f'{len(fullDlist)} active users retrieved from Discourse... Querying for more data.')
+            page += 1
+
+    # Fetching emails and checking for weirdness (the weirdness is not coming from here.)
+    # this email check is janky somehow - sometimes we get "email":null for accounts with valid emails in their Discourse profile
+    # so far the error count has been low enough I've just been updating them in Neon manually
+    for i, response in enumerate(fullDlist):
+        dID = response['username']
+        resourcePath = f'/users/{dID}/emails.json'
+        url = D_baseURL + resourcePath
+        emailResponse = apiCall(httpVerb, url, data, D_headers)
+        fullDlist[i]["email"]=emailResponse.get("email")
+        fullDlist[i]["secondary_emails"]=emailResponse.get("secondary_emails")
+        if " " in dID:
+            print(f'WARNING! Discourse username found is not in a valid format. Value: {dID}\nCheck response at index {i}.')
+        elif "|" in dID:
+            print(f'WARNING! Discourse username found is not in a valid format. Value: {dID}\nCheck response at index {i}.')
+        else:
+            # print("All good")
+            continue
+
+    print(f'{len(fullDlist)} active users retrieved from Discourse... saving to file as {discourseFilename}')
+    json.dump(fullDlist, outfile, indent=4)
 
 # Loop through response from Neon and update accounts where there is a matching name in Discourse
-for acct in fullSearchResults:
-    # Combine fields from Neon response to variable for fullname
+for acct in neonAccountList:
     fullname = f'{acct["First Name"]} {acct["Last Name"]}'
-    acctID = acct["Account ID"]
-    # Check if any names from Discourse response match names in Neon
-    if any(name.get("name") == fullname for name in fullDlist):
-        # Find the index of the item in the Discourse response object that matches the name
-        index = findI(fullDlist, "name", fullname)
-        print(f'{fullname} (Neon Acct #{acctID}) has a Discourse ID at index {index}')
-        # Set the Discourse username at this index to variable to use in PATCH to update Neon
-        dID = fullDlist[index]["username"]
-        # Check for invalid formatting on responses (found weirdness in Neon)
-        if " " in dID:
-            print(f'WARNING! Discourse username found is not in a valid format. Value: {dID}\nCheck response at index {index}.')
-        elif "|" in dID:
-            print(f'WARNING! Discourse username found is not in a valid format. Value: {dID}\nCheck response at index {index}.')
-        # Update accounts if formatting errors not detected
+    email = acct["Email 1"]
+    neonID = acct.get('Account ID')
+    if acct.get("DiscourseID") is not None:
+        dID = acct.get("DiscourseID")
+        if any(dUser.get("username") == dID for dUser in fullDlist):
+            matchedDiscourseIDs += 1
+            continue
         else:
-            print(f'Updating DiscourseID to {dID} for Neon account #{acctID} - {fullname}')
+            print(f"{fullname}'s dID {dID} doesn't actually exist in Discourse (Neon ID {neonID})")
+    else:
+        print(f"{fullname} doesn't have a DiscourseID (Neon ID {neonID})")
 
+    dID = ""
+    for Daccount in fullDlist:
+        if Daccount.get("email") and Daccount.get("email").casefold() == email.casefold():
+            dID = Daccount.get("username")
+            #print(f'{fullname} (Neon Acct #{neonID}) matches email with Discourse ID {dID}')
+            break
+        elif Daccount.get("name") and Daccount.get("name").casefold() == fullname.casefold():
+            dID = Daccount.get("username")
+            #print(f'{fullname} (Neon Acct #{neonID}) matches name with Discourse ID {dID}')
+            break
+
+    if dID != "":
+        fixedDiscourseIDs += 1
+        if dryRun == True:
+            print(f'   Could update DiscourseID to {dID} for Neon account #{neonID} - {fullname} {email}')
+        else:
+            print(f'   Updating DiscourseID to {dID} for Neon account #{neonID} - {fullname} {email}')
             ##### NEON #####
             # Update part of an account
             # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
             httpVerb = 'PATCH'
-            resourcePath = f'/accounts/{acctID}'
+            resourcePath = f'/accounts/{neonID}'
             queryParams = '?category=Account'
             data = f'''
             {{
@@ -157,12 +142,17 @@ for acct in fullSearchResults:
             url = N_baseURL + resourcePath + queryParams
             patch = apiCall(httpVerb, url, data, N_headers)
     else:
-        #couldn't match a DiscourseID for this Neon account
+        print(f'   No DiscourseID found for Neon account #{neonID} - {fullname} {email}')
         noDIDlist.append(acct)
 
+print("-------------------")
+print(f'{len(neonAccountList)} Neon accounts were checked')
+print(f'{matchedDiscourseIDs} had valid Discourse IDs')
+print(f'{fixedDiscourseIDs} were updated based on name or email matching' )
+print(f'{len(noDIDlist)} accounts still need Discourse IDs.')
 
-print(f'{len(noDIDlist)} accounts in Neon still missing Discourse IDs. Report saved to file as ./Neon/dIDmissing.json for further review.')
-
-# Print to file
-with open('./Neon/dIDmissing.json', 'w') as outfile:
+# Print to file.  Do this open at the very end so Neon updates
+# complete even if the report can't be saved
+with open(neonDImissingFilename, 'w') as outfile:
+    print(f'Report saved to file as {neonDImissingFilename} for further review.')
     json.dump(noDIDlist, outfile, indent=4)
