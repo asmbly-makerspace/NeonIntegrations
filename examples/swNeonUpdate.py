@@ -11,7 +11,7 @@ import base64
 import pandas as pd
 
 from config import N_APIkey, N_APIuser, S_APIkey
-
+from util import apiCall
 
 ### Smartwaiver Info
 S_baseURL = 'https://api.smartwaiver.com'
@@ -22,32 +22,6 @@ N_auth      = f'{N_APIuser}:{N_APIkey}'
 N_baseURL   = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
 N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}', 'NEON-API-VERSION': '2.1'}
-
-
-## Helper function for API calls
-def apiCall(httpVerb, url, data, headers):
-    # Make request
-    if httpVerb == 'GET':
-        response = requests.get(url, data=data, headers=headers)
-    elif httpVerb == 'POST':
-        response = requests.post(url, data=data, headers=headers)
-    elif httpVerb == 'PUT':
-        response = requests.put(url, data=data, headers=headers)
-    elif httpVerb == 'PATCH':
-        response = requests.patch(url, data=data, headers=headers)
-    elif httpVerb == 'DELETE':
-        response = requests.delete(url, data=data, headers=headers)
-    else:
-        print(f"HTTP verb {httpVerb} not recognized")
-
-    if (response.status_code == 200):
-        print(f"Success - URL: {url}")
-
-    response = response.json()
-    ## Uncomment the following line to see the full response
-    # pprint(response)
-
-    return response
 
 
 ##### SMARTWAIVER #####
