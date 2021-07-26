@@ -54,7 +54,7 @@ if os.path.exists(discourseFilename) and os.access(discourseFilename, os.R_OK):
         fullDlist = json.load(discourseFile)
 else:
     #before doing all the Discourse-fetching, make sure we can write our output file
-    outfile = open(neonFilename, 'w')
+    outfile = open(discourseFilename, 'w')
 
     while True:
         resourcePath = f'/admin/users/list/active.json?page={page}'
