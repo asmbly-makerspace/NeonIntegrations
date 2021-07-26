@@ -2,7 +2,6 @@
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 #################################################################
 
-import requests
 from pprint import pprint
 import json
 import base64
@@ -37,19 +36,11 @@ neon_accounts = {}
 #179 is WaiverDate
 #88 is KeyCardID
 #178 is OpenPathID
-
-    # "searchFields": [
-    #     {{
-    #         "field": "Membership Expiration Date",
-    #         "operator": "GREATER_AND_EQUAL",
-    #         "value": "{today}"
-    #     }}
-    # ],
+#180 is AccessSuspended
 
 
 while True:
     # Neon does pagination as a data parameter, so need to update data for each page
-    # outputFiels 85 = DiscourseID
     data = f'''
 {{
     "searchFields": [
@@ -68,7 +59,7 @@ while True:
         "Email 3",
         "Membership Expiration Date",
         "Membership Start Date",
-        85, 77, 179, 178, 88
+        85, 77, 179, 178, 88, 180, 182
     ],
     "pagination": {{
     "currentPage": {page},
@@ -76,7 +67,6 @@ while True:
     }}
 }}
 '''
-
     url = N_baseURL + resourcePath
     responseAccounts = apiCall(httpVerb, url, data, N_headers)
     pprint(responseAccounts.get("pagination"))
@@ -102,6 +92,8 @@ failedMemberships = 0
 expiredMemberships = 0
 
 for account in neon_accounts:
+    #TODO print some progress info so it doesn't look like the script hung
+    
     #An account is valid if it posesses at least one membership record with an
     #end date >= today and a transaction status of SUCCEEDED
     neon_accounts[account]["validMembership"] = False
