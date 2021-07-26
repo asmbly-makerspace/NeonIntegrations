@@ -15,8 +15,10 @@ def apiCall(httpVerb, url, data, headers):
         response = requests.delete(url, data=data, headers=headers)
     else:
         print(f"HTTP verb {httpVerb} not recognized")
-
-    response = response.json()
-    #pprint(response)
+    try:
+        response = response.json()
+    except:
+        #print("Failed to parse response in util.apiCall")
+        return ""
 
     return response
