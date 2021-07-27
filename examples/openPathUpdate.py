@@ -25,7 +25,7 @@ N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
 N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}', 'NEON-API-VERSION': '2.1'}
 
 #dryRun means we do queries but don't write any changes to Neon or OP
-dryRun = True
+dryRun = False
 
 neonFilename = "Neon/memberAccounts.json"
 
@@ -246,7 +246,7 @@ for account in neonAccounts:
 
                     url=url = O_baseURL + resourcePath
                     opResponse = apiCall(httpVerb, url, data, O_headers)
-                    pprint(opResponse)
+                    #pprint(opResponse)
                     if opResponse.get("data") and opResponse.get("data").get("id"):
                         ##########################
                         #activate mobile credential
