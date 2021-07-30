@@ -44,6 +44,7 @@ opMissingWaiver = 0
 opMissingTour = 0
 opNotReady = 0
 opReady = 0
+opFailedToAdd = 0
 
 for account in neonAccounts:
     #manage existing OP accounts
@@ -154,7 +155,8 @@ for account in neonAccounts:
                 opResponse = apiCall(httpVerb, url, data, O_headers)
                 #pprint(opResponse)
                 if opResponse.get("error"):
-                    print(f'''OpenPath Error: {opResponse.get("message")}''')
+                    print(f'''OpenPath Error adding user {neonAccounts[account].get("Email 1")}: {opResponse.get("message")}''')
+                    opFailedToAdd += 1
                 elif opResponse.get("data"):
                     opUser = opResponse.get("data")
                     createdTime = datetime.strptime(opUser.get("createdAt"), "%Y-%m-%dT%H:%M:%S.000Z")
@@ -301,6 +303,8 @@ for account in neonAccounts:
                     opMissingTour += 1
 
 print (f"Found {opExists} subscribers in OpenPath, {opReady} subscribers to add and {opNotReady} subscribers not ready yet")
+if (opFailedToAdd):
+    print(f"FAILED to add {opFailedToAdd} users")
 print (f"({opSuspended} suspended; {opMissingTour} missing the tour; {opMissingWaiver} missing the waiver)")
 
 #stage 2 - audit for orphan OP Users
