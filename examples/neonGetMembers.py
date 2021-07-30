@@ -119,7 +119,9 @@ for account in neon_accounts:
                 #print(membership["id"]+" expires in the future and it FAILED")
                 pass
             elif membership["status"] == "DEFERRED":
-                print("WARNING current subscription is DEFERRED for neon account "+membership["id"])
+                #known wonky Neon account - don't keep warning for it
+                if membership["id"] != 999:
+                    print("WARNING current subscription is DEFERRED for neon account "+membership["id"])
                 pass
             else:
                 print(membership["id"]+" STATUS EXCEPTION WTF "+membership["status"])
