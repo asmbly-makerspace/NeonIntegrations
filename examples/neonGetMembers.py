@@ -98,37 +98,55 @@ for account in neon_accounts:
     #end date >= today and a transaction status of SUCCEEDED
     neon_accounts[account]["validMembership"] = False
     accountCount += 1
-    failedRenewal = False
 
+    #If Neon thinks the expiration date is in the past, it's surely in the past.  don't bother checking details.
+    #NOTE that Neon sets "Membership Start Date" to start of the most recent membership term, not the oldest.  This means
+    #     expired members that had a renewal will show incorrect start dates by our counting.
+    #     I figure we won't need that data, so don't bother pulling membership details to correct it.
+    if datetime.datetime.strptime(neon_accounts[account]["Membership Expiration Date"], '%Y-%m-%d').date() < today:
+        expiredMemberships += 1
+        continue
+
+    #Neon counts a failed renewal as a valid subscription so long as automatic renewal is enabled.
+    #WE only think a subscription is valid if the subscriber actually paid for it, so check for a successful payment.
     resourcePath="/accounts/"+account+"/memberships"
     url = N_baseURL + resourcePath
     memberships = apiCall(httpVerb, url, data, N_headers)
+    latestMembershipExpiration = datetime.date(1970, 1, 1)
+    firstMembershipStart = today
+    failedRenewal = False
 
     for membership in memberships["memberships"]:
-        #TODO fixup "Membership Expiration Date" field for accounts with failed renewals
-        # subtract membership term from expiration date (I think?)
-        #Right now, the config of failed renewals is expiration-in-the-future, with validMembership=false
-        if datetime.datetime.strptime(membership["termEndDate"], '%Y-%m-%d').date() >= today:
-            if membership["status"] == "SUCCEEDED":
-                successfulMemberships += 1
-                #print(membership["id"]+" expires in the future and it SUCCEEDED")
-                neon_accounts[account]["validMembership"] = True
-            elif membership["status"] == "FAILED":
+        membershipExpiration = datetime.datetime.strptime(membership["termEndDate"], '%Y-%m-%d').date()
+        membershipStart = datetime.datetime.strptime(membership["termStartDate"], '%Y-%m-%d').date()
+        if membership["status"] == "SUCCEEDED":
+            if membershipExpiration > latestMembershipExpiration:
+                latestMembershipExpiration = membershipExpiration
+            if membershipStart < firstMembershipStart:
+                firstMembershipStart = membershipStart
+        elif membership["status"] == "FAILED":
+            #there SHOULD only be one failed membership (renewal) that expires in the future
+            if membershipExpiration > today:
                 failedRenewal = True
-                failedMemberships += 1
-                #print(membership["id"]+" expires in the future and it FAILED")
-                pass
-            elif membership["status"] == "DEFERRED":
-                #known wonky Neon account - don't keep warning for it
-                if membership["id"] != 999:
-                    print("WARNING current subscription is DEFERRED for neon account "+membership["id"])
-                pass
-            else:
-                print(membership["id"]+" STATUS EXCEPTION WTF "+membership["status"])
-    
-    if neon_accounts[account]["validMembership"] != True and failedRenewal != True:
-        expiredMemberships += 1
-        #print(membership["id"]+" expired in the past")
+                #BUT don't break here just in case something weird is going on (like, a failed monthly renewal replaced by an annual purchase)
+                #if there's a valid membership, we don't technically care if there's also an expired one
+        elif membership["status"] == "DEFERRED" or membership["status"] == "CANCELED":
+            #DEFERRED and CANCELED memberships aren't paid and don't allow access to the space.  Just ignore them.
+            pass
+        else:
+            print(f'''MEMBER {neon_accounts[account]["Account ID"]} UNKNOWN STATUS EXCEPTION: "{membership["status"]}"''')
+
+
+    if  latestMembershipExpiration >= today:
+        successfulMemberships += 1
+        neon_accounts[account]["validMembership"] = True
+    else:
+        #if we made it this far, it means we didn't find a valid membership
+        if failedRenewal:
+            failedMemberships += 1
+
+        #print(f'''Correcting expiration date on account {neon_accounts[account]["Account ID"]} {neon_accounts[account]["Membership Expiration Date"]} to {latestMembershipExpiration} ''')
+        neon_accounts[account]["Membership Expiration Date"] = str(latestMembershipExpiration)
 
 print (f"In {accountCount} Neon accounts we found {successfulMemberships} paid memberships, {expiredMemberships} expired memberships, and {failedMemberships} failed renewals")
 
