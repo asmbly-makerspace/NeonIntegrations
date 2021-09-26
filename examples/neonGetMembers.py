@@ -130,8 +130,8 @@ for account in neon_accounts:
                 failedRenewal = True
                 #BUT don't break here just in case something weird is going on (like, a failed monthly renewal replaced by an annual purchase)
                 #if there's a valid membership, we don't technically care if there's also an expired one
-        elif membership["status"] == "DEFERRED" or membership["status"] == "CANCELED":
-            #DEFERRED and CANCELED memberships aren't paid and don't allow access to the space.  Just ignore them.
+        elif membership["status"] == "DEFERRED" or membership["status"] == "CANCELED" or membership["status"] == "REFUNDED":
+            #DEFERRED, CANCELED, and REFUNDED memberships aren't paid and don't allow access to the space.  Just ignore them.
             pass
         else:
             print(f'''MEMBER {neon_accounts[account]["Account ID"]} UNKNOWN STATUS EXCEPTION: "{membership["status"]}"''')
