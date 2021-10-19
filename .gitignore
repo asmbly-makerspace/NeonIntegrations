@@ -5,6 +5,7 @@ teachers.json
 # Ignore config file (for API keys)
 *config.py
 *credentials.json
+*.idea/*
 *__pycache__
 *.code-workspace
 
