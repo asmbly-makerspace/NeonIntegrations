@@ -56,6 +56,9 @@ for account in neonAccounts:
         #    - TODO add keyfob credential if one doesn't exist and KeyFobID in Neon is valid (user access is still controlled by group membership)
         opExists += 1
 
+        ### FIXME #### 
+        # we should avoid fetching OP groups for every Neon user.  the script is currently O(big)!
+        # check if an all-users query includes groups.  that'd surely be faster!
         #get OP groups for user
         exception = False
         subscriber = False
@@ -82,7 +85,7 @@ for account in neonAccounts:
                     #log WTF?
                     pass
 
-        if (neonAccounts[account].get("validMembership") == True and neonAccounts[account].get("AccessSuspended") != True and
+        if (neonAccounts[account].get("validMembership") == True and not neonAccounts[account].get("AccessSuspended") and
             neonAccounts[account].get("WaiverDate") and neonAccounts[account].get("FacilityTourDate")):
             #I deserve access to the space!
             #check group membership; add subscribers if not present
@@ -104,13 +107,12 @@ for account in neonAccounts:
             #TODO check for valid credential; provision mobile credential and send activation email if one doesn't exist
             pass
 
-        else:
+        elif subscriber:
             #If OP user is not in co-working, stewards, or board groups, remove all group memberships
             #otherwise, send exception email
             if not exception:
                 print(f'''Disabling access for {neonAccounts[account].get("First Name")} {neonAccounts[account].get("Last Name")} ({neonAccounts[account].get("Email 1")})''')
                 if not dryRun:
-                    #don't know if this works!
                     httpVerb = 'PUT'
                     resourcePath = f'''/users/{neonAccounts[account].get("OpenPathID")}/groupIds'''
 
@@ -122,13 +124,12 @@ for account in neonAccounts:
 
                     url=url = O_baseURL + resourcePath
                     opResponse = apiCall(httpVerb, url, data, O_headers)
-                    pass
             else:
                 print (f'''I'm not disabling {neonAccounts[account].get("First Name")} {neonAccounts[account].get("Last Name")} ({neonAccounts[account].get("Email 1")}) becuase they're special''')
                 #TODO email or something
     else:
         #I don't exist in OpenPath.  Add an account if I need one
-        if (neonAccounts[account].get("validMembership") == True and neonAccounts[account].get("AccessSuspended") != True and
+        if (neonAccounts[account].get("validMembership") == True and not neonAccounts[account].get("AccessSuspended") and
             neonAccounts[account].get("WaiverDate") and neonAccounts[account].get("FacilityTourDate")):
             opReady += 1
             #print(f'Adding OP account for {neonAccounts[account].get("First Name")} {neonAccounts[account].get("Last Name")}')
@@ -295,14 +296,16 @@ for account in neonAccounts:
         else:
             if neonAccounts[account].get("validMembership") == True:
                 opNotReady += 1
-                if neonAccounts[account].get("AccessSuspended") == True:
+                if neonAccounts[account].get("AccessSuspended"):
                     opSuspended += 1
-                if not neonAccounts[account].get("WaiverDate"):
+                if not neonAccounts[account].get("WaiverDate") and not neonAccounts[account].get("AccessSuspended"):
                     opMissingWaiver += 1
-                if not neonAccounts[account].get("FacilityTourDate"):
+                if not neonAccounts[account].get("FacilityTourDate") and not neonAccounts[account].get("AccessSuspended"):
                     opMissingTour += 1
+                    if not neonAccounts[account].get("AccessSuspended"):
+                        print (f'''{neonAccounts[account].get("First Name")} {neonAccounts[account].get("Last Name")} ({neonAccounts[account].get("Email 1")}) is missing the tour''')
 
-print (f"Found {opExists} subscribers in OpenPath, {opReady} subscribers to add and {opNotReady} subscribers not ready yet")
+print (f"Found {opExists} Neon accounts in OpenPath, {opReady} subscribers to add and {opNotReady} subscribers not ready yet")
 if (opFailedToAdd):
     print(f"FAILED to add {opFailedToAdd} users")
 print (f"({opSuspended} suspended; {opMissingTour} missing the tour; {opMissingWaiver} missing the waiver)")
