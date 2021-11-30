@@ -25,8 +25,10 @@ opUsers = openPathUtil.getAllUsers()
 
 for account in neonAccounts:
     if neonAccounts[account].get("OpenPathID"):
-        openPathUtil.updateGroups(neonAccounts[account], opUsers.get(int(neonAccounts[account].get("OpenPathID"))).get("groups"))
+        openPathUtil.updateGroups(neonAccounts[account], 
+                                    openPathGroups=opUsers.get(int(neonAccounts[account].get("OpenPathID"))).get("groups"))
     elif neonUtil.accountHasFacilityAccess(neonAccounts[account]):
         neonAccounts[account] = openPathUtil.createUser(neonAccounts[account])
-        openPathUtil.updateGroups(neonAccounts[account], []) #pass empty groups list to skip the http get
+        openPathUtil.updateGroups(neonAccounts[account],
+                                    openPathGroups=[]) #pass empty groups list to skip the http get
         openPathUtil.createMobileCredential(neonAccounts[account])

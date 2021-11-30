@@ -9,6 +9,8 @@ import requests
 import logging
 
 import neonUtil
+import AsmblyMessageFactory
+import gmailUtil
 from config import O_APIkey, O_APIuser
 
 dryRun = False
@@ -131,7 +133,7 @@ def disableAccount(neonAccount):
 #################################################################################
 # Given a Neon account and optionally an OpenPath user, perform necessary updates
 #################################################################################
-def updateGroups(neonAccount, openPathGroups=None):
+def updateGroups(neonAccount, openPathGroups=None, email=False):
     if not neonAccount.get("OpenPathID"):
         logging.error("No OpenPathID found to update groups")
         return
@@ -167,9 +169,13 @@ def updateGroups(neonAccount, openPathGroups=None):
     if neonUtil.accountHasFacilityAccess(neonAccount):
         if not OPsubscriber:
             enableAccount(neonAccount)
+            if (email):
+                gmailUtil.sendMIMEmessage(AsmblyMessageFactory.getOpenPathEnableMessage(neonAccount.get("Email 1"), neonAccount.get("fullName")))
     elif OPsubscriber:
         #If OP user is not in co-working, stewards, or board groups, remove all group memberships
         if not OPexception:
+            if (email):
+                gmailUtil.sendMIMEmessage(AsmblyMessageFactory.getOpenPathDisableMessage(neonAccount.get("Email 1"), neonAccount.get("fullName")))
             disableAccount(neonAccount)
         else:
             logging.warning(f'''I'm not disabling {neonAccount.get("fullName")} ({neonAccount.get("Email 1")}) becuase they're special''')
@@ -269,3 +275,17 @@ def createMobileCredential(neonAccount):
             logging.error("Created a mobile credential but unable to find ID")
     else:
         logger.warn("DryRun in openPathUtil.createMobileCredential()")
+
+#################################################################################
+# Given a single Neon ID, perform necessary OpenPath updates
+#################################################################################
+def updateOpenPathByNeonId(neonId):
+    logging.info(f"Updating Neon ID {neonId}")
+    account = neonUtil.getMemberById(neonId)
+    #logging.debug(account)
+    if account.get("OpenPathID"):
+        updateGroups(account, email=True)
+    elif accountHasFacilityAccess(account):
+        account = createUser(account)
+        updateGroups(account, groups=[]) #pass empty groups list to skip the http get
+        createMobileCredential(account)
