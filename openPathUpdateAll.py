@@ -6,8 +6,21 @@ import neonUtil
 import openPathUtil
 import logging
 import json
+from email.mime.text import MIMEText
+from AsmblyMessageFactory import commonMessageFooter
+import gmailUtil
 
 logging.basicConfig(level=logging.INFO)
+
+def getWarningText(warningUsers):
+    if len(warningUsers) == 0:
+        return ""
+
+    list_separator = '\n      '
+    return f'''
+    WARNING: {len(warningUsers)} USER{'S' if len(warningUsers) > 1 else ''} HAVE FACILITY ACCESS WITHOUT A SIGNED WAIVER:
+      {list_separator.join(warningUsers)}'''
+
 
 neonAccounts = {}
 
@@ -23,12 +36,56 @@ neonAccounts = neonUtil.getAllMembers()
 
 opUsers = openPathUtil.getAllUsers()
 
+##### Initialize these counts to number of zombies in Freshbooks
+##### When this number falls to 0, update the email body text
+subscriberCount = 34
+missingWaiverCount = 34
+lastFreshbooksUpdate = "01-Dec-2021"
+
+facilityUserCount = 0
+
+warningUsers = []
+missingTourUsers = []
+
 for account in neonAccounts:
+    if neonAccounts[account].get("validMembership"):
+        subscriberCount += 1
+    if neonUtil.accountHasFacilityAccess(neonAccounts[account]):
+        facilityUserCount += 1
+
     if neonAccounts[account].get("OpenPathID"):
         openPathUtil.updateGroups(neonAccounts[account], 
                                     openPathGroups=opUsers.get(int(neonAccounts[account].get("OpenPathID"))).get("groups"))
+        #note that this isn't necessarily 100% accurate, because we have Neon users with provisioned OpenPath IDs and no access groups
+        #assuming that typical users who gained and lost openPath access have a signed waiver
+        if not neonAccounts[account].get("WaiverDate"):
+            warningUsers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
     elif neonUtil.accountHasFacilityAccess(neonAccounts[account]):
         neonAccounts[account] = openPathUtil.createUser(neonAccounts[account])
         openPathUtil.updateGroups(neonAccounts[account],
                                     openPathGroups=[]) #pass empty groups list to skip the http get
         openPathUtil.createMobileCredential(neonAccounts[account])
+    elif neonAccounts[account].get("validMembership"):
+        if not neonAccounts[account].get("WaiverDate"):
+            missingWaiverCount += 1
+        if not neonAccounts[account].get("FacilityTourDate"):
+            missingTourUsers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
+
+list_separator = '\n            '
+
+msg = MIMEText(f'''
+    Today Asmbly has {subscriberCount} paying subscribers.  (Freshbooks count last updated on {lastFreshbooksUpdate})
+
+    Of those:
+        {facilityUserCount} have facility access
+        {missingWaiverCount} are missing the waiver
+        {len(missingTourUsers)} are missing the tour{':' if len(missingTourUsers) > 0 else ' (yay!)'}
+            {list_separator.join(missingTourUsers)}
+{getWarningText(warningUsers)}
+{commonMessageFooter}
+''')
+msg['To'] = "membership@asmbly.org"
+msg['Subject'] = "Asmbly Daily Subscriber Update"
+
+gmailUtil.sendMIMEmessage(msg)
+#print(msg)
