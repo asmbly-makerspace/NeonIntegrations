@@ -68,6 +68,12 @@ def appendMemberships(neonAccount):
     neonAccount["validMembership"] = False
     memberships = response.json().get("memberships")
 
+    #TODO there's another scenario where a Neon membership is valid that we're not catching here
+    #if the most recent membership is expired yesterday
+    #  and the most recent membership is SUCCEEDED
+    #  and auto-renewal is enabled on the account (how to check???)
+    #this catches the scenario where Neon just hasn't gotten around to processing the renewal yet.
+
     if len(memberships) > 0:
         latestMembershipExpiration = datetime.date(1970, 1, 1)
         firstMembershipStart = today

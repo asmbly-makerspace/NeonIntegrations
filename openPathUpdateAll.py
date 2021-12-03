@@ -18,7 +18,7 @@ def getWarningText(warningUsers):
 
     list_separator = '\n      '
     return f'''
-    WARNING: {len(warningUsers)} USER{'S' if len(warningUsers) > 1 else ''} HAVE FACILITY ACCESS WITHOUT A SIGNED WAIVER:
+    WARNING: {len(warningUsers)} USER{'S HAVE' if len(warningUsers) > 1 else ' HAS'} FACILITY ACCESS WITHOUT A SIGNED WAIVER:
       {list_separator.join(warningUsers)}'''
 
 
@@ -45,7 +45,7 @@ lastFreshbooksUpdate = "01-Dec-2021"
 facilityUserCount = 0
 
 warningUsers = []
-missingTourUsers = []
+missingTourUsers = {}
 
 for account in neonAccounts:
     if neonAccounts[account].get("validMembership"):
@@ -69,7 +69,8 @@ for account in neonAccounts:
         if not neonAccounts[account].get("WaiverDate"):
             missingWaiverCount += 1
         if not neonAccounts[account].get("FacilityTourDate"):
-            missingTourUsers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
+            startDate = neonAccounts[account].get("Membership Start Date")
+            missingTourUsers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
 
 list_separator = '\n            '
 
@@ -80,7 +81,7 @@ msg = MIMEText(f'''
         {facilityUserCount} have facility access
         {missingWaiverCount} are missing the waiver
         {len(missingTourUsers)} are missing the tour{':' if len(missingTourUsers) > 0 else ' (yay!)'}
-            {list_separator.join(missingTourUsers)}
+            {list_separator.join(missingTourUsers[x] for x in sorted(missingTourUsers))}
 {getWarningText(warningUsers)}
 {commonMessageFooter}
 ''')
