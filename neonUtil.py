@@ -4,11 +4,14 @@
 
 from pprint import pformat
 import base64
-import datetime
+import datetime, pytz
 import requests
 import logging
 
-today = datetime.date.today()
+#I'm not absolutely certain NeonCRM thinks it's in central time, but it's in the ballpark.
+#pacific time might be slightly more accurate.  Maybe I'll ask their support.
+today = datetime.datetime.now(pytz.timezone("America/Chicago")).date()
+yesterday = today - datetime.timedelta(days=1)
 
 from config import N_APIkey, N_APIuser
 
@@ -65,36 +68,56 @@ def appendMemberships(neonAccount):
     if (response.status_code != 200):
         raise ValueError(f'Get {url} returned status code {response.status_code}')
 
+    #logging.debug(pformat(response.json()))
+
     neonAccount["validMembership"] = False
+
     memberships = response.json().get("memberships")
 
-    #TODO there's another scenario where a Neon membership is valid that we're not catching here
-    #if the most recent membership is expired yesterday
-    #  and the most recent membership is SUCCEEDED
-    #  and auto-renewal is enabled on the account (how to check???)
-    #this catches the scenario where Neon just hasn't gotten around to processing the renewal yet.
-
     if len(memberships) > 0:
-        latestMembershipExpiration = datetime.date(1970, 1, 1)
+        latestSuccessfulMembershipExpiration = datetime.date(1970, 1, 1)
+        latestKnownMembershipExpiration = datetime.date(1970, 1, 1)
+
         firstMembershipStart = today
         atLeastOneValidMembership = False
 
         for membership in memberships:
             membershipExpiration = datetime.datetime.strptime(membership["termEndDate"], '%Y-%m-%d').date()
             membershipStart = datetime.datetime.strptime(membership["termStartDate"], '%Y-%m-%d').date()
+
+            logging.debug(f'''Membership ending {membershipExpiration} status {membership["status"]} autorenewal is {membership["autoRenewal"]} ''')
+
+            if membershipExpiration > latestKnownMembershipExpiration:
+                latestKnownMembershipExpiration = membershipExpiration
+
             if membership["status"] == "SUCCEEDED":
                 atLeastOneValidMembership = True
-                if membershipExpiration > latestMembershipExpiration:
-                    latestMembershipExpiration = membershipExpiration
+                if membershipExpiration > latestSuccessfulMembershipExpiration:
+                    #in my testing membership[autoRenewal] is the same value for all memberships and
+                    #reflects the current Neon setting.  It seems safest to keep the latest successful
+                    #value, but we should probably spot-check this from time to time
+                    neonAccount["autoRenewal"] = membership["autoRenewal"]
+                    latestSuccessfulMembershipExpiration = membershipExpiration
                 if membershipStart < firstMembershipStart:
                     firstMembershipStart = membershipStart
                 if membershipExpiration >= today and membershipStart <= today:
                     neonAccount["validMembership"] = True
 
+        #There's another scenario where a Neon membership is valid:
+        #if the most recent membership expired in the past (yesterday?)
+        #  and the most recent membership is SUCCEEDED
+        #  and auto-renewal is enabled on the account
+        #this catches the scenario where Neon just hasn't gotten around to processing the renewal yet.
+        if not neonAccount.get("validMembership"):
+            if (latestKnownMembershipExpiration == latestSuccessfulMembershipExpiration) and neonAccount.get("autoRenewal"):
+                neonAccount["validMembership"] = True
+
         #!!! NOTE no promise that membership was continuous between these two dates !!!
         if atLeastOneValidMembership:
             neonAccount["Membership Start Date"] = str(firstMembershipStart)
-            neonAccount["Membership Expiration Date"] = str(latestMembershipExpiration)
+            neonAccount["Membership Expiration Date"] = str(latestSuccessfulMembershipExpiration)
+
+    #logging.debug(pformat(neonAccount))
 
     return neonAccount
 

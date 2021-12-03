@@ -4,7 +4,7 @@
 
 from pprint import pformat
 from base64 import b64encode
-import datetime
+import datetime, pytz
 import requests
 import logging
 
@@ -208,9 +208,9 @@ def createUser(neonAccount):
 
         opUser = response.json().get("data")
         createdTime = datetime.datetime.strptime(opUser.get("createdAt"), "%Y-%m-%dT%H:%M:%S.000Z")
-        userAge = datetime.datetime.now() - createdTime
+        userAge = datetime.datetime.now(pytz.timezone("America/Chicago")) - createdTime
         if userAge.seconds > 300:
-            logging.warning(f'''Found an existing OpenPath user for {neonAccount.get("Email 1")} when updating Neon account {neonAccount.get("Account ID")}''')
+            logging.warning(f'''Found an existing OpenPath user created at {opUser.get("createdAt")} for {neonAccount.get("Email 1")} when updating Neon account {neonAccount.get("Account ID")}''')
             #This user was created more than 5mins ago, but we didn't fail - that means an OP user with this email address was deleted in the past.
             #OP archives "deleted" users, and doesn't update their ID fields when re-creating them.  We'll have to do a patch.
             #TODO make sure no other Neon record has this OpenPathID associated
