@@ -10,7 +10,10 @@ from email.mime.text import MIMEText
 from AsmblyMessageFactory import commonMessageFooter
 import gmailUtil
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+         format='%(asctime)s %(levelname)-8s %(message)s',
+         level=logging.INFO,
+         datefmt='%Y-%m-%d %H:%M:%S')
 
 def getWarningText(warningUsers):
     if len(warningUsers) == 0:
@@ -38,9 +41,9 @@ opUsers = openPathUtil.getAllUsers()
 
 ##### Initialize these counts to number of zombies in Freshbooks
 ##### When this number falls to 0, update the email body text
-subscriberCount = 34
-missingWaiverCount = 34
-lastFreshbooksUpdate = "01-Dec-2021"
+subscriberCount = 32
+missingWaiverCount = 32
+lastFreshbooksUpdate = "9-Jan-2022"
 
 facilityUserCount = 0
 
@@ -89,4 +92,4 @@ msg['To'] = "membership@asmbly.org"
 msg['Subject'] = "Asmbly Daily Subscriber Update"
 
 gmailUtil.sendMIMEmessage(msg)
-#print(msg)
+print(msg)

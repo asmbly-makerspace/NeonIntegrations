@@ -206,8 +206,9 @@ def createUser(neonAccount):
             logging.error(f'''Status {response.status_code} (expected 201) creating OpenPath User {pformat(data)} ''')
             return neonAccount
 
+        #openPath times are in UTC
         opUser = response.json().get("data")
-        createdTime = datetime.datetime.strptime(opUser.get("createdAt"), "%Y-%m-%dT%H:%M:%S.000Z")
+        createdTime = datetime.datetime.strptime(opUser.get("createdAt"), "%Y-%m-%dT%H:%M:%S.000Z").replace(tzinfo=datetime.timezone.utc)
         userAge = datetime.datetime.now(pytz.timezone("America/Chicago")) - createdTime
         if userAge.seconds > 300:
             logging.warning(f'''Found an existing OpenPath user created at {opUser.get("createdAt")} for {neonAccount.get("Email 1")} when updating Neon account {neonAccount.get("Account ID")}''')
