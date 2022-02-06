@@ -155,7 +155,7 @@ def updateGroups(neonAccount, openPathGroups=None, email=False):
             #27683 Stewards
             #23174 Board
             #23175 CoWorking
-            if (id == 27683 or id == 23174 or id == 23175):
+            if (id == 23174 or id == 23175):
                 OPexception = True
                 OPsubscriber = True #any of the super-access groups include facility access
             elif id == 23172:
