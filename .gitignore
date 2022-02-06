@@ -2,10 +2,17 @@
 *private/**
 teachers.json
 
+# Ignore irrelevant files
+*archived/**
+
+# Ignore random web files
+web/**
+
 # Ignore config file (for API keys)
 *config.py
 *__pycache__
 *.code-workspace
+credentials*
 
 # Ignore Jupyter Notebooks
 JupyterNotebooks/**
