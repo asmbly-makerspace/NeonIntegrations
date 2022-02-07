@@ -7,13 +7,14 @@ import requests
 import json
 
 from config import D_APIkey, D_APIuser
-
+from util import apiCall
 
 ### Discourse Account Info
 D_baseURL = 'https://yo.asmbly.org'
 D_headers = {'Api-Key':D_APIkey,'Api-Username':D_APIuser}
 
 
+<<<<<<< HEAD:archived/examples/discourseGET.py
 ### Helper function for API calls
 def apiCall(httpVerb, url, data, headers):
     # Make request
@@ -43,6 +44,15 @@ def apiCall(httpVerb, url, data, headers):
 # data = ''
 # url = D_baseURL + resourcePath
 # usersResponse = apiCall(httpVerb, url, data, D_headers)
+=======
+# Request Info
+# Get a list of all active members on Discourse
+httpVerb ='GET'
+resourcePath = '/admin/users/list/active.json'
+data = ''
+url = D_baseURL + resourcePath
+usersResponse = apiCall(httpVerb, url, data, D_headers)
+>>>>>>> df89f2ebb797d335a76772370ed1185ff872a23e:examples/discourseGET.py
 
 # # # Print to file
 # # with open('./Discourse/users.json', 'w') as outfile:
