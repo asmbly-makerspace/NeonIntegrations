@@ -1,9 +1,7 @@
 # Ignore private files
 *private/**
+*archived/*private/**
 teachers.json
-
-# Ignore irrelevant files
-*archived/**
 
 # Ignore random web files
 web/**
