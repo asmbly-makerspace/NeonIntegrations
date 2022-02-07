@@ -24,7 +24,7 @@ N_auth = f'{N_APIuser}:{N_APIkey}'
 N_baseURL = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
 N_headers = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}', 'NEON-API-VERSION': '2.1'}
-
+print(N_signature)
 
 ## Helper function for API calls
 def apiCall(httpVerb, url, data, headers):
@@ -120,7 +120,6 @@ data = f'''
         "Event Start Time",
         "Event End Date",
         "Event End Time"
-
     ],
     "pagination": {{
     "currentPage": 0,
@@ -128,9 +127,11 @@ data = f'''
     }}
 }}
 '''
+print(data)
 
 url = N_baseURL + resourcePath + queryParams
 print("### PAST ACTIVE EVENTS ###\n")
+print(f'Attempting API {httpVerb} to {url}')
 responseEvents = apiCall(httpVerb, url, data, N_headers).json()
 
 # Iterate over response to archive each event
