@@ -32,18 +32,32 @@ neonFilename = "Neon/memberAccounts.json"
 neonAccounts = {}
 
 # ##### NEON ######
-#first off, check that we have a Neon account list before spending a bunch of time on the Discourse API
 with open(neonFilename) as neonFile:
     neonAccountJson = json.load(neonFile)
     for account in neonAccountJson:
         neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]
 
+### NOTE this GET has a limit of 1000 users.  If we grow that big, this will be the least of our problems
+httpVerb = 'GET'
+resourcePath = f'/users?offset=0&sort=identity.lastName&order=asc'
+url=url = O_baseURL + resourcePath
+opResponse = apiCall(httpVerb, url, "", O_headers)
+#pprint(opResponse)
+
+opUsers = {}
+
+if opResponse.get("data"):
+    for i in opResponse.get("data"):
+        opUsers[i["id"]] = i 
+
 opExists = 0
 opSuspended = 0
+opSubscribers = 0
 opMissingWaiver = 0
 opMissingTour = 0
 opNotReady = 0
 opReady = 0
+opFailedToAdd = 0
 
 for account in neonAccounts:
     #manage existing OP accounts
@@ -54,35 +68,30 @@ for account in neonAccounts:
         #    - TODO update email in OpenPath if necessary. (not sure this can actually be done - OP really likes emails)
         #    - TODO add keyfob credential if one doesn't exist and KeyFobID in Neon is valid (user access is still controlled by group membership)
         opExists += 1
-
-        #get OP groups for user
         exception = False
         subscriber = False
-        httpVerb = 'GET'
-        resourcePath = f'/users/{neonAccounts[account].get("OpenPathID")}/groups?offset=0&sort=name&order=asc'
-        url=url = O_baseURL + resourcePath
-        opResponse = apiCall(httpVerb, url, "", O_headers)
-        # pprint(opResponse)
-        if opResponse.get("data"):
-            for group in opResponse.get("data"):
-                if group.get("id"):
-                    id = group.get("id")
-                    #27683 Stewards
-                    #23174 Board
-                    #23175 CoWorking
-                    if (id == 27683 or id == 23174 or id == 23175):
-                        exception = True
-                        subscriber = True #any of the super-access groups include facility access
-                    elif id == 23172:
-                        # 23172 Subscribers
-                        subscriber = True
-                else:
-                    #TODO what the hell happens if we can't find the ID for an group?
-                    #log WTF?
-                    pass
 
-        if (neonAccounts[account].get("validMembership") == True and neonAccounts[account].get("AccessSuspended") != True and
+        groups = opUsers.get(int(neonAccounts[account].get("OpenPathID"))).get("groups")
+        for group in groups:
+            if group.get("id"):
+                id = group.get("id")
+                #27683 Stewards
+                #23174 Board
+                #23175 CoWorking
+                if (id == 27683 or id == 23174 or id == 23175):
+                    exception = True
+                    subscriber = True #any of the super-access groups include facility access
+                elif id == 23172:
+                    # 23172 Subscribers
+                    subscriber = True
+            else:
+                #TODO what the hell happens if we can't find the ID for an group?
+                #log WTF?
+                pass
+
+        if (neonAccounts[account].get("validMembership") == True and not neonAccounts[account].get("AccessSuspended") and
             neonAccounts[account].get("WaiverDate") and neonAccounts[account].get("FacilityTourDate")):
+            opSubscribers += 1
             #I deserve access to the space!
             #check group membership; add subscribers if not present
             if not subscriber:
@@ -103,13 +112,12 @@ for account in neonAccounts:
             #TODO check for valid credential; provision mobile credential and send activation email if one doesn't exist
             pass
 
-        else:
+        elif subscriber:
             #If OP user is not in co-working, stewards, or board groups, remove all group memberships
             #otherwise, send exception email
             if not exception:
                 print(f'''Disabling access for {neonAccounts[account].get("First Name")} {neonAccounts[account].get("Last Name")} ({neonAccounts[account].get("Email 1")})''')
                 if not dryRun:
-                    #don't know if this works!
                     httpVerb = 'PUT'
                     resourcePath = f'''/users/{neonAccounts[account].get("OpenPathID")}/groupIds'''
 
@@ -121,15 +129,16 @@ for account in neonAccounts:
 
                     url=url = O_baseURL + resourcePath
                     opResponse = apiCall(httpVerb, url, data, O_headers)
-                    pass
             else:
+                opSubscribers += 1
                 print (f'''I'm not disabling {neonAccounts[account].get("First Name")} {neonAccounts[account].get("Last Name")} ({neonAccounts[account].get("Email 1")}) becuase they're special''')
                 #TODO email or something
     else:
         #I don't exist in OpenPath.  Add an account if I need one
-        if (neonAccounts[account].get("validMembership") == True and neonAccounts[account].get("AccessSuspended") != True and
+        if (neonAccounts[account].get("validMembership") == True and not neonAccounts[account].get("AccessSuspended") and
             neonAccounts[account].get("WaiverDate") and neonAccounts[account].get("FacilityTourDate")):
             opReady += 1
+            opSubscribers += 1
             #print(f'Adding OP account for {neonAccounts[account].get("First Name")} {neonAccounts[account].get("Last Name")}')
             #I deserve access to the space!
             ##########################
@@ -154,7 +163,8 @@ for account in neonAccounts:
                 opResponse = apiCall(httpVerb, url, data, O_headers)
                 #pprint(opResponse)
                 if opResponse.get("error"):
-                    print(f'''OpenPath Error: {opResponse.get("message")}''')
+                    print(f'''OpenPath Error adding user {neonAccounts[account].get("Email 1")}: {opResponse.get("message")}''')
+                    opFailedToAdd += 1
                 elif opResponse.get("data"):
                     opUser = opResponse.get("data")
                     createdTime = datetime.strptime(opUser.get("createdAt"), "%Y-%m-%dT%H:%M:%S.000Z")
@@ -293,14 +303,18 @@ for account in neonAccounts:
         else:
             if neonAccounts[account].get("validMembership") == True:
                 opNotReady += 1
-                if neonAccounts[account].get("AccessSuspended") == True:
+                if neonAccounts[account].get("AccessSuspended"):
                     opSuspended += 1
-                if not neonAccounts[account].get("WaiverDate"):
+                if not neonAccounts[account].get("WaiverDate") and not neonAccounts[account].get("AccessSuspended"):
                     opMissingWaiver += 1
-                if not neonAccounts[account].get("FacilityTourDate"):
+                if not neonAccounts[account].get("FacilityTourDate") and not neonAccounts[account].get("AccessSuspended"):
                     opMissingTour += 1
+                    if not neonAccounts[account].get("AccessSuspended"):
+                        print (f'''{neonAccounts[account].get("First Name")} {neonAccounts[account].get("Last Name")} ({neonAccounts[account].get("Email 1")}) is missing the tour''')
 
-print (f"Found {opExists} subscribers in OpenPath, {opReady} subscribers to add and {opNotReady} subscribers not ready yet")
+print (f"We have {opSubscribers} active OpenPath subscribers (including {opReady} new ones) and {opNotReady} subscribers not ready yet")
+if (opFailedToAdd):
+    print(f"FAILED to add {opFailedToAdd} users")
 print (f"({opSuspended} suspended; {opMissingTour} missing the tour; {opMissingWaiver} missing the waiver)")
 
 #stage 2 - audit for orphan OP Users
@@ -308,23 +322,6 @@ print (f"({opSuspended} suspended; {opMissingTour} missing the tour; {opMissingW
 #check for valid externalID
 #check that NeonAccounts[externalId][openPathID] matches
 #send email for exceptions
-
-##########################
-#list defined users
-# httpVerb = 'GET'
-# resourcePath = '/users'
-# queryParams = ''
-# print(O_headers)
-
-# data = '''
-# {
-#     "offset":"0",
-#     "sort":"identity.lastName",
-#     "order":"asc"
-# }
-# '''
-# url=url = O_baseURL + resourcePath
-# opResponse = apiCall(httpVerb, url, data, O_headers)
 
 #TODO check for existing user
 

@@ -27,17 +27,6 @@ N_headers = {'Content-Type':'application/json','Authorization': f'Basic {N_signa
 # pprint(response)
 
 ##### NEON #####
-# Get possible search fields for POST to /accounts/search
-# httpVerb = 'GET'
-# resourcePath = '/accounts/search/searchFields'
-# queryParams = ''
-# data = ''
-# url = N_baseURL + resourcePath + queryParams
-# response = apiCall(httpVerb, url, data, N_headers)
-# print("### SEARCH FIELDS ###\n")
-# pprint(response)
-
-##### NEON #####
 # Get possible output fields for POST to /accounts/search
 httpVerb = 'GET'
 resourcePath = '/accounts/search/outputFields'
