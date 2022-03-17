@@ -24,7 +24,7 @@ def getWarningText(warningUsers):
     WARNING: {len(warningUsers)} USER{'S HAVE' if len(warningUsers) > 1 else ' HAS'} FACILITY ACCESS WITHOUT A SIGNED WAIVER:
       {list_separator.join(warningUsers)}'''
 
-def openPathUpdateAll(neonAccounts):
+def openPathUpdateAll(neonAccounts, mailSummary = False):
     opUsers = openPathUtil.getAllUsers()
 
     ##### Initialize these counts to number of zombies in Freshbooks
@@ -79,8 +79,10 @@ def openPathUpdateAll(neonAccounts):
     msg['To'] = "membership@asmbly.org"
     msg['Subject'] = "Asmbly Daily Subscriber Update"
 
-    gmailUtil.sendMIMEmessage(msg)
-    print(msg)
+    if mailSummary:
+        gmailUtil.sendMIMEmessage(msg)
+
+    logging.info(msg)
 
 #begin standalone script functionality -- pull neonAccounts and call our function
 def main():

@@ -3,6 +3,8 @@ from openPathUpdateAll import openPathUpdateAll
 
 import neonUtil
 import logging
+import datetime, pytz
+
 import json
 
 logging.basicConfig(
@@ -10,6 +12,7 @@ logging.basicConfig(
          level=logging.INFO,
          datefmt='%Y-%m-%d %H:%M:%S')
 
+logging.info("Starting sync cycle.")
 neonAccounts = {}
 
 #For real use, just get neon accounts directly
@@ -22,5 +25,14 @@ neonAccounts = neonUtil.getAllMembers()
 #     for account in neonAccountJson:
 #         neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]
 
-openPathUpdateAll(neonAccounts)
+#we're going to run this multiple times per day, but we don't want to send a zillion emails
+now = datetime.datetime.now(pytz.timezone("America/Chicago"))
+mailcutoff = datetime.datetime.combine(datetime.datetime.now(pytz.timezone("America/Chicago")), datetime.time(6, 0, tzinfo=pytz.timezone("America/Chicago")))
+
+if (now < mailcutoff):
+    openPathUpdateAll(neonAccounts, mailSummary = True)
+else:
+    openPathUpdateAll(neonAccounts, mailSummary = False)
+
 discourseUpdateHaxors(neonAccounts)
+logging.info("Sync cycle complete.")
