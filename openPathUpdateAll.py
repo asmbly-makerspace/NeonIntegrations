@@ -29,9 +29,9 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
 
     ##### Initialize these counts to number of zombies in Freshbooks
     ##### When this number falls to 0, update the email body text
-    subscriberCount = 25
-    missingWaiverCount = 25
-    lastFreshbooksUpdate = "5-Mar-2022"
+    subscriberCount = 20
+    missingWaiverCount = 20
+    lastFreshbooksUpdate = "1-May-2022"
 
     facilityUserCount = 0
 
