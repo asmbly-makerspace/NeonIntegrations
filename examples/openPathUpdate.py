@@ -22,7 +22,7 @@ O_headers   = {'Authorization': f'Basic {O_signature}', 'Accept': 'application/j
 N_auth      = f'{N_APIuser}:{N_APIkey}'
 N_baseURL   = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
-N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}', 'NEON-API-VERSION': '2.1'}
+N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}'}
 
 #dryRun means we do queries but don't write any changes to Neon or OP
 dryRun = False
