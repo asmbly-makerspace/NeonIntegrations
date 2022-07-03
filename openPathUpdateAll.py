@@ -31,7 +31,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     ##### When this number falls to 0, update the email body text
     subscriberCount = 20
     missingWaiverCount = 20
-    lastFreshbooksUpdate = "1-May-2022"
+    lastFreshbooksUpdate = "1-Jul-2022"
 
     facilityUserCount = 0
 
