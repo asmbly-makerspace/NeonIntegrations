@@ -75,11 +75,16 @@ def appendMemberships(neonAccount):
     memberships = response.json().get("memberships")
 
     if len(memberships) > 0:
+        ### end date of the most recent paid membership (initialize to ancient history)
         latestSuccessfulMembershipExpiration = datetime.date(1970, 1, 1)
+        ### end date of most recent defined membership (initialize to ancient history)
         latestKnownMembershipExpiration = datetime.date(1970, 1, 1)
-
+        ##start date of earliest membership (initialize to today)
         firstMembershipStart = today
+
+        ##flag indicating the account has at least one paid membership
         atLeastOneValidMembership = False
+
 
         for membership in memberships:
             membershipExpiration = datetime.datetime.strptime(membership["termEndDate"], '%Y-%m-%d').date()
@@ -87,19 +92,30 @@ def appendMemberships(neonAccount):
 
             logging.debug(f'''Membership ending {membershipExpiration} status {membership["status"]} autorenewal is {membership["autoRenewal"]} ''')
 
+            ### If this membership is the latest we know of, save its expiration date
+            ### NOTE That it might not have been paid for
             if membershipExpiration > latestKnownMembershipExpiration:
                 latestKnownMembershipExpiration = membershipExpiration
 
+            ### If this membership *was* actually paid for:
             if membership["status"] == "SUCCEEDED":
+                ### flag this account as having at least once been paid.
                 atLeastOneValidMembership = True
+
+                ### If this (paid) membership is later than the latest we know about, remember its end date
                 if membershipExpiration > latestSuccessfulMembershipExpiration:
+                    latestSuccessfulMembershipExpiration = membershipExpiration
+
                     #in my testing membership[autoRenewal] is the same value for all memberships and
                     #reflects the current Neon setting.  It seems safest to keep the latest successful
                     #value, but we should probably spot-check this from time to time
                     neonAccount["autoRenewal"] = membership["autoRenewal"]
-                    latestSuccessfulMembershipExpiration = membershipExpiration
+
+                ### If this (paid) membership is the earliest one we know about, remember the start date
                 if membershipStart < firstMembershipStart:
                     firstMembershipStart = membershipStart
+
+                ### If today is during this (paid), mark the account as valid (should probably be called "active" but well...)
                 if membershipExpiration >= today and membershipStart <= today:
                     neonAccount["validMembership"] = True
 
@@ -161,10 +177,8 @@ def getMemberById(id):
     account = appendMemberships(account)
     return account
 
-def getAllMembers():
+def getMembersFast():
     neon_accounts = {}
-    accountCount = 0
-    paidSubscribers = 0
 
     #Output Fields
     #85 is DiscourseId
@@ -218,6 +232,13 @@ def getAllMembers():
         page += 1
         if page >= response.json().get("pagination").get("totalPages"):
             break
+    return neon_accounts
+
+def getAllMembers():
+    accountCount = 0
+    paidSubscribers = 0
+
+    neon_accounts = getMembersFast()
 
     #some progress logging
     num_pings = 5
