@@ -2,6 +2,7 @@
 *private/**
 *archived/*private/**
 teachers.json
+*/*private*
 
 # Ignore random web files
 web/**
