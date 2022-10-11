@@ -15,10 +15,10 @@ from config import N_APIkey, N_APIuser
 from util import apiCall
 
 # Neon Account Info
-N_auth = f'{N_APIuser}:{N_APIkey}'
-N_baseURL = 'https://api.neoncrm.com/v2'
+N_auth      = f'{N_APIuser}:{N_APIkey}'
+N_baseURL   = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
-N_headers = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}', 'NEON-API-VERSION': '2.1'}
+N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}'}
 
 #before doing all the Neon-fetching, make sure we can write our output file
 #TODO filename should be a global config or command-line option or something
