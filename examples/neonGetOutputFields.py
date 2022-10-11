@@ -21,7 +21,6 @@ httpVerb = 'GET'
 resourcePath = '/customFields'
 # category param required; accepted values are: Account, Donation, Event, Attendee, Individual, Company, Activity, Membership, Product
 queryParams = '?category=Account'
-# queryParams = '?category=Individual'
 data = ''
 url = N_baseURL + resourcePath + queryParams
 response = apiCall(httpVerb, url, data, N_headers)
@@ -40,12 +39,12 @@ pprint(response)
 # pprint(response)
 
 # ##### NEON #####
-# # Get possible output fields for POST to /accounts/search
-# httpVerb = 'GET'
-# resourcePath = '/accounts/search/outputFields'
-# queryParams = ''
-# data = ''
-# url = N_baseURL + resourcePath + queryParams
-# response = apiCall(httpVerb, url, data, N_headers)
-# print("### OUTPUT FIELDS ###\n")
-# pprint(response)
+# Get possible output fields for POST to /accounts/search
+httpVerb = 'GET'
+resourcePath = '/accounts/search/outputFields'
+queryParams = ''
+data = ''
+url = N_baseURL + resourcePath + queryParams
+response = apiCall(httpVerb, url, data, N_headers)
+print("### OUTPUT FIELDS ###\n")
+pprint(response)
