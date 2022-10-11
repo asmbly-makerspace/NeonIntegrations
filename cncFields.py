@@ -1,6 +1,6 @@
-################# Asmbly OpenPath API Integrations ################
-# OpenPath API docs - https://openpath.readme.io/docs             #
-###################################################################
+################## Asmbly Neon API Integrations ###################
+#      Neon API docs - https://developer.neoncrm.com/api-v2/     #
+#################################################################
 
 import csv
 import base64
@@ -14,7 +14,6 @@ N_baseURL   = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
 N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}'}
 
-dryRun = False
 
 # Import all data and read into memory
 neonFilename   = "./misc/privateAllNeon.csv"
@@ -79,59 +78,58 @@ failed = []
 # Update Recertification flag in Neon accounts
 for id in recertApproved:
     try:
-        if not dryRun:
-            ##### NEON #####
-            # Update part of an account
-            # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
-            httpVerb = 'PATCH'
-            resourcePath = f'/accounts/{id}'
-            queryParams = ''
-            data = f'''
+        ##### NEON #####
+        # Update part of an account
+        # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
+        httpVerb = 'PATCH'
+        resourcePath = f'/accounts/{id}'
+        queryParams = ''
+        data = f'''
+        {{
+        "individualAccount": {{
+            "accountCustomFields": [
             {{
-            "individualAccount": {{
-                "accountCustomFields": [
-                {{
-                    "id": "437",
-                    "name": "CNC_Recertification",
-                    "value": "Approved",
-                    "status": "ACTIVE"
-                }}
-                ]
+                "id": "437",
+                "name": "CNC_Recertification",
+                "value": "Approved",
+                "status": "ACTIVE"
             }}
-            }}
-            '''
-            url = N_baseURL + resourcePath + queryParams
-            patch = apiCall(httpVerb, url, data, N_headers)
-            print(f"{patch.status_code} SUCCESS!  Account ID {id}")
-            if (patch.status_code != 200):
-                print(f"\t{patch.status_code} FAILED!  Account ID {id}")
-                failed.append(id)
+            ]
+        }}
+        }}
+        '''
+        url = N_baseURL + resourcePath + queryParams
+        patch = apiCall(httpVerb, url, data, N_headers)
+        print(f"{patch.status_code} SUCCESS!  Account ID {id}")
+        if (patch.status_code != 200):
+            print(f"\t{patch.status_code} FAILED!  Account ID {id}")
+            failed.append(id)
 
-            # Update Refresher field for anyone that qualifies for recertification
-            # Recert is more restrictive than refresh; no one should have recert and not refresh
-            httpVerb = 'PATCH'
-            resourcePath = f'/accounts/{id}'
-            queryParams = ''
-            data = f'''
+        # Update Refresher field for anyone that qualifies for recertification
+        # Recert is more restrictive than refresh; no one should have recert and not refresh
+        httpVerb = 'PATCH'
+        resourcePath = f'/accounts/{id}'
+        queryParams = ''
+        data = f'''
+        {{
+        "individualAccount": {{
+            "accountCustomFields": [
             {{
-            "individualAccount": {{
-                "accountCustomFields": [
-                {{
-                    "id": "438",
-                    "name": "CNC_Refresher",
-                    "value": "Approved",
-                    "status": "ACTIVE"
-                }}
-                ]
+                "id": "438",
+                "name": "CNC_Refresher",
+                "value": "Approved",
+                "status": "ACTIVE"
             }}
-            }}
-            '''
-            url = N_baseURL + resourcePath + queryParams
-            patch = apiCall(httpVerb, url, data, N_headers)
-            print(f"{patch.status_code} SUCCESS!  Account ID {id}")
-            if (patch.status_code != 200):
-                print(f"\t{patch.status_code} FAILED!  Account ID {id}")
-                failed.append(id)
+            ]
+        }}
+        }}
+        '''
+        url = N_baseURL + resourcePath + queryParams
+        patch = apiCall(httpVerb, url, data, N_headers)
+        print(f"{patch.status_code} SUCCESS!  Account ID {id}")
+        if (patch.status_code != 200):
+            print(f"\t{patch.status_code} FAILED!  Account ID {id}")
+            failed.append(id)
     except:
         print(f"\tUPDATE FAILED!  Account ID {id}")
         failed.append(id)
@@ -140,33 +138,32 @@ for id in recertApproved:
 # Update Refresher flag in Neon accounts
 for id in refreshApproved:
     try:
-        if not dryRun:
-            ##### NEON #####
-            # Update part of an account
-            # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
-            httpVerb = 'PATCH'
-            resourcePath = f'/accounts/{id}'
-            queryParams = ''
-            data = f'''
+        ##### NEON #####
+        # Update part of an account
+        # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
+        httpVerb = 'PATCH'
+        resourcePath = f'/accounts/{id}'
+        queryParams = ''
+        data = f'''
+        {{
+        "individualAccount": {{
+            "accountCustomFields": [
             {{
-            "individualAccount": {{
-                "accountCustomFields": [
-                {{
-                    "id": "438",
-                    "name": "CNC_Refresher",
-                    "value": "Approved",
-                    "status": "ACTIVE"
-                }}
-                ]
+                "id": "438",
+                "name": "CNC_Refresher",
+                "value": "Approved",
+                "status": "ACTIVE"
             }}
-            }}
-            '''
-            url = N_baseURL + resourcePath + queryParams
-            patch = apiCall(httpVerb, url, data, N_headers)
-            print(f"{patch.status_code} SUCCESS!  Account ID {id}")
-            if (patch.status_code != 200):
-                print(f"\t{patch.status_code} FAILED!  Account ID {id}")
-                failed.append(id)
+            ]
+        }}
+        }}
+        '''
+        url = N_baseURL + resourcePath + queryParams
+        patch = apiCall(httpVerb, url, data, N_headers)
+        print(f"{patch.status_code} SUCCESS!  Account ID {id}")
+        if (patch.status_code != 200):
+            print(f"\t{patch.status_code} FAILED!  Account ID {id}")
+            failed.append(id)
     except:
         print(f"\tUPDATE FAILED!  Account ID {id}")
         failed.append(id)
