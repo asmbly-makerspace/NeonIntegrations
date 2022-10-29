@@ -2,11 +2,14 @@
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 #################################################################
 
+from curses import use_default_colors
+from os import openpty
 from pprint import pformat
 from base64 import b64encode
 import datetime, pytz
 import requests
 import logging
+from pprint import pprint
 
 import neonUtil
 import AsmblyMessageFactory
@@ -76,35 +79,6 @@ def deleteAllCredentialsForId(id):
         else:
             logging.warning(f'''Malformed credential in stale OpenPath user {neonAccount.get("primaryContact").get("email1")}''')
 
-
-#################################################################################
-# Add given openPath user to the subscribers group
-#################################################################################
-def enableAccount(neonAccount):
-    #this should be a pretty thorough check for sane argument
-    assert(int(neonAccount.get("OpenPathID")) > 0)
-
-    #TODO make sure user state isn't deleted and credentials exist
-
-    logging.info(f'''Re-enabling OpenPath access for {neonAccount.get("fullName")} ({neonAccount.get("Email 1")})''')
-    data = '''
-    {
-        "groupIds": [23172]
-    }'''
-
-    url = O_baseURL + f'''/users/{neonAccount.get("OpenPathID")}/groupIds'''
-    logging.debug(f'''PUT to {url} {pformat(data)}''')
-    if not dryRun:
-        response = requests.put(url, data=data, headers=O_headers)
-        if (response.status_code != 204):
-            raise ValueError(f'Put {url} returned status code {response.status_code}; expected 204')
-        else:
-            #todo SEND EMAIL
-            pass
-    else:
-        logger.warn("DryRun in openPathUtil.enableAccount()")
-
-    
 #################################################################################
 # Remove given openPath user from all groups
 #################################################################################
@@ -131,6 +105,54 @@ def disableAccount(neonAccount):
         logger.warn("DryRun in openPathUtil.disableAccount()")
 
 #################################################################################
+# Determine authorized OP groups for a Neon account
+#################################################################################
+def getOpGroups(neonAccount):
+    opGroups = set()   #using a set prevents duplicates
+
+    #27683 Stewards
+    #96676 Instructors
+    #37059 Shaper Origin
+    #96643 Domino
+    #23172 Subscribers
+
+    #23174 Board / Leaders / SuperStewards 24x7 access
+    if (neonUtil.accountIsLeader(neonAccount) or neonUtil.accountIsSuper(neonAccount)):
+        opGroups.add(23174)
+    elif neonUtil.accountIsStaff(neonAccount):
+        #non-leader staff have access to all storage during regular hours
+        opGroups.add(23172) #shop
+        opGroups.add(27683) #stewards storage
+        opGroups.add(96676) #instructor storage
+        opGroups.add(23175) #coworking
+
+    #23175 CoWorking is a permissive group - they can ride out subscription lapses
+    if neonUtil.accountIsCoWorking(neonAccount):
+        opGroups.add(23175)
+        if neonUtil.accountIsSteward(neonAccount):
+            opGroups.add(27683)
+        if neonUtil.accountIsInstructor(neonAccount):
+            opGroups.add(96676)
+        if neonUtil.accountHasShaperAccess(neonAccount):
+            opGroups.add(37059)
+        if neonUtil.accountHasDominoAccess(neonAccount):
+            opGroups.add(96643)
+
+    #Other groups are only valid with a subscription
+    if neonUtil.accountHasFacilityAccess(neonAccount):
+        opGroups.add(23172)
+        if neonUtil.accountIsSteward(neonAccount):
+            opGroups.add(27683)
+        if neonUtil.accountIsInstructor(neonAccount):
+            opGroups.add(96676)
+        if neonUtil.accountHasShaperAccess(neonAccount):
+            opGroups.add(37059)
+        if neonUtil.accountHasDominoAccess(neonAccount):
+            opGroups.add(96643)
+
+    return list(opGroups)
+
+#################################################################################
 # Given a Neon account and optionally an OpenPath user, perform necessary updates
 #################################################################################
 def updateGroups(neonAccount, openPathGroups=None, email=False):
@@ -144,42 +166,56 @@ def updateGroups(neonAccount, openPathGroups=None, email=False):
     if openPathGroups is None:
         openPathGroups = getGroupsById(neonAccount.get("OpenPathID"))
 
-    logging.debug(f'''OP Groups for {neonAccount.get("OpenPathID")}: {openPathGroups}''')
+    neonOpGroups = getOpGroups(neonAccount)
 
-    OPexception = False
-    OPsubscriber = False
-
+    opGroupArray = []
     for group in openPathGroups:
-        if group.get("id"):
-            id = group.get("id")
-            #27683 Stewards
-            #23174 Board
-            #23175 CoWorking
-            if (id == 23174 or id == 23175):
-                OPexception = True
-                OPsubscriber = True #any of the super-access groups include facility access
-            elif id == 23172:
-                # 23172 Subscribers
-                OPsubscriber = True
-        else:
-            #TODO what the hell happens if we can't find the ID for an group?
-            #log WTF?
-            pass
+        id = group.get("id")
+        if id is not None:
+            opGroupArray.append(id)
+        # if id is not known to us
+        #     prevent specialty groups from being clobbered
+        #     neonOpGroups.append(id)
+    
+    logging.debug(f'''Groups for {neonAccount.get("OpenPathID")}: Current {opGroupArray}; New: {neonOpGroups}''')
 
-    if neonUtil.accountHasFacilityAccess(neonAccount):
-        if not OPsubscriber:
-            enableAccount(neonAccount)
-            if (email):
-                gmailUtil.sendMIMEmessage(AsmblyMessageFactory.getOpenPathEnableMessage(neonAccount.get("Email 1"), neonAccount.get("fullName")))
-    elif OPsubscriber:
-        #If OP user is not in co-working, stewards, or board groups, remove all group memberships
-        if not OPexception:
-            if (email):
-                gmailUtil.sendMIMEmessage(AsmblyMessageFactory.getOpenPathDisableMessage(neonAccount.get("Email 1"), neonAccount.get("fullName")))
-            disableAccount(neonAccount)
+    #If the OP groups for this Neon account changed, update OP
+    if sorted(opGroupArray) != sorted(neonOpGroups):
+        #this should be a pretty thorough check for sane argument
+        assert(int(neonAccount.get("OpenPathID")) > 0)
+
+        logging.info(f'''Updating OpenPath groups for {neonAccount.get("fullName")} ({neonAccount.get("Email 1")}) {neonOpGroups}''')
+        data = f'''
+        {{
+            "groupIds": {neonOpGroups}
+        }}'''
+
+        url = O_baseURL + f'''/users/{neonAccount.get("OpenPathID")}/groupIds'''
+        logging.debug(f'''PUT to {url} {pformat(data)}''')
+        if not dryRun:
+            response = requests.put(url, data=data, headers=O_headers)
+            if (response.status_code != 204):
+                raise ValueError(f'Put {url} returned status code {response.status_code}; expected 204')
+            else:
+                #todo SEND EMAIL
+                pass
         else:
-            logging.warning(f'''I'm not disabling {neonAccount.get("fullName")} ({neonAccount.get("Email 1")}) becuase they're special''')
-            #TODO email or something
+            logger.warn("DryRun in openPathUtil.updateGroups()")
+
+    if (email):
+        if len(opGroupArray) == 0:
+            #account went from no groups to some groups
+            gmailUtil.sendMIMEmessage(AsmblyMessageFactory.getOpenPathEnableMessage(neonAccount.get("Email 1"), neonAccount.get("fullName")))
+
+        if len(neonOpGroups) == 0:
+            #account went from some groups to no groups
+            gmailUtil.sendMIMEmessage(AsmblyMessageFactory.getOpenPathDisableMessage(neonAccount.get("Email 1"), neonAccount.get("fullName")))
+
+        if not neonUtil.accountHasFacilityAccess(neonAccount):
+            ##these account types always have factility access even if their term expires.  Note the exception in the log.
+            if neonUtil.accountIsCoWorking(neonAccount) or neonUtil.accountIsLeader(neonAccount) or neonUtil.accountIsSuper(neonAccount):
+                logging.warning(f'''I'm not disabling {neonAccount.get("fullName")} ({neonAccount.get("Email 1")}) becuase they're special''')
+                #Send an email if we ever get the renewal-bounce problem figured out.
 
 
 #################################################################################
@@ -286,7 +322,7 @@ def updateOpenPathByNeonId(neonId):
     #logging.debug(account)
     if account.get("OpenPathID"):
         updateGroups(account, email=True)
-    elif accountHasFacilityAccess(account):
+    elif neonUtil.subscriberHasFacilityAccess(account) or neonUtil.accountIsStaff(account):
         account = createUser(account)
         updateGroups(account, groups=[]) #pass empty groups list to skip the http get
         createMobileCredential(account)

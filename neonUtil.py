@@ -7,6 +7,7 @@ import base64
 import datetime, pytz
 import requests
 import logging
+from pprint import pprint
 
 #I'm not absolutely certain NeonCRM thinks it's in central time, but it's in the ballpark.
 #pacific time might be slightly more accurate.  Maybe I'll ask their support.
@@ -56,7 +57,7 @@ def updateOpenPathID(neonAccount):
 ####################################################################
 # Update a valid Neon account to include membership information
 ####################################################################
-def appendMemberships(neonAccount):
+def appendMemberships(neonAccount, detailed=False):
     #this should be a pretty thorough check for sane argument
     assert(int(neonAccount.get("Account ID")) > 0)
 
@@ -118,6 +119,8 @@ def appendMemberships(neonAccount):
                 ### If today is during this (paid), mark the account as valid (should probably be called "active" but well...)
                 if membershipExpiration >= today and membershipStart <= today:
                     neonAccount["validMembership"] = True
+                    if membership.get("fee") == 0:
+                        neonAccount["comped"] = True
 
         #There's another scenario where a Neon membership is valid:
         #if the most recent membership expired in the past (yesterday?)
@@ -133,6 +136,9 @@ def appendMemberships(neonAccount):
             neonAccount["Membership Start Date"] = str(firstMembershipStart)
             neonAccount["Membership Expiration Date"] = str(latestSuccessfulMembershipExpiration)
 
+        if (detailed):
+            neonAccount["MembershipDetails"] = memberships
+
     #logging.debug(pformat(neonAccount))
 
     return neonAccount
@@ -140,7 +146,7 @@ def appendMemberships(neonAccount):
 ####################################################################
 # Given a Neon member ID, return an account including membership info
 ####################################################################
-def getMemberById(id):
+def getMemberById(id, detailed = False):
     #I think this will raise an exception and exit if it fails??? 
     id = int(id)
 
@@ -174,9 +180,25 @@ def getMemberById(id):
     account["Account ID"] = account.get("accountId")
 
     #This only contains basic account info.  We have to fetch the membership data separately
-    account = appendMemberships(account)
+    account = appendMemberships(account, detailed=detailed)
     return account
 
+####################################################################
+# *Annoyingly* a search returns types in a different format than a fetch
+# Our scripts expect the fetch format, so do translation here
+####################################################################
+def fixTypes(account):
+    if account.get("Individual Type"):
+        typeDictList = []
+        typelist = account.get("Individual Type").split('|')
+        for type in typelist:
+            typeDictList.append({'name' : type.strip()})
+        account["individualTypes"] = typeDictList
+    return account
+
+####################################################################
+# Get all members in Neon without subscription details
+####################################################################
 def getMembersFast():
     neon_accounts = {}
 
@@ -187,6 +209,8 @@ def getMembersFast():
     #88 is KeyCardID
     #178 is OpenPathID
     #180 is AccessSuspended
+    #274 is ShaperOrigin Date
+    #440 is Domino date
 
     # Neon does pagination as a data parameter, so need to update data for each page
     page = 0
@@ -209,7 +233,8 @@ def getMembersFast():
         "Email 3",
         "Membership Expiration Date",
         "Membership Start Date",
-        85, 77, 179, 178, 88, 180, 182
+        "Individual Type",
+        85, 77, 179, 178, 88, 180, 182, 274, 440
     ],
     "pagination": {{
     "currentPage": {page},
@@ -226,7 +251,7 @@ def getMembersFast():
         logging.info(f'''{response.json().get("pagination")}''')
         #re-shuffle the data into a format that's a little easier to work with
         for acct in response.json()["searchResults"]:
-            neon_accounts[acct["Account ID"]] = acct
+            neon_accounts[acct["Account ID"]] = fixTypes(acct)
         #intentionally incrementing page before checking totalPages 
         #"page" is 0-based, "totalPages" is 1-based
         page += 1
@@ -234,6 +259,9 @@ def getMembersFast():
             break
     return neon_accounts
 
+####################################################################
+# Get all members in Neon, incuding detailed subscription info
+####################################################################
 def getAllMembers():
     accountCount = 0
     paidSubscribers = 0
@@ -279,11 +307,107 @@ def getAllMembers():
     return neon_accounts
 
 ####################################################################
-# Helper function: is this Neon account allowed facility access?
+# Helper function: is this Neon account a staff member
 ####################################################################
-def accountHasFacilityAccess(account):
+def accountIsStaff(account):
+    if account.get("individualTypes") is None:
+        return False
+
+    for type in account.get("individualTypes"):
+        if type.get("name") == "Paid Staff":
+            return True
+
+    return False
+
+####################################################################
+# Helper function: is this Neon account a vounteer leader
+####################################################################
+def accountIsLeader(account):
+    if account.get("individualTypes") is None:
+        return False
+
+    for type in account.get("individualTypes"):
+        if type.get("name") == "Leader":
+            return True
+
+    return False
+
+####################################################################
+# Helper function: is this Neon account a vounteer leader
+####################################################################
+def accountIsSuper(account):
+    if account.get("individualTypes") is None:
+        return False
+
+    for type in account.get("individualTypes"):
+        if type.get("name") == "Super Steward":
+            return True
+
+    return False
+
+####################################################################
+# Helper function: is this Neon account a coWorking subscriber
+####################################################################
+def accountIsCoWorking(account):
+    if account.get("individualTypes") is None:
+        return False
+
+    for type in account.get("individualTypes"):
+        if type.get("name") == "CoWorking Tenant":
+            return True
+
+    return False
+
+####################################################################
+# Helper function: is this Neon account a steward
+####################################################################
+def accountIsSteward(account):
+    if account.get("individualTypes") is None:
+        return False
+
+    for type in account.get("individualTypes"):
+        if type.get("name") == "Steward":
+            return True
+
+    return False
+
+####################################################################
+# Helper function: is this Neon account an instructor
+####################################################################
+def accountIsInstructor(account):
+    if account.get("individualTypes") is None:
+        return False
+
+    for type in account.get("individualTypes"):
+        if type.get("name") == "Instructor":
+            return True
+
+    return False
+
+####################################################################
+# Helper function: does this user have access to Shaper Origin?
+####################################################################
+def accountHasShaperAccess(account):
+    #technically should check if this field contains a valid date... 
+    if account.get("Shaper Origin"):
+        return True
+    return False
+
+####################################################################
+# Helper function: does this user have access to Festool Domino?
+####################################################################
+def accountHasDominoAccess(account):
+    #technically should check if this field contains a valid date... 
+    if account.get("Festool Domino"):
+        return True
+    return False
+
+####################################################################
+# Helper function: is this Neon subscriber allowed facility access?
+####################################################################
+def subscriberHasFacilityAccess(account):
     if account.get("validMembership") == True and not account.get("AccessSuspended") and account.get("WaiverDate") and account.get("FacilityTourDate"):
-        logging.debug(f'''Account {account.get("Account ID")} has facility access''')
+        logging.debug(f'''Account {account.get("Account ID")} is a subscriber with facility access''')
         return True
     logging.debug(f'''Account {account.get("Account ID")} DOES NOT have access: 
 ValidMembership({account.get("validMembership")}),
@@ -292,3 +416,8 @@ FacilityTourDate({account.get("FacilityTourDate")})
 AccountSuspended({account.get("AccessSuspended")})''')
     return False
 
+####################################################################
+# Helper function: is this Neon account allowed facility access for any reason
+####################################################################
+def accountHasFacilityAccess(account):
+    return (accountIsStaff(account) or subscriberHasFacilityAccess(account))

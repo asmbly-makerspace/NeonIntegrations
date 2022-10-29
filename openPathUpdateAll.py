@@ -29,11 +29,11 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
 
     ##### Initialize these counts to number of zombies in Freshbooks
     ##### When this number falls to 0, update the email body text
-    subscriberCount = 16
-    missingWaiverCount = 16
-    lastFreshbooksUpdate = "5-Sep-2022"
+    subscriberCount = 15
+    missingWaiverCount = 15
 
     facilityUserCount = 0
+    compedSubscriberCount = 0
 
     warningUsers = []
     missingTourUsers = {}
@@ -41,8 +41,10 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     for account in neonAccounts:
         if neonAccounts[account].get("validMembership"):
             subscriberCount += 1
-        if neonUtil.accountHasFacilityAccess(neonAccounts[account]):
+        if neonUtil.subscriberHasFacilityAccess(neonAccounts[account]):
             facilityUserCount += 1
+        if neonAccounts[account].get("comped"):
+            compedSubscriberCount += 1
 
         if neonAccounts[account].get("OpenPathID"):
             openPathUtil.updateGroups(neonAccounts[account], 
@@ -64,9 +66,12 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
                 missingTourUsers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
 
     list_separator = '\n            '
+    compedSubscriberString = ""
+    if (compedSubscriberCount > 0):
+        compedSubscriberString = f''' plus {compedSubscriberCount} complimentary memberships'''
 
     msg = MIMEText(f'''
-    Today Asmbly has {subscriberCount} paying subscribers.  (Freshbooks count last updated on {lastFreshbooksUpdate})
+    Today Asmbly has {(subscriberCount - compedSubscriberCount)} paying subscribers{compedSubscriberString}.
 
     Of those:
         {facilityUserCount} have facility access
