@@ -2,12 +2,11 @@
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 ##################################################################
 
-from pprint import pformat
+from pprint import pformat, pprint
 import base64
 import datetime, pytz
 import requests
 import logging
-from pprint import pprint
 
 #I'm not absolutely certain NeonCRM thinks it's in central time, but it's in the ballpark.
 #pacific time might be slightly more accurate.  Maybe I'll ask their support.
@@ -78,25 +77,18 @@ def appendMemberships(neonAccount, detailed=False):
     if len(memberships) > 0:
         ### end date of the most recent paid membership (initialize to ancient history)
         latestSuccessfulMembershipExpiration = datetime.date(1970, 1, 1)
-        ### end date of most recent defined membership (initialize to ancient history)
-        latestKnownMembershipExpiration = datetime.date(1970, 1, 1)
         ##start date of earliest membership (initialize to today)
         firstMembershipStart = today
-
         ##flag indicating the account has at least one paid membership
         atLeastOneValidMembership = False
-
+        ##flag indicating the current membership has hard-failed (denied/cancelled/refunded)
+        currentMembershipHardFailed = False
 
         for membership in memberships:
             membershipExpiration = datetime.datetime.strptime(membership["termEndDate"], '%Y-%m-%d').date()
             membershipStart = datetime.datetime.strptime(membership["termStartDate"], '%Y-%m-%d').date()
 
             logging.debug(f'''Membership ending {membershipExpiration} status {membership["status"]} autorenewal is {membership["autoRenewal"]} ''')
-
-            ### If this membership is the latest we know of, save its expiration date
-            ### NOTE That it might not have been paid for
-            if membershipExpiration > latestKnownMembershipExpiration:
-                latestKnownMembershipExpiration = membershipExpiration
 
             ### If this membership *was* actually paid for:
             if membership["status"] == "SUCCEEDED":
@@ -121,15 +113,14 @@ def appendMemberships(neonAccount, detailed=False):
                     neonAccount["validMembership"] = True
                     if membership.get("fee") == 0:
                         neonAccount["comped"] = True
+            elif membership["status"] == "DECLINED" or membership["status"] == "CANCELLED" or membership["status"] == "REFUNDED":
+                ### If today is during a hard-failed membership, note that so we aren't allowing former members access
+                if membershipExpiration >= today and membershipStart <= today:
+                    currentMembershipHardFailed = True
 
-        #There's another scenario where a Neon membership is valid:
-        #if the most recent membership expired in the past (yesterday?)
-        #  and the most recent membership is SUCCEEDED
-        #  and auto-renewal is enabled on the account
-        #this catches the scenario where Neon just hasn't gotten around to processing the renewal yet.
-        if not neonAccount.get("validMembership"):
-            if (latestKnownMembershipExpiration == latestSuccessfulMembershipExpiration) and neonAccount.get("autoRenewal"):
-                neonAccount["validMembership"] = True
+        if latestSuccessfulMembershipExpiration == yesterday and neonAccount["autoRenewal"] and not currentMembershipHardFailed:
+            logging.INFO(f'''Neon appears to not have processed AutoRenewal for account {neonAccount.get("Account ID")}; allowing access today only''')
+            neonAccount["validMembership"] = True
 
         #!!! NOTE no promise that membership was continuous between these two dates !!!
         if atLeastOneValidMembership:
@@ -278,7 +269,6 @@ def getAllMembers():
 
     for account in neon_accounts:
         counter += 1
-        #TODO print some progress info so it doesn't look like the script hung
         accountCount += 1
 
         if counter > loops_per_ping:
