@@ -17,10 +17,10 @@ neonAccounts = {}
 
 #For real use, just get neon accounts directly
 #Be aware this takes a long time (2+ minutes)
-neonAccounts = neonUtil.getAllMembers()
+neonAccounts = neonUtil.getRealAccounts()
 
 # Testing goes a lot faster if we're working with a cache of accounts
-# with open("Neon/memberAccounts.json") as neonFile:
+# with open("Neon/neonAccounts.json") as neonFile:
 #     neonAccountJson = json.load(neonFile)
 #     for account in neonAccountJson:
 #         neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]

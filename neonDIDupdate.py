@@ -26,7 +26,7 @@ page = 0
 fullDlist = []
 
 discourseFilename = "Discourse/usersFull.json"
-neonFilename = "Neon/memberAccounts.json"
+neonFilename = "Neon/neonAccounts.json"
 neonDImissingFilename = "Neon/dIDmissing.json"
 
 neonAccountList = []

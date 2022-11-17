@@ -102,7 +102,7 @@ def disableAccount(neonAccount):
             #todo SEND EMAIL
             pass
     else:
-        logger.warn("DryRun in openPathUtil.disableAccount()")
+        logger.warning("DryRun in openPathUtil.disableAccount()")
 
 #################################################################################
 # Determine authorized OP groups for a Neon account
@@ -117,33 +117,23 @@ def getOpGroups(neonAccount):
     #23172 Subscribers
 
     #23174 Board / Leaders / SuperStewards 24x7 access
-    if (neonUtil.accountIsLeader(neonAccount) or neonUtil.accountIsSuper(neonAccount)):
+    if (neonUtil.accountIsType(neonAccount, neonUtil.LEADER_TYPE) or neonUtil.accountIsType(neonAccount, neonUtil.SUPER_TYPE)):
         opGroups.add(23174)
-    elif neonUtil.accountIsStaff(neonAccount):
+    elif neonUtil.accountIsType(neonAccount, neonUtil.STAFF_TYPE):
         #non-leader staff have access to all storage during regular hours
         opGroups.add(23172) #shop
         opGroups.add(27683) #stewards storage
         opGroups.add(96676) #instructor storage
         opGroups.add(23175) #coworking
 
-    #23175 CoWorking is a permissive group - they can ride out subscription lapses
-    if neonUtil.accountIsCoWorking(neonAccount):
-        opGroups.add(23175)
-        if neonUtil.accountIsSteward(neonAccount):
-            opGroups.add(27683)
-        if neonUtil.accountIsInstructor(neonAccount):
-            opGroups.add(96676)
-        if neonUtil.accountHasShaperAccess(neonAccount):
-            opGroups.add(37059)
-        if neonUtil.accountHasDominoAccess(neonAccount):
-            opGroups.add(96643)
-
-    #Other groups are only valid with a subscription
+    #Other groups are effectively subsets of overall facility access
     if neonUtil.accountHasFacilityAccess(neonAccount):
         opGroups.add(23172)
-        if neonUtil.accountIsSteward(neonAccount):
+        if neonUtil.accountIsType(neonAccount, neonUtil.COWORKING_TYPE):
+            opGroups.add(23175)
+        if neonUtil.accountIsType(neonAccount, neonUtil.STEWARD_TYPE):
             opGroups.add(27683)
-        if neonUtil.accountIsInstructor(neonAccount):
+        if neonUtil.accountIsType(neonAccount, neonUtil.INSTRUCTOR_TYPE):
             opGroups.add(96676)
         if neonUtil.accountHasShaperAccess(neonAccount):
             opGroups.add(37059)
@@ -213,7 +203,7 @@ def updateGroups(neonAccount, openPathGroups=None, email=False):
 
         if not neonUtil.accountHasFacilityAccess(neonAccount):
             ##these account types always have factility access even if their term expires.  Note the exception in the log.
-            if neonUtil.accountIsCoWorking(neonAccount) or neonUtil.accountIsLeader(neonAccount) or neonUtil.accountIsSuper(neonAccount):
+            if neonUtil.accountIsType(neonAccount, neonUtil.LEADER_TYPE) or neonUtil.accountIsType(neonAccount, neonUtil.SUPER_TYPE):
                 logging.warning(f'''I'm not disabling {neonAccount.get("fullName")} ({neonAccount.get("Email 1")}) becuase they're special''')
                 #Send an email if we ever get the renewal-bounce problem figured out.
 
@@ -322,7 +312,7 @@ def updateOpenPathByNeonId(neonId):
     #logging.debug(account)
     if account.get("OpenPathID"):
         updateGroups(account, email=True)
-    elif neonUtil.subscriberHasFacilityAccess(account) or neonUtil.accountIsStaff(account):
+    elif neonUtil.accountHasFacilityAccess(account):
         account = createUser(account)
         updateGroups(account, groups=[]) #pass empty groups list to skip the http get
         createMobileCredential(account)

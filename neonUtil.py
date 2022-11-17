@@ -2,7 +2,7 @@
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 ##################################################################
 
-from pprint import pformat
+from pprint import pformat, pprint
 import base64
 import datetime, pytz
 import requests
@@ -23,14 +23,21 @@ N_baseURL = 'https://api.neoncrm.com/v2'
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
 N_headers = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}'}
 
+#Strings relevant to Neon account management
+STAFF_TYPE = "Paid Staff"
+LEADER_TYPE = "Leader"
+SUPER_TYPE = "Super Steward"
+COWORKING_TYPE = "CoWorking Tenant"
+STEWARD_TYPE = "Steward"
+INSTRUCTOR_TYPE = "Instructor"
 
 ####################################################################
 # Update the OpenPathID stored in Neon for an account
 ####################################################################
-def updateOpenPathID(neonAccount):
+def updateOpenPathID(account: dict):
     #this should be a pretty thorough check for sane argument
-    assert(int(neonAccount.get("Account ID")) > 0)
-    assert(int(neonAccount.get("OpenPathID")) > 0)
+    assert(int(account.get("Account ID")) > 0)
+    assert(int(account.get("OpenPathID")) > 0)
 
     data = f'''
 {{
@@ -39,13 +46,13 @@ def updateOpenPathID(neonAccount):
     {{
         "id": "178",
         "name": "OpenPathID",
-        "value": "{neonAccount.get("OpenPathID")}"
+        "value": "{account.get("OpenPathID")}"
     }}
     ]
 }}
 }}
 '''
-    url = N_baseURL + f'/accounts/{neonAccount.get("Account ID")}' + '?category=Account'
+    url = N_baseURL + f'/accounts/{account.get("Account ID")}' + '?category=Account'
     if not dryRun:
         response = requests.patch(url, data=data, headers=N_headers)
         if (response.status_code != 200):
@@ -56,9 +63,9 @@ def updateOpenPathID(neonAccount):
 ####################################################################
 # Update the DiscourseID stored in Neon for an account
 ####################################################################
-def updateDID(neonAccount):
-    assert(int(neonAccount.get("Account ID")) > 0)
-    assert(neonAccount.get("DiscourseID") is not None)
+def updateDID(account: dict):
+    assert(int(account.get("Account ID")) > 0)
+    assert(account.get("DiscourseID") is not None)
 
     data = f'''
 {{
@@ -67,13 +74,13 @@ def updateDID(neonAccount):
     {{
         "id": "85",
         "name": "DiscourseID",
-        "value": "{neonAccount.get("DiscourseID")}"
+        "value": "{account.get("DiscourseID")}"
     }}
     ]
 }}
 }}
 '''
-    url = N_baseURL + f'/accounts/{neonAccount.get("Account ID")}' + '?category=Account'
+    url = N_baseURL + f'/accounts/{account.get("Account ID")}' + '?category=Account'
     if not dryRun:
         response = requests.patch(url, data=data, headers=N_headers)
         if (response.status_code != 200):
@@ -85,13 +92,13 @@ def updateDID(neonAccount):
 ####################################################################
 # Update a valid Neon account to include membership information
 ####################################################################
-def appendMemberships(neonAccount, detailed=False):
+def appendMemberships(account: dict, detailed=False):
     #this should be a pretty thorough check for sane argument
-    assert(int(neonAccount.get("Account ID")) > 0)
+    assert(int(account.get("Account ID")) > 0)
 
     #Neon counts a failed renewal as a valid subscription so long as automatic renewal is enabled.
-    #WE only think a subscription is valid if the subscriber actually paid for it, so check for a successful payment.
-    url = N_baseURL + f'/accounts/{neonAccount.get("Account ID")}/memberships'
+    #WE only think a subscription is valid if the payment transaction was successful, so check payment status.
+    url = N_baseURL + f'/accounts/{account.get("Account ID")}/memberships'
     response = requests.get(url, headers=N_headers)
 
     if (response.status_code != 200):
@@ -99,17 +106,17 @@ def appendMemberships(neonAccount, detailed=False):
 
     #logging.debug(pformat(response.json()))
 
-    neonAccount["validMembership"] = False
+    account["validMembership"] = False
 
     memberships = response.json().get("memberships")
 
     if len(memberships) > 0:
-        ### end date of the most recent paid membership (initialize to ancient history)
-        latestSuccessfulMembershipExpiration = datetime.date(1970, 1, 1)
+        ### end date of the most recent active membership (initialize to ancient history)
+        lastActiveMembershipExpiration = datetime.date(1970, 1, 1)
         ##start date of earliest membership (initialize to today)
-        firstMembershipStart = today
-        ##flag indicating the account has at least one paid membership
-        atLeastOneValidMembership = False
+        firstActiveMembershipStart = today
+        ##flag indicating the account has at least one active membership
+        atLeastOneActiveMembership = False
         ##flag indicating the current membership has hard-failed (denied/cancelled/refunded)
         currentMembershipHardFailed = False
 
@@ -119,57 +126,54 @@ def appendMemberships(neonAccount, detailed=False):
 
             logging.debug(f'''Membership ending {membershipExpiration} status {membership["status"]} autorenewal is {membership["autoRenewal"]} ''')
 
-            ### If this membership *was* actually paid for:
+            ### If this membership *was* actually paid for (or comped):
             if membership["status"] == "SUCCEEDED":
-                ### flag this account as having at least once been paid.
-                atLeastOneValidMembership = True
+                ### flag this account as having at least once been active.
+                atLeastOneActiveMembership = True
 
-                ### If this (paid) membership is later than the latest we know about, remember its end date
-                if membershipExpiration > latestSuccessfulMembershipExpiration:
-                    latestSuccessfulMembershipExpiration = membershipExpiration
+                ### If this active membership is later than the latest we know about, remember its end date
+                if membershipExpiration > lastActiveMembershipExpiration:
+                    lastActiveMembershipExpiration = membershipExpiration
 
                     #in my testing membership[autoRenewal] is the same value for all memberships and
                     #reflects the current Neon setting.  It seems safest to keep the latest successful
                     #value, but we should probably spot-check this from time to time
-                    neonAccount["autoRenewal"] = membership["autoRenewal"]
+                    account["autoRenewal"] = membership["autoRenewal"]
 
-                ### If this (paid) membership is the earliest one we know about, remember the start date
-                if membershipStart < firstMembershipStart:
-                    firstMembershipStart = membershipStart
+                ### If this active membership is the earliest one we know about, remember the start date
+                if membershipStart < firstActiveMembershipStart:
+                    firstActiveMembershipStart = membershipStart
 
-                ### If today is during this (paid), mark the account as valid (should probably be called "active" but well...)
+                ### If today is during this active membership, mark the account as valid (should probably be called "active" but well...)
                 if membershipExpiration >= today and membershipStart <= today:
-                    neonAccount["validMembership"] = True
+                    account["validMembership"] = True
                     if membership.get("fee") == 0:
-                        neonAccount["comped"] = True
+                        account["comped"] = True
             elif membership["status"] == "DECLINED" or membership["status"] == "CANCELLED" or membership["status"] == "REFUNDED":
                 ### If today is during a hard-failed membership, note that so we aren't allowing former members access
                 if membershipExpiration >= today and membershipStart <= today:
                     currentMembershipHardFailed = True
 
-        if latestSuccessfulMembershipExpiration == yesterday and neonAccount["autoRenewal"] and not currentMembershipHardFailed:
-            logging.info(f'''Neon appears to not have processed AutoRenewal for account {neonAccount.get("Account ID")}; allowing access today only''')
-            neonAccount["validMembership"] = True
+        if lastActiveMembershipExpiration == yesterday and account["autoRenewal"] and not currentMembershipHardFailed:
+            logging.info(f'''Neon appears to not have processed AutoRenewal for account {account.get("Account ID")}; allowing access today only''')
+            account["validMembership"] = True
 
         #!!! NOTE no promise that membership was continuous between these two dates !!!
-        if atLeastOneValidMembership:
-            neonAccount["Membership Start Date"] = str(firstMembershipStart)
-            neonAccount["Membership Expiration Date"] = str(latestSuccessfulMembershipExpiration)
+        if atLeastOneActiveMembership:
+            account["Membership Start Date"] = str(firstActiveMembershipStart)
+            account["Membership Expiration Date"] = str(lastActiveMembershipExpiration)
 
         if (detailed):
-            neonAccount["MembershipDetails"] = memberships
+            account["MembershipDetails"] = memberships
 
-    #logging.debug(pformat(neonAccount))
+    #logging.debug(pformat(account))
 
-    return neonAccount
+    return account
 
 ####################################################################
 # Given a Neon member ID, return an account including membership info
 ####################################################################
-def getMemberById(id, detailed = False):
-    #I think this will raise an exception and exit if it fails??? 
-    id = int(id)
-
+def getMemberById(id: int, detailed = False):
     url = N_baseURL + f'/accounts/{id}'
     response = requests.get(url, headers=N_headers)
 
@@ -207,7 +211,7 @@ def getMemberById(id, detailed = False):
 # *Annoyingly* a search returns types in a different format than a fetch
 # Our scripts expect the fetch format, so do translation here
 ####################################################################
-def fixTypes(account):
+def fixTypes(account: dict):
     if account.get("Individual Type"):
         typeDictList = []
         typelist = account.get("Individual Type").split('|')
@@ -217,11 +221,9 @@ def fixTypes(account):
     return account
 
 ####################################################################
-# Get all members in Neon without subscription details
+# Get Neon accounts matching given criteria
 ####################################################################
-def getMembersFast():
-    neon_accounts = {}
-
+def getNeonAccounts(searchFields, neonAccountDict = {}):
     #Output Fields
     #85 is DiscourseId
     #77 is OrientationDate
@@ -237,12 +239,7 @@ def getMembersFast():
     while True:
         data = f'''
 {{
-    "searchFields": [
-        {{
-            "field": "Membership Expiration Date",
-            "operator": "NOT_BLANK"
-        }}
-    ],
+    "searchFields": {searchFields},
     "outputFields": [
         "First Name", 
         "Last Name",
@@ -268,37 +265,68 @@ def getMembersFast():
         if (response.status_code != 200):
             raise ValueError(f'Post {url} returned status code {response.status_code}')
 
-        logging.info(f'''{response.json().get("pagination")}''')
+        logging.info(f'''Fetching Accounts: {response.json().get("pagination")}''')
         #re-shuffle the data into a format that's a little easier to work with
         for acct in response.json()["searchResults"]:
-            neon_accounts[acct["Account ID"]] = fixTypes(acct)
+            #don't clobber an existing local account record that may have been updated since the last Neon query
+            if neonAccountDict.get(acct["Account ID"]) is None:
+                neonAccountDict[acct["Account ID"]] = fixTypes(acct)
         #intentionally incrementing page before checking totalPages 
         #"page" is 0-based, "totalPages" is 1-based
         page += 1
         if page >= response.json().get("pagination").get("totalPages"):
             break
-    return neon_accounts
+    return neonAccountDict
+
 
 ####################################################################
-# Get all members in Neon, incuding detailed subscription info
-# BUG -- this function is often used where we want staff accounts too.  fix that.
-# FIXME -- this function signature is annoyingly inconsistent with getMemberByID
+# Get all members in Neon without subscription details
+# Should we make a synthetic type for "Members" and combine this with getByType? 
 ####################################################################
-def getAllMembers():
+def getMembersFast(neonAccountDict = {}):
+    searchFields = '''[
+    {
+        "field": "Membership Expiration Date",
+        "operator": "NOT_BLANK"
+    }
+]'''
+
+    return getNeonAccounts(searchFields, neonAccountDict = neonAccountDict)
+
+####################################################################
+# Get all accounts of a given type in Neon without subscription details
+####################################################################
+def getAccountsByType(type: str, neonAccountDict = {}):
+    searchFields = f'''[
+    {{
+        "field": "Individual Type",
+        "operator": "EQUAL",
+        "value": "{type}"
+    }}
+]'''
+
+    return getNeonAccounts(searchFields, neonAccountDict = neonAccountDict)
+
+####################################################################
+# Get all staf and current/past members from Neon, incuding detailed subscription info
+####################################################################
+def getRealAccounts():
     accountCount = 0
-    paidSubscribers = 0
+    activeSubscriptions = 0
 
-    neon_accounts = getMembersFast()
+    neonAccountDict = getMembersFast()
+    #Staff accounts might not have any membership records
+    neonAccountDict = getAccountsByType(STAFF_TYPE, neonAccountDict = neonAccountDict)
 
     #some progress logging
     num_pings = 5
-    num_loops = len(neon_accounts)
+    num_loops = len(neonAccountDict)
     loops_per_ping = num_loops / num_pings
     progress_per_ping = 100 / num_pings
     progress = 0
     counter = 0
 
-    for account in neon_accounts:
+    for account in neonAccountDict:
         counter += 1
         accountCount += 1
 
@@ -308,99 +336,40 @@ def getAllMembers():
             logging.info(f'Updating Membership Info {int(progress)}% complete')
 
         #copy primary contact info to match search results format
-        neon_accounts[account]["fullName"] = f'''{neon_accounts[account].get("First Name")} {neon_accounts[account].get("Last Name")}'''
+        neonAccountDict[account]["fullName"] = f'''{neonAccountDict[account].get("First Name")} {neonAccountDict[account].get("Last Name")}'''
+
+        #fixup missing membership expiration dates so we don't have to keep checking for them
+        if neonAccountDict[account].get("Membership Expiration Date") is None:
+            neonAccountDict[account]["Membership Expiration Date"] = "1970-01-01"
+            neonAccountDict[account]["validMembership"] = False
+            continue
 
         #If Neon thinks the expiration date is in the past, it's surely in the past.  don't bother checking details.
         #NOTE that Neon sets "Membership Start Date" to start of the most recent membership term, not the oldest.  This means
         #     expired members that had a renewal will show incorrect start dates by our counting.
         #     I figure we won't need that data, so don't bother pulling membership details to correct it.
-        if datetime.datetime.strptime(neon_accounts[account]["Membership Expiration Date"], '%Y-%m-%d').date() < today:
-            neon_accounts[account]["validMembership"] = False
+        if datetime.datetime.strptime(neonAccountDict[account]["Membership Expiration Date"], '%Y-%m-%d').date() < today:
+            neonAccountDict[account]["validMembership"] = False
             continue
 
-        neon_accounts[account] = appendMemberships(neon_accounts[account])
+        neonAccountDict[account] = appendMemberships(neonAccountDict[account])
 
-        if neon_accounts[account].get("validMembership"):
-            paidSubscribers += 1
+        if neonAccountDict[account].get("validMembership"):
+            activeSubscriptions += 1
         
-    logging.info(f"In {accountCount} Neon accounts we found {paidSubscribers} paid subscribers")
+    logging.info(f"In {accountCount} Neon accounts we found {activeSubscriptions} active subscriptions")
 
-    return neon_accounts
+    return neonAccountDict
 
 ####################################################################
-# Helper function: is this Neon account a staff member
+# Helper function: is this Neon account marked with specified type
 ####################################################################
-def accountIsStaff(account):
+def accountIsType(account: dict, accountType: str):
     if account.get("individualTypes") is None:
         return False
 
     for type in account.get("individualTypes"):
-        if type.get("name") == "Paid Staff":
-            return True
-
-    return False
-
-####################################################################
-# Helper function: is this Neon account a vounteer leader
-####################################################################
-def accountIsLeader(account):
-    if account.get("individualTypes") is None:
-        return False
-
-    for type in account.get("individualTypes"):
-        if type.get("name") == "Leader":
-            return True
-
-    return False
-
-####################################################################
-# Helper function: is this Neon account a vounteer leader
-####################################################################
-def accountIsSuper(account):
-    if account.get("individualTypes") is None:
-        return False
-
-    for type in account.get("individualTypes"):
-        if type.get("name") == "Super Steward":
-            return True
-
-    return False
-
-####################################################################
-# Helper function: is this Neon account a coWorking subscriber
-####################################################################
-def accountIsCoWorking(account):
-    if account.get("individualTypes") is None:
-        return False
-
-    for type in account.get("individualTypes"):
-        if type.get("name") == "CoWorking Tenant":
-            return True
-
-    return False
-
-####################################################################
-# Helper function: is this Neon account a steward
-####################################################################
-def accountIsSteward(account):
-    if account.get("individualTypes") is None:
-        return False
-
-    for type in account.get("individualTypes"):
-        if type.get("name") == "Steward":
-            return True
-
-    return False
-
-####################################################################
-# Helper function: is this Neon account an instructor
-####################################################################
-def accountIsInstructor(account):
-    if account.get("individualTypes") is None:
-        return False
-
-    for type in account.get("individualTypes"):
-        if type.get("name") == "Instructor":
+        if type.get("name") == accountType:
             return True
 
     return False
@@ -408,7 +377,7 @@ def accountIsInstructor(account):
 ####################################################################
 # Helper function: does this user have access to Shaper Origin?
 ####################################################################
-def accountHasShaperAccess(account):
+def accountHasShaperAccess(account: dict):
     #technically should check if this field contains a valid date... 
     if account.get("Shaper Origin"):
         return True
@@ -417,7 +386,7 @@ def accountHasShaperAccess(account):
 ####################################################################
 # Helper function: does this user have access to Festool Domino?
 ####################################################################
-def accountHasDominoAccess(account):
+def accountHasDominoAccess(account: dict):
     #technically should check if this field contains a valid date... 
     if account.get("Festool Domino"):
         return True
@@ -426,11 +395,11 @@ def accountHasDominoAccess(account):
 ####################################################################
 # Helper function: is this Neon subscriber allowed facility access?
 ####################################################################
-def subscriberHasFacilityAccess(account):
+def subscriberHasFacilityAccess(account: dict):
     if account.get("validMembership") == True and not account.get("AccessSuspended") and account.get("WaiverDate") and account.get("FacilityTourDate"):
         logging.debug(f'''Account {account.get("Account ID")} is a subscriber with facility access''')
         return True
-    logging.debug(f'''Account {account.get("Account ID")} DOES NOT have access: 
+    logging.debug(f'''Subscriber Account {account.get("Account ID")} DOES NOT have access: 
 ValidMembership({account.get("validMembership")}),
 WaiverDate({account.get("WaiverDate")})
 FacilityTourDate({account.get("FacilityTourDate")})
@@ -440,5 +409,14 @@ AccountSuspended({account.get("AccessSuspended")})''')
 ####################################################################
 # Helper function: is this Neon account allowed facility access for any reason
 ####################################################################
-def accountHasFacilityAccess(account):
-    return (accountIsStaff(account) or subscriberHasFacilityAccess(account))
+def accountHasFacilityAccess(account: dict):
+    if (accountIsType(account, STAFF_TYPE) or subscriberHasFacilityAccess(account)):
+        return True
+
+    # CoWorking is a moderately permissive group - they can ride out subscription lapses, but not other membership requirements
+    if (accountIsType(account, COWORKING_TYPE)):
+        if account.get("WaiverDate") and account.get("FacilityTourDate") and not account.get("AccessSuspended"):
+            logging.warning(f'''Cowrking subscriber {account.get("fullName")} has access despite a lapsed membership.''')
+            return True
+
+    return False
