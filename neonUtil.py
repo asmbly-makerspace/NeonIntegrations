@@ -281,6 +281,8 @@ def getMembersFast():
 
 ####################################################################
 # Get all members in Neon, incuding detailed subscription info
+# BUG -- this function is often used where we want staff accounts too.  fix that.
+# FIXME -- this function signature is annoyingly inconsistent with getMemberByID
 ####################################################################
 def getAllMembers():
     accountCount = 0

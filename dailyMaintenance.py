@@ -1,4 +1,4 @@
-from discourseUpdateHaxors import discourseUpdateHaxors
+from discourseUpdateGroups import discourseUpdateGroups
 from openPathUpdateAll import openPathUpdateAll
 
 import neonUtil
@@ -34,5 +34,5 @@ if (now < mailcutoff):
 else:
     openPathUpdateAll(neonAccounts, mailSummary = False)
 
-discourseUpdateHaxors(neonAccounts)
+discourseUpdateGroups(neonAccounts)
 logging.info("Sync cycle complete.")

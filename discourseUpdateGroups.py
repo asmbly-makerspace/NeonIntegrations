@@ -14,15 +14,15 @@ logging.basicConfig(
          level=logging.INFO,
          datefmt='%Y-%m-%d %H:%M:%S')
 
-def discourseUpdateHaxors(neonAccounts):
+def discourseUpdateGroups(neonAccounts):
     # ##### DISCOURSE #####
-    # retrieve all members of hax0r group
-    haxors = discourseUtil.getHaxors()
+    # retrieve all members of makers group
+    makers = discourseUtil.getMakers()
 
-    #this first loop adds people to haxors (or notes lack of DiscourseID)
-    addHaxor = ""
+    #this first loop adds people to makers (or notes lack of DiscourseID)
+    addMakers = ""
 
-    #Step 1a: find all Neon accounts that are paid up, have a DiscourseID, and aren't in Hax0rs
+    #Step 1a: find all Neon accounts that are paid up, have a DiscourseID, and aren't in Makers
     for account in neonAccounts:
         if neonAccounts[account].get("validMembership") != True:
             continue
@@ -31,41 +31,40 @@ def discourseUpdateHaxors(neonAccounts):
             #neon accounts missing a DiscourseID
             logging.debug(neonAccounts[account]["First Name"]+" "+neonAccounts[account]["Last Name"]+" ("+neonAccounts[account]["Account ID"]+") is active but has no Discourse ID")
             pass
-        elif haxors.get(neonAccounts[account]["DiscourseID"]) is None:
+        elif makers.get(neonAccounts[account]["DiscourseID"]) is None:
             dID = neonAccounts[account]["DiscourseID"]
-            #neon accounts not in Haxor group
-            logging.info(dID+" ("+neonAccounts[account]["First Name"]+" "+neonAccounts[account]["Last Name"]+") is active and will be added to Haxors")
-            if addHaxor != "":
-                addHaxor+= ','
-            addHaxor += f'{dID}'
+            #neon accounts not in maker group
+            logging.info(dID+" ("+neonAccounts[account]["First Name"]+" "+neonAccounts[account]["Last Name"]+") is active and will be added to Makers")
+            if addMakers != "":
+                addMakers+= ','
+            addMakers += f'{dID}'
 
-    discourseUtil.addHaxors(addHaxor)
+    discourseUtil.promoteMakers(addMakers)
 
-    #until we decommission FreshBooks, hax0r auditing is weirded
+    #until we decommission FreshBooks, maker auditing is weirded
     #for now just remove people with valid neon accounts who let their subscriptions lapse
-    #step 2 : find hax0rs without an active membership
-    removeHaxor = ""
-    matchedAccounts = 0
-    for haxor in haxors:
+    #step 2 : find makers without an active membership
+    removeMakers = ""
+    for maker in makers:
         expired = False
         match = False
         for account in neonAccounts:
-            if haxor == neonAccounts[account].get("DiscourseID"):
+            if maker == neonAccounts[account].get("DiscourseID"):
                 match = True
                 if not neonAccounts[account].get("validMembership"):
                     expired = True
 
         if expired:
-            logging.info(haxor+" ("+haxors[haxor]["name"]+") used to be a subscriber but is no longer")
-            if removeHaxor != "":
-                removeHaxor+= ','
-            removeHaxor += f'{haxor}'
+            logging.info(maker+" ("+makers[maker]["name"]+") used to be a subscriber but is no longer")
+            if removeMakers != "":
+                removeMakers+= ','
+            removeMakers += f'{maker}'
         if not match:
-            logging.debug(haxor+" ("+haxors[haxor]["name"]+") doesn't seem to have a Neon record")
+            logging.warning(maker+" ("+makers[maker]["name"]+") doesn't seem to have a Neon record")
             #this will happen much less often once we stop using Freshbooks
             pass
 
-    discourseUtil.removeHaxors(removeHaxor)
+    discourseUtil.demoteMakers(removeMakers)
 
 #begin standalone script functionality -- pull neonAccounts and call our function
 def main():
@@ -81,7 +80,7 @@ def main():
     #     for account in neonAccountJson:
     #         neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]
 
-    discourseUpdateHaxors(neonAccounts)
+    discourseUpdateGroups(neonAccounts)
 
 if __name__ == "__main__":
     main()
