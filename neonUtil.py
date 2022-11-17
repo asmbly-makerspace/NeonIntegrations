@@ -2,7 +2,7 @@
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 ##################################################################
 
-from pprint import pformat, pprint
+from pprint import pformat
 import base64
 import datetime, pytz
 import requests
@@ -52,6 +52,35 @@ def updateOpenPathID(neonAccount):
             raise ValueError(f'Patch {url} returned status code {response.status_code}')
     else:
         logging.warn("DryRun in neonUtil.updateOpenPathID()")
+
+####################################################################
+# Update the DiscourseID stored in Neon for an account
+####################################################################
+def updateDID(neonAccount):
+    assert(int(neonAccount.get("Account ID")) > 0)
+    assert(neonAccount.get("DiscourseID") is not None)
+
+    data = f'''
+{{
+"individualAccount": {{
+    "accountCustomFields": [
+    {{
+        "id": "85",
+        "name": "DiscourseID",
+        "value": "{neonAccount.get("DiscourseID")}"
+    }}
+    ]
+}}
+}}
+'''
+    url = N_baseURL + f'/accounts/{neonAccount.get("Account ID")}' + '?category=Account'
+    if not dryRun:
+        response = requests.patch(url, data=data, headers=N_headers)
+        if (response.status_code != 200):
+            raise ValueError(f'Patch {url} returned status code {response.status_code}')
+    else:
+        logging.warn("DryRun in neonUtil.updateDID()")
+
 
 ####################################################################
 # Update a valid Neon account to include membership information
@@ -119,7 +148,7 @@ def appendMemberships(neonAccount, detailed=False):
                     currentMembershipHardFailed = True
 
         if latestSuccessfulMembershipExpiration == yesterday and neonAccount["autoRenewal"] and not currentMembershipHardFailed:
-            logging.INFO(f'''Neon appears to not have processed AutoRenewal for account {neonAccount.get("Account ID")}; allowing access today only''')
+            logging.info(f'''Neon appears to not have processed AutoRenewal for account {neonAccount.get("Account ID")}; allowing access today only''')
             neonAccount["validMembership"] = True
 
         #!!! NOTE no promise that membership was continuous between these two dates !!!
