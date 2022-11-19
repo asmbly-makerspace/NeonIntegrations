@@ -38,6 +38,11 @@ neonAccountsByDID = {}
 
 #Just do a quick Neon fetch - we don't care about subscription details, and they take forever
 neon_accounts = neonUtil.getMembersFast()
+
+#save time - there's a bunch of known discourse IDs that never bought memberships
+# fetching them from Neon is a lot faster than querying emails from Discourse
+neon_accounts = neonUtil.getOrphanDiscourseAccounts(neonAccountDict=neon_accounts)
+
 for account in neon_accounts:
     neonAccountList.append(neon_accounts.get(account))
     dID = neon_accounts.get(account).get("DiscourseID")

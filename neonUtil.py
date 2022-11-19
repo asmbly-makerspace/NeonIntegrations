@@ -280,6 +280,40 @@ def getNeonAccounts(searchFields, neonAccountDict = {}):
 
 
 ####################################################################
+# Get all accounts in neon with OP IDs but no memberships 
+####################################################################
+def getOrphanOpAccounts(neonAccountDict = {}):
+    searchFields = '''[
+    {
+        "field": "Membership Expiration Date",
+        "operator": "BLANK"
+    },
+    {
+        "field": "OpenPathID",
+        "operator": "NOT_BLANK"
+    }
+]'''
+
+    return getNeonAccounts(searchFields, neonAccountDict = neonAccountDict)
+
+####################################################################
+# Get all accounts in neon with Discourse IDs but no memberships 
+####################################################################
+def getOrphanDiscourseAccounts(neonAccountDict = {}):
+    searchFields = '''[
+    {
+        "field": "Membership Expiration Date",
+        "operator": "BLANK"
+    },
+    {
+        "field": "DiscourseID",
+        "operator": "NOT_BLANK"
+    }
+]'''
+
+    return getNeonAccounts(searchFields, neonAccountDict = neonAccountDict)
+
+####################################################################
 # Get all members in Neon without subscription details
 # Should we make a synthetic type for "Members" and combine this with getByType? 
 ####################################################################
@@ -317,6 +351,9 @@ def getRealAccounts():
     neonAccountDict = getMembersFast()
     #Staff accounts might not have any membership records
     neonAccountDict = getAccountsByType(STAFF_TYPE, neonAccountDict = neonAccountDict)
+    #former Staff accounts might not have any membership records
+    neonAccountDict = getOrphanDiscourseAccounts(neonAccountDict = neonAccountDict)
+    neonAccountDict = getOrphanOpAccounts(neonAccountDict = neonAccountDict)
 
     #some progress logging
     num_pings = 5
