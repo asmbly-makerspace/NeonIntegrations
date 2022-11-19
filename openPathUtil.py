@@ -16,6 +16,15 @@ import AsmblyMessageFactory
 import gmailUtil
 from config import O_APIkey, O_APIuser
 
+#OpenPath Group IDs
+GROUP_MANAGEMENT = 23174
+GROUP_SUBSCRIBERS = 23172
+GROUP_COWORKING = 23175
+GROUP_STEWARDS = 27683
+GROUP_INSTRUCTORS = 96676
+GROUP_SHAPER_ORIGIN = 37059
+GROUP_DOMINO = 96643
+
 dryRun = False
 
 ### OpenPath Account Info
@@ -110,35 +119,29 @@ def disableAccount(neonAccount):
 def getOpGroups(neonAccount):
     opGroups = set()   #using a set prevents duplicates
 
-    #27683 Stewards
-    #96676 Instructors
-    #37059 Shaper Origin
-    #96643 Domino
-    #23172 Subscribers
-
-    #23174 Board / Leaders / SuperStewards 24x7 access
+    #Board / Leaders / SuperStewards 24x7 access
     if (neonUtil.accountIsType(neonAccount, neonUtil.LEADER_TYPE) or neonUtil.accountIsType(neonAccount, neonUtil.SUPER_TYPE)):
-        opGroups.add(23174)
+        opGroups.add(GROUP_MANAGEMENT)
     elif neonUtil.accountIsType(neonAccount, neonUtil.STAFF_TYPE):
         #non-leader staff have access to all storage during regular hours
-        opGroups.add(23172) #shop
-        opGroups.add(27683) #stewards storage
-        opGroups.add(96676) #instructor storage
-        opGroups.add(23175) #coworking
+        opGroups.add(GROUP_SUBSCRIBERS) #shop
+        opGroups.add(GROUP_STEWARDS) #stewards storage
+        opGroups.add(GROUP_INSTRUCTORS) #instructor storage
+        opGroups.add(GROUP_COWORKING) #coworking
 
     #Other groups are effectively subsets of overall facility access
     if neonUtil.accountHasFacilityAccess(neonAccount):
-        opGroups.add(23172)
+        opGroups.add(GROUP_SUBSCRIBERS)
         if neonUtil.accountIsType(neonAccount, neonUtil.COWORKING_TYPE):
-            opGroups.add(23175)
+            opGroups.add(GROUP_COWORKING)
         if neonUtil.accountIsType(neonAccount, neonUtil.STEWARD_TYPE):
-            opGroups.add(27683)
+            opGroups.add(GROUP_STEWARDS)
         if neonUtil.accountIsType(neonAccount, neonUtil.INSTRUCTOR_TYPE):
-            opGroups.add(96676)
+            opGroups.add(GROUP_INSTRUCTORS)
         if neonUtil.accountHasShaperAccess(neonAccount):
-            opGroups.add(37059)
+            opGroups.add(GROUP_SHAPER_ORIGIN)
         if neonUtil.accountHasDominoAccess(neonAccount):
-            opGroups.add(96643)
+            opGroups.add(GROUP_DOMINO)
 
     return list(opGroups)
 
