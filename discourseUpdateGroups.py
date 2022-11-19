@@ -19,12 +19,10 @@ def discourseUpdateGroups(neonAccounts):
     # retrieve all members of makers group
     makers = discourseUtil.getMakers()
 
-    #this first loop adds people to makers (or notes lack of DiscourseID)
+    #Step 1: find all Neon accounts that are paid up, have a DiscourseID, and aren't in Makers
     addMakers = ""
-
-    #Step 1a: find all Neon accounts that are paid up, have a DiscourseID, and aren't in Makers
     for account in neonAccounts:
-        if neonAccounts[account].get("validMembership") != True:
+        if not neonAccounts[account].get("validMembership") and not neonUtil.accountIsType(neonAccounts[account], neonUtil.FRESHBOOKS_TYPE):
             continue
         #logging.debug(pformat(neonAccounts[account]))
         if neonAccounts[account].get("DiscourseID") is None or neonAccounts[account].get("DiscourseID") == "":
@@ -41,9 +39,7 @@ def discourseUpdateGroups(neonAccounts):
 
     discourseUtil.promoteMakers(addMakers)
 
-    #until we decommission FreshBooks, maker auditing is weirded
-    #for now just remove people with valid neon accounts who let their subscriptions lapse
-    #step 2 : find makers without an active membership
+    #step 2 : remove makers without an active membership
     removeMakers = ""
     for maker in makers:
         expired = False
@@ -51,7 +47,7 @@ def discourseUpdateGroups(neonAccounts):
         for account in neonAccounts:
             if maker == neonAccounts[account].get("DiscourseID"):
                 match = True
-                if not neonAccounts[account].get("validMembership"):
+                if not neonAccounts[account].get("validMembership") and not neonUtil.accountIsType(neonAccounts[account], neonUtil.FRESHBOOKS_TYPE):
                     expired = True
 
         if expired:
@@ -61,8 +57,9 @@ def discourseUpdateGroups(neonAccounts):
             removeMakers += f'{maker}'
         if not match:
             logging.warning(maker+" ("+makers[maker]["name"]+") doesn't seem to have a Neon record")
-            #this will happen much less often once we stop using Freshbooks
-            pass
+            if removeMakers != "":
+                removeMakers+= ','
+            removeMakers += f'{maker}'
 
     discourseUtil.demoteMakers(removeMakers)
 

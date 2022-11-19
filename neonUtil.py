@@ -30,6 +30,7 @@ SUPER_TYPE = "Super Steward"
 COWORKING_TYPE = "CoWorking Tenant"
 STEWARD_TYPE = "Steward"
 INSTRUCTOR_TYPE = "Instructor"
+FRESHBOOKS_TYPE = "FreshBooks Member"
 
 ####################################################################
 # Update the OpenPathID stored in Neon for an account
