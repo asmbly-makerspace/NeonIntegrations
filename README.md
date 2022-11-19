@@ -11,7 +11,8 @@ In attempts to further simplify our administrative operations so that we can foc
 
 First, thanks for collaborating!  If you are part of the organization, please create a branch to work then submit a pull request to main.  If you are outside the organization, we still welcome your collaboration!  Just fork the repo, then submit a pull request.
 
-NOTE:  You will need to create a separate file `config.py` with API keys (this will be ignored by git).  Variables used are `N_APIkey`, `N_APIuser`, `D_APIkey`, `D_APIuser`, and `S_APIkey`.
+NOTE:  You will need to create a separate file `config.py` with API keys (this will be ignored by git).  Variables used are
+`D_APIkey`, `D_APIuser`, `G_password `, `G_user`, `N_APIkey`, `N_APIuser`, `O_APIkey`, `O_APIuser`, and `S_APIkey`.
 
 <br>
 <hr>
