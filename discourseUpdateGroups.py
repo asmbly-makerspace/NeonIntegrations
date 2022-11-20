@@ -4,7 +4,6 @@
 ################################################################
 
 from pprint import pformat
-import json
 import discourseUtil
 import neonUtil
 import logging
@@ -14,13 +13,12 @@ logging.basicConfig(
          level=logging.INFO,
          datefmt='%Y-%m-%d %H:%M:%S')
 
-def discourseUpdateGroups(neonAccounts):
-    # ##### DISCOURSE #####
+def updateMakers(neonAccounts: dict):
     # retrieve all members of makers group
-    makers = discourseUtil.getMakers()
+    makers = discourseUtil.getGroupMembers(discourseUtil.GROUP_MAKERS)
 
     #Step 1: find all Neon accounts that are paid up, have a DiscourseID, and aren't in Makers
-    addMakers = ""
+    addMakers = set()
     for account in neonAccounts:
         if not neonAccounts[account].get("validMembership") and not neonUtil.accountIsType(neonAccounts[account], neonUtil.FRESHBOOKS_TYPE):
             continue
@@ -33,35 +31,77 @@ def discourseUpdateGroups(neonAccounts):
             dID = neonAccounts[account]["DiscourseID"]
             #neon accounts not in maker group
             logging.info(dID+" ("+neonAccounts[account]["First Name"]+" "+neonAccounts[account]["Last Name"]+") is active and will be added to Makers")
-            if addMakers != "":
-                addMakers+= ','
-            addMakers += f'{dID}'
+            addMakers.add(f'{dID}')
 
-    discourseUtil.promoteMakers(addMakers)
+    #promote new Makers -- add to Makers, remove from Community (which may fail, but that's OK)
+    discourseUtil.removeGroupMembers(list(addMakers), discourseUtil.GROUP_COMMUNITY)
+    discourseUtil.addGroupMembers(list(addMakers), discourseUtil.GROUP_MAKERS)
 
     #step 2 : remove makers without an active membership
-    removeMakers = ""
+    removeMakers = set()
     for maker in makers:
-        expired = False
-        match = False
+        remove = True
         for account in neonAccounts:
-            if maker == neonAccounts[account].get("DiscourseID"):
-                match = True
-                if not neonAccounts[account].get("validMembership") and not neonUtil.accountIsType(neonAccounts[account], neonUtil.FRESHBOOKS_TYPE):
-                    expired = True
+            if maker == neonAccounts[account].get("DiscourseID") and (neonAccounts[account].get("validMembership") or neonUtil.accountIsType(neonAccounts[account], neonUtil.FRESHBOOKS_TYPE)):
+                    remove = False
 
-        if expired:
+        if remove:
             logging.info(maker+" ("+makers[maker]["name"]+") used to be a subscriber but is no longer")
-            if removeMakers != "":
-                removeMakers+= ','
-            removeMakers += f'{maker}'
-        if not match:
-            logging.warning(maker+" ("+makers[maker]["name"]+") doesn't seem to have a Neon record")
-            if removeMakers != "":
-                removeMakers+= ','
-            removeMakers += f'{maker}'
+            removeMakers.add(f'{maker}')
 
-    discourseUtil.demoteMakers(removeMakers)
+    #demote expired or otherwise inactive Makers -- remove from Makers, add to Community
+    discourseUtil.removeGroupMembers(list(addMakers), discourseUtil.GROUP_MAKERS)
+    discourseUtil.addGroupMembers(list(addMakers), discourseUtil.GROUP_COMMUNITY)
+
+
+def updateTypes(neonAccounts: dict):
+    #using sets for these to pevent duplicate entries
+    coworkingMembers= set()
+    leadershipMembers = set()
+    stewardsMembers = set()
+    instructorsMembers = set()
+    wikiAdmins = set()
+
+    for account in neonAccounts:
+        if neonAccounts[account].get("DiscourseID") is None or neonAccounts[account].get("DiscourseID") == "":
+            if neonUtil.accountIsAnyType(neonAccounts[account]):
+                logging.warning(f'''{neonAccounts[account]["First Name"]} {neonAccounts[account]["Last Name"]} ({neonAccounts[account]["Account ID"]}) is interesting but has no Discourse ID''')
+            continue
+
+        if neonUtil.accountIsType(neonAccounts[account], neonUtil.LEADER_TYPE):
+            leadershipMembers.add(neonAccounts[account].get("DiscourseID"))
+
+        if neonUtil.accountIsType(neonAccounts[account], neonUtil.COWORKING_TYPE):
+            coworkingMembers.add(neonAccounts[account].get("DiscourseID"))
+
+        if neonUtil.accountIsType(neonAccounts[account], neonUtil.STEWARD_TYPE) or neonUtil.accountIsType(neonAccounts[account], neonUtil.SUPER_TYPE):
+            stewardsMembers.add(neonAccounts[account].get("DiscourseID"))
+
+        if neonUtil.accountIsType(neonAccounts[account], neonUtil.INSTRUCTOR_TYPE):
+            instructorsMembers.add(neonAccounts[account].get("DiscourseID"))
+
+        if neonUtil.accountIsType(neonAccounts[account], neonUtil.WIKI_ADMIN_TYPE):
+            wikiAdmins.add(neonAccounts[account].get("DiscourseID"))
+
+    #Discourse is annoying about primary groups - there's no way to set a heirarchy; it's last-one-sticks
+    #Update the "highest rank" group last so users new to multiple groups wind up with the highest title
+    discourseUtil.setGroupMembers(list(wikiAdmins), discourseUtil.GROUP_WIKI_ADMINS)
+    discourseUtil.setGroupMembers(list(coworkingMembers), discourseUtil.GROUP_COWORKING)
+    discourseUtil.setGroupMembers(list(stewardsMembers), discourseUtil.GROUP_STEWARDS)
+    #haven't actually decided on a Discourse group for instructors yet
+    #discourseUtil.setGroupMembers(list(instructorsMembers), discourseUtil.GROUP_INSTRUCTORS)
+    discourseUtil.setGroupMembers(list(leadershipMembers), discourseUtil.GROUP_LEADERSHIP)
+
+
+
+def discourseUpdateGroups(neonAccounts: dict):
+    #quick sanity check - don't blow away all the groups if this is called with an empty dict
+    if len(neonAccounts) == 0:
+        logging.error("discourseUpdateGroups() called with empty accounts dict.  aborting.")
+        return
+
+    updateMakers(neonAccounts)
+    updateTypes(neonAccounts)
 
 #begin standalone script functionality -- pull neonAccounts and call our function
 def main():
@@ -70,6 +110,7 @@ def main():
     #For real use, just get neon accounts directly
     #Be aware this takes a long time (2+ minutes)
     neonAccounts = neonUtil.getRealAccounts()
+    #neonAccounts = neonUtil.getMembersFast()
 
     # Testing goes a lot faster if we're working with a cache of accounts
     # with open("Neon/neonAccounts.json") as neonFile:

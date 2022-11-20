@@ -31,6 +31,7 @@ COWORKING_TYPE = "CoWorking Tenant"
 STEWARD_TYPE = "Steward"
 INSTRUCTOR_TYPE = "Instructor"
 FRESHBOOKS_TYPE = "FreshBooks Member"
+WIKI_ADMIN_TYPE = "Wiki Admin"
 
 ####################################################################
 # Update the OpenPathID stored in Neon for an account
@@ -398,6 +399,15 @@ def getRealAccounts():
     logging.info(f"In {accountCount} Neon accounts we found {activeSubscriptions} active subscriptions")
 
     return neonAccountDict
+
+####################################################################
+# Helper function: is this Neon account marked with any type
+####################################################################
+def accountIsAnyType(account: dict):
+    if account.get("individualTypes") is None:
+        return False
+
+    return True
 
 ####################################################################
 # Helper function: is this Neon account marked with specified type

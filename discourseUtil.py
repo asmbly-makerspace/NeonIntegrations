@@ -16,76 +16,106 @@ D_headers = {'Api-Key':D_APIkey,'Api-Username':D_APIuser}
 #testing flag.  this should probably be a command-line arguement
 dryRun = False
 
-#Discourse Group IDs
-# 42 = makers
-# 45 = community
+#Discourse Group names
+GROUP_MAKERS = "makers"
+GROUP_COMMUNITY = "community"
+GROUP_COWORKING = "coworking"
+GROUP_LEADERSHIP = "leadership"
+GROUP_STEWARDS = "stewards"
+GROUP_WIKI_ADMINS = "sysops"
+
+#Discourse Group numeric IDs
+GROUP_IDS = {GROUP_MAKERS : 42,
+             GROUP_COMMUNITY : 45,
+             GROUP_COWORKING : 55,
+             GROUP_LEADERSHIP : 41,
+             GROUP_STEWARDS : 44,
+             GROUP_WIKI_ADMINS : 57
+            }
+
 
 ####################################################################
-# return all makers currently in Discourse
+# return all members of the given discourse group
 ####################################################################
-def getMakers():
-    makers = {}
+def getGroupMembers(groupName: str ):
+    if GROUP_IDS.get(groupName) is None:
+        logging.error(f'''"{groupName}" is not a known Discourse group''')
+        return {}
+
+    members = {}
     limit = 50
     offset = 0
     total = 0
     while offset + limit <= total+limit:
-        url = D_baseURL + '/groups/makers/members.json' + "?limit="+str(limit)+"&offset="+str(offset)
+        url = D_baseURL + f'''/groups/{groupName}/members.json''' + "?limit="+str(limit)+"&offset="+str(offset)
         print(f'''fetching from {url}''')
         response = requests.get(url, headers=D_headers)
         offset += limit
         logging.debug(pformat(response.json().get("meta")))
         total = int(response.json().get("meta")["total"])
         for member in response.json().get("members"):
-            #print(makers["username"]+" is a maker")
-            makers[member["username"]] = member
-    return makers
+            #logging.debug(f'''{members["username"]} is a member of {groupName}''')
+            members[member["username"]] = member
+    return members
+
 
 ####################################################################
-# Add one or more Discourse users to makers, remove from Asmbly Community
+# Add one or more Discourse users to given Discourse group
 ####################################################################
-def promoteMakers(makers):
-    if makers == "":
+def addGroupMembers(membersList: list, groupName: str):
+    if len(membersList) == 0:
         return 
 
-    resourcePath = '/groups/42/members.json'
-    url = D_baseURL + resourcePath
-    
-    #print("Adding makers: "+str(data))
-    if not dryRun:
-        updateResponse = requests.put(url, data={'usernames': makers}, headers=D_headers)
-        #pprint(updateResponse)
-        #TODO check for skipped usernames - means we picked up an invalid discourse username somewhere
-
-    #Step 2c: remove them from Asmbly Community
-    resourcePath = '/groups/45/members.json'
-    url = D_baseURL + resourcePath
-    #print("Removing from Community: "+str(data))
-    if not dryRun:
-        deleteResponse = requests.delete(url, data={'usernames': makers}, headers=D_headers)
-        #pprint(deleteResponse)
-        #don't bother with skipped usernames here - anyone who isn't a lapsed members will fail to remove from community
-
-####################################################################
-# Remove one or more Discourse users from makers, add to Asmbly Community
-####################################################################
-def demoteMakers(makers):
-    if makers == "":
+    if GROUP_IDS.get(groupName) is None:
+        logging.error(f'''"{groupName}" is not a known Discourse group''')
         return
 
-    resourcePath = '/groups/45/members.json'
+    resourcePath = f'''/groups/{GROUP_IDS[groupName]}/members.json'''
     url = D_baseURL + resourcePath
-    #print("Adding Community: "+str(data))
+    
+    logging.info(f'''Adding members to {groupName}: {','.join(membersList)}''')
     if not dryRun:
-        updateResponse = requests.put(url, data={'usernames': makers}, headers=D_headers)
+        updateResponse = requests.put(url, data={'usernames': ','.join(membersList)}, headers=D_headers)
         #pprint(updateResponse)
-        #TODO check for skipped usernames... not sure how it'd happen.  definitely exception time.
+        #TODO: check response for skipped usernames.  For now assume callers are checking for valid discourse IDs
 
-    #Step 2c: remove them from Makers
-    resourcePath = '/groups/42/members.json'
+
+####################################################################
+# Remove one or more Discourse users from given Discourse group
+####################################################################
+def removeGroupMembers(membersList: list, groupName: str):
+    if len(membersList) == 0:
+        return 
+
+    if GROUP_IDS.get(groupName) is None:
+        logging.error(f'''"{groupName}" is not a known Discourse group''')
+        return
+
+    resourcePath = f'''/groups/{GROUP_IDS[groupName]}/members.json'''
     url = D_baseURL + resourcePath
-    #print("Removing Makers: "+str(data))
+    
+    logging.info(f'''Removing members from {groupName}: {','.join(membersList)}''')
     if not dryRun:
-        deleteResponse = requests.delete(url, data={'usernames': makers}, headers=D_headers)
-        #pprint(updateResponse)
-        #TODO check for skipped usernames... not sure how it'd happen.  definitely exception time.
+        deleteResponse = requests.delete(url, data={'usernames': ','.join(membersList)}, headers=D_headers)
+        #pprint(deleteResponse)
+        #don't bother with skipped usernames here - removing a user who wasn't in the group is a safe No-Op
 
+
+####################################################################
+# Set Discourse group membership by adding and/or removing users
+####################################################################
+def setGroupMembers(newMembersList: list, groupName: str):
+    if GROUP_IDS.get(groupName) is None:
+        logging.error(f'''"{groupName}" is not a known Discourse group''')
+
+    currentMembersDict = getGroupMembers(groupName)
+    currentMembersList = currentMembersDict.keys()
+
+    addMembersList = newMembersList - currentMembersList
+    removeMembersList = currentMembersList - newMembersList
+
+    removeGroupMembers(removeMembersList, groupName)
+    addGroupMembers(addMembersList, groupName)
+
+
+    
