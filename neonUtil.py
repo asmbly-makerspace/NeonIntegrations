@@ -120,13 +120,16 @@ def appendMemberships(account: dict, detailed=False):
         ##flag indicating the account has at least one active membership
         atLeastOneActiveMembership = False
         ##flag indicating the current membership has hard-failed (denied/cancelled/refunded)
-        currentMembershipHardFailed = False
+        currentMembershipStatus = "No Record"
 
         for membership in memberships:
             membershipExpiration = datetime.datetime.strptime(membership["termEndDate"], '%Y-%m-%d').date()
             membershipStart = datetime.datetime.strptime(membership["termStartDate"], '%Y-%m-%d').date()
 
             logging.debug(f'''Membership ending {membershipExpiration} status {membership["status"]} autorenewal is {membership["autoRenewal"]} ''')
+
+            if membershipExpiration >= today and membershipStart <= today:
+                currentMembershipStatus = membership["status"]
 
             ### If this membership *was* actually paid for (or comped):
             if membership["status"] == "SUCCEEDED":
@@ -151,19 +154,14 @@ def appendMemberships(account: dict, detailed=False):
                     account["validMembership"] = True
                     if membership.get("fee") == 0:
                         account["comped"] = True
-            elif membership["status"] == "DECLINED" or membership["status"] == "CANCELLED" or membership["status"] == "REFUNDED":
-                ### If today is during a hard-failed membership, note that so we aren't allowing former members access
-                if membershipExpiration >= today and membershipStart <= today:
-                    currentMembershipHardFailed = True
-
-        if lastActiveMembershipExpiration == yesterday and account["autoRenewal"] and not currentMembershipHardFailed:
-            logging.info(f'''Neon appears to not have processed AutoRenewal for account {account.get("Account ID")}; allowing access today only''')
-            account["validMembership"] = True
 
         #!!! NOTE no promise that membership was continuous between these two dates !!!
         if atLeastOneActiveMembership:
             account["Membership Start Date"] = str(firstActiveMembershipStart)
             account["Membership Expiration Date"] = str(lastActiveMembershipExpiration)
+
+        if not account["validMembership"] and lastActiveMembershipExpiration == yesterday:
+            logging.info(f'''Neon {account.get("Account ID")} expired yesterday. autoRenewal = {account["autoRenewal"]}, current membership status = {currentMembershipStatus}''')
 
         if (detailed):
             account["MembershipDetails"] = memberships
@@ -387,7 +385,7 @@ def getRealAccounts():
         #NOTE that Neon sets "Membership Start Date" to start of the most recent membership term, not the oldest.  This means
         #     expired members that had a renewal will show incorrect start dates by our counting.
         #     I figure we won't need that data, so don't bother pulling membership details to correct it.
-        if datetime.datetime.strptime(neonAccountDict[account]["Membership Expiration Date"], '%Y-%m-%d').date() < today:
+        if datetime.datetime.strptime(neonAccountDict[account]["Membership Expiration Date"], '%Y-%m-%d').date() < yesterday:
             neonAccountDict[account]["validMembership"] = False
             continue
 
