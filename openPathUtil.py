@@ -24,6 +24,7 @@ GROUP_STEWARDS = 27683
 GROUP_INSTRUCTORS = 96676
 GROUP_SHAPER_ORIGIN = 37059
 GROUP_DOMINO = 96643
+GROUP_TO_DELETE = 112207
 
 dryRun = False
 
@@ -52,6 +53,44 @@ def getAllUsers():
     return opUsers
 
 ####################################################################
+# Get a single OpenPath user by OpenPath ID
+####################################################################
+def getUser(opId:int):
+    url = O_baseURL + f'/users/{opId}'
+    response = requests.get(url, headers=O_headers)
+
+    if (response.status_code != 200):
+        raise ValueError(f'Get {url} returned status code {response.status_code}')
+
+    return response.json().get("data")
+
+####################################################################
+# Deactivate (ie mark as deleted) an OpenPath user by ID
+####################################################################
+def deactivateUser(opId:int):
+    url = O_baseURL + f'/users/{opId}/status'
+    data = '''{"status": "I"}'''
+    logging.debug(f'''PUT to {url} {pformat(data)}''')
+
+    response=requests.put(url, data=data, headers=O_headers)
+    if (response.status_code != 204):
+        raise ValueError(f'Put {url} returned status code {response.status_code}; expected 200')
+
+####################################################################
+# ACTUALLY DELETE an OpenPath user by ID
+# NOTE that acutally deleted users no longer show up in access logs
+# USE WITH EXTREME CAUTION
+####################################################################
+def reallyActuallyDeleteUser(opId:int):
+    logging.warn(f'''ACTUALLY DELETING OpenPath User {opId}! User will no longer show up in logs!''')
+    url = O_baseURL + f'/users/{opId}'
+    response = requests.delete(url, headers=O_headers)
+
+    #A successful delete call returns 204 "NO DATA"
+    if (response.status_code != 204):
+        raise ValueError(f'Delete {url} returned status code {response.status_code}')
+
+####################################################################
 # Given an OpenPath ID, return group membership
 ####################################################################
 def getGroupsById(id):
@@ -67,9 +106,9 @@ def getGroupsById(id):
     return response.json().get("data")
 
 ####################################################################
-# Delete all credentials for given OpenPath ID
+# fetch all credentials for given OpenPath ID
 ####################################################################
-def deleteAllCredentialsForId(id):
+def getCredentialsForId(id:int):
     #this should be a pretty thorough check for sane argument
     assert(int(id) > 0)
 
@@ -78,13 +117,30 @@ def deleteAllCredentialsForId(id):
     if (response.status_code != 200):
         raise ValueError(f'Get {url} returned status code {response.status_code}')
 
-    for credential in response.json().get("data"):
+    return response.json().get("data")
+
+####################################################################
+# Delete a single credential
+####################################################################
+def deleteCredential(userId: int, credentialId: int):
+    url = O_baseURL + f'''/users/{userId}/credentials/{credentialId}'''
+    response = requests.delete(url, headers=O_headers)
+    if (response.status_code != 204):
+        raise ValueError(f'Delete {url} returned status code {response.status_code}; expected 204')
+
+####################################################################
+# Delete all credentials for given OpenPath ID
+####################################################################
+def deleteAllCredentialsForId(id:int):
+    #this should be a pretty thorough check for sane argument
+    assert(int(id) > 0)
+
+    credentials = getCredentialsForId(id)
+
+    for credential in credentials:
         if credential.get("id"):
             logging.info("Deleting credential found in stale OpenPath user")
-            url = O_baseURL + f'''/users/{id}/credentials/{credential.get("id")}'''
-            response = requests.delete(url, headers=O_headers)
-            if (response.status_code != 204):
-                raise ValueError(f'Delete {url} returned status code {response.status_code}; expected 204')
+            deleteCredential(id, credential.get("id"))
         else:
             logging.warning(f'''Malformed credential in stale OpenPath user {neonAccount.get("primaryContact").get("email1")}''')
 
@@ -250,7 +306,6 @@ def createUser(neonAccount):
 
             #do a user patch to update the name and metadata
             #...confirmed that updating FirstName and LastName fixes initials and FullName too
-            httpVerb = 'PATCH'
             url = O_baseURL + f'''/users/{opUser.get("id")}'''
             logging.debug(f'''PATCH to {url} {pformat(data)}''')
             response=requests.patch(url, data=data, headers=O_headers)

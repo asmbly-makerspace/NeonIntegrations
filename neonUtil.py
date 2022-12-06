@@ -37,9 +37,14 @@ WIKI_ADMIN_TYPE = "Wiki Admin"
 # Update the OpenPathID stored in Neon for an account
 ####################################################################
 def updateOpenPathID(account: dict):
-    #this should be a pretty thorough check for sane argument
     assert(int(account.get("Account ID")) > 0)
-    assert(int(account.get("OpenPathID")) > 0)
+
+    OpId = "null"
+    if account.get("OpenPathID") == "":
+        pass
+    elif account.get("OpenPathID") is not None:
+        #if we get random non-numeric crap in the openPathID, int() will fail
+        OpId = f'''"{int(account.get("OpenPathID"))}"'''
 
     data = f'''
 {{
@@ -48,7 +53,7 @@ def updateOpenPathID(account: dict):
     {{
         "id": "178",
         "name": "OpenPathID",
-        "value": "{account.get("OpenPathID")}"
+        "value": {OpId}
     }}
     ]
 }}
