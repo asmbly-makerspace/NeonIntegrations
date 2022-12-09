@@ -24,8 +24,14 @@ GROUP_STEWARDS = 27683
 GROUP_INSTRUCTORS = 96676
 GROUP_SHAPER_ORIGIN = 37059
 GROUP_DOMINO = 96643
-GROUP_TO_DELETE = 112207
 
+
+def isManagedGroup(group: int):
+    if (group == GROUP_COWORKING or group == GROUP_SUBSCRIBERS or group == GROUP_COWORKING or 
+        group == GROUP_STEWARDS or group == GROUP_INSTRUCTORS or group == GROUP_SHAPER_ORIGIN or group == GROUP_DOMINO):
+        return True
+    return False
+    
 dryRun = False
 
 ### OpenPath Account Info
@@ -222,9 +228,10 @@ def updateGroups(neonAccount, openPathGroups=None, email=False):
         id = group.get("id")
         if id is not None:
             opGroupArray.append(id)
-        # if id is not known to us
-        #     prevent specialty groups from being clobbered
-        #     neonOpGroups.append(id)
+
+        #prevent specialty groups from being clobbered
+        if not isManagedGroup(id):
+            neonOpGroups.append(id)
     
     logging.debug(f'''Groups for {neonAccount.get("OpenPathID")}: Current {opGroupArray}; New: {neonOpGroups}''')
 
