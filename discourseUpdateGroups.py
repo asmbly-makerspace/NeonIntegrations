@@ -50,8 +50,8 @@ def updateMakers(neonAccounts: dict):
             removeMakers.add(f'{maker}')
 
     #demote expired or otherwise inactive Makers -- remove from Makers, add to Community
-    discourseUtil.removeGroupMembers(list(addMakers), discourseUtil.GROUP_MAKERS)
-    discourseUtil.addGroupMembers(list(addMakers), discourseUtil.GROUP_COMMUNITY)
+    discourseUtil.removeGroupMembers(list(removeMakers), discourseUtil.GROUP_MAKERS)
+    discourseUtil.addGroupMembers(list(removeMakers), discourseUtil.GROUP_COMMUNITY)
 
 
 def updateTypes(neonAccounts: dict):
