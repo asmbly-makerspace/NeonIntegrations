@@ -27,7 +27,7 @@ GROUP_DOMINO = 96643
 
 
 def isManagedGroup(group: int):
-    if (group == GROUP_COWORKING or group == GROUP_SUBSCRIBERS or group == GROUP_COWORKING or 
+    if (group == GROUP_MANAGEMENT or group == GROUP_COWORKING or group == GROUP_SUBSCRIBERS or group == GROUP_COWORKING or
         group == GROUP_STEWARDS or group == GROUP_INSTRUCTORS or group == GROUP_SHAPER_ORIGIN or group == GROUP_DOMINO):
         return True
     return False
@@ -231,6 +231,7 @@ def updateGroups(neonAccount, openPathGroups=None, email=False):
 
         #prevent specialty groups from being clobbered
         if not isManagedGroup(id):
+            logging.info(f'''{neonAccount.get("fullName")} ({neonAccount.get("Email 1")}) has unmanaged OpenPath Group ID {id}''')
             neonOpGroups.append(id)
     
     logging.debug(f'''Groups for {neonAccount.get("OpenPathID")}: Current {opGroupArray}; New: {neonOpGroups}''')
