@@ -118,6 +118,7 @@ def appendMemberships(account: dict, detailed=False):
     memberships = response.json().get("memberships")
 
     if len(memberships) > 0:
+        account["membershipDates"] = {}
         ### end date of the most recent active membership (initialize to ancient history)
         lastActiveMembershipExpiration = datetime.date(1970, 1, 1)
         ##start date of earliest membership (initialize to today)
@@ -138,6 +139,7 @@ def appendMemberships(account: dict, detailed=False):
 
             ### If this membership *was* actually paid for (or comped):
             if membership["status"] == "SUCCEEDED":
+                account["membershipDates"][membership["termStartDate"]] = membership["termEndDate"]
                 ### flag this account as having at least once been active.
                 atLeastOneActiveMembership = True
 
@@ -166,7 +168,11 @@ def appendMemberships(account: dict, detailed=False):
             account["Membership Expiration Date"] = str(lastActiveMembershipExpiration)
 
         if not account["validMembership"] and lastActiveMembershipExpiration == yesterday:
-            logging.info(f'''Neon {account.get("Account ID")} expired yesterday. autoRenewal = {account["autoRenewal"]}, current membership status = {currentMembershipStatus}''')
+            if account["autoRenewal"] == True and currentMembershipStatus == "No Record":
+                account["validMembership"] = True
+                logging.info(f'''Neon {account.get("Account ID")} expired yesterday. Keeping active pending auto-renewal''')
+            else:
+                logging.info(f'''Neon {account.get("Account ID")} expired yesterday. autoRenewal = {account["autoRenewal"]}, current membership status = {currentMembershipStatus}''')
 
         if (detailed):
             account["MembershipDetails"] = memberships
