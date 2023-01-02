@@ -24,9 +24,9 @@ def openPathUpdateSingle(neonID):
         openPathUtil.createMobileCredential(account)
     elif account.get("validMembership"):
         if not account.get("WaiverDate"):
-            logging.info(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")} is missing the Waiver''')
+            logging.info(f'''{account.get("fullName")} ({account.get("Email 1")} is missing the Waiver''')
         if not account.get("FacilityTourDate"):
-            logging.info(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")} is missing the Facility Tour''')
+            logging.info(f'''{account.get("fullName")} ({account.get("Email 1")} is missing the Facility Tour''')
 
 
 #begin standalone script functionality -- update single account provided on command line

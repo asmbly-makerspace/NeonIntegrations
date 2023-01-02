@@ -27,10 +27,8 @@ def getWarningText(warningUsers):
 def openPathUpdateAll(neonAccounts, mailSummary = False):
     opUsers = openPathUtil.getAllUsers()
 
-    ##### Initialize these counts to number of zombies in Freshbooks
-    subscriberCount = 14
-    missingWaiverCount = 14
-
+    subscriberCount = 0
+    missingWaiverCount = 0
     facilityUserCount = 0
     compedSubscriberCount = 0
 

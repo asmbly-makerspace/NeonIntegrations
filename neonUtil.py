@@ -30,7 +30,6 @@ SUPER_TYPE = "Super Steward"
 COWORKING_TYPE = "CoWorking Tenant"
 STEWARD_TYPE = "Steward"
 INSTRUCTOR_TYPE = "Instructor"
-FRESHBOOKS_TYPE = "FreshBooks Member"
 WIKI_ADMIN_TYPE = "Wiki Admin"
 
 ####################################################################
@@ -170,7 +169,7 @@ def appendMemberships(account: dict, detailed=False):
         if not account["validMembership"] and lastActiveMembershipExpiration == yesterday:
             if account["autoRenewal"] == True and currentMembershipStatus == "No Record":
                 account["validMembership"] = True
-                logging.info(f'''Neon {account.get("Account ID")} expired yesterday. Keeping active pending auto-renewal''')
+                logging.info(f'''Neon {account.get("Account ID")} expired yesterday. Keeping active pending auto-renewal processing''')
             else:
                 logging.info(f'''Neon {account.get("Account ID")} expired yesterday. autoRenewal = {account["autoRenewal"]}, current membership status = {currentMembershipStatus}''')
 
