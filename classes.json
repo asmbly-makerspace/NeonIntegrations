@@ -1,0 +1,22 @@
+{
+    "Woodshop Safety": 0.33,
+    "Metal Shop Safety": 0.5,
+    "Domino": 2,
+    "Metal Lathe": 4,
+    "Milling": 3,
+    "MIG Welding": 2,
+    "TIG Welding": 3,
+    "Beginner CNC": 2,
+    "Filament 3D Printing": 3,
+    "Resin 3D Printing":3,
+    "Wood Lathe": 4,
+    "Pen Turning": 4,
+    "Bowl Turning": 4,
+    "Big Lasers": 1,
+    "Small Lasers": 2,
+    "Sublimation": 4,
+    "Vinyl Cutter": 4,
+    "Shaper Origin": 1,
+    "Orientation": 0.33,
+    "Round Materials": 2
+}
