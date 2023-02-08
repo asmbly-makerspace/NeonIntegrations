@@ -146,3 +146,49 @@ def getAccountIndividual(acctId):
     responseAccount = apiCall(httpVerb, url, data, N_headers).json()
 
     return responseAccount
+
+# Get possible search fields for POST to /orders/search
+def getOrderSearchFields():
+    httpVerb = 'GET'
+    resourcePath = '/orders/search/searchFields'
+    queryParams = ''
+    data = ''
+
+    url = N_baseURL + resourcePath + queryParams
+    responseSearchFields = apiCall(httpVerb, url, data, N_headers).json()
+    
+    return responseSearchFields
+
+
+# Get possible output fields for POST to /events/search
+def getOrderOutputFields():
+    httpVerb = 'GET'
+    resourcePath = '/orders/search/outputFields'
+    queryParams = ''
+    data = ''
+
+    url = N_baseURL + resourcePath + queryParams
+    responseOutputFields = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseOutputFields
+
+# Post search query to get back orders (only gets 200 events, pagination not currently supported)
+def postOrderSearch(searchFields, outputFields):
+    httpVerb = 'POST'
+    resourcePath = '/orders/search'
+    queryParams = ''
+    data = f'''
+    {{
+        "searchFields": {searchFields},
+        "outputFields": {outputFields},
+        "pagination": {{
+        "currentPage": 0,
+        "pageSize": 200
+        }}
+    }}
+    '''
+
+    url = N_baseURL + resourcePath + queryParams
+    responseEvents = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseEvents
