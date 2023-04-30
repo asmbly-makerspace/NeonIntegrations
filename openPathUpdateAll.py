@@ -28,12 +28,12 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     opUsers = openPathUtil.getAllUsers()
 
     subscriberCount = 0
-    missingWaiverCount = 0
     facilityUserCount = 0
     compedSubscriberCount = 0
 
     warningUsers = []
     missingTourUsers = {}
+    missingWaiverUsers = {}
 
     for account in neonAccounts:
         if neonAccounts[account].get("validMembership"):
@@ -56,10 +56,10 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
                                         openPathGroups=[]) #pass empty groups list to skip the http get
             openPathUtil.createMobileCredential(neonAccounts[account])
         elif neonAccounts[account].get("validMembership"):
+            startDate = neonAccounts[account].get("Membership Start Date")
             if not neonAccounts[account].get("WaiverDate"):
-                missingWaiverCount += 1
+                missingWaiverUsers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
             if not neonAccounts[account].get("FacilityTourDate"):
-                startDate = neonAccounts[account].get("Membership Start Date")
                 missingTourUsers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
 
     list_separator = '\n            '
@@ -72,9 +72,10 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
 
     Of those:
         {facilityUserCount} have facility access
-        {missingWaiverCount} are missing the waiver
-        {len(missingTourUsers)} are missing the tour{':' if len(missingTourUsers) > 0 else ' (yay!)'}
-            {list_separator.join(missingTourUsers[x] for x in sorted(missingTourUsers))}
+        {len(missingWaiverUsers)} are missing the waiver {':' if len(missingWaiverUsers) > 0 else ' (yay!)'}
+            {list_separator.join(missingWaiverUsers[x] for x in sorted(missingWaiverUsers, reverse=True))}
+        {len(missingTourUsers)} are missing orientation{':' if len(missingTourUsers) > 0 else ' (yay!)'}
+            {list_separator.join(missingTourUsers[x] for x in sorted(missingTourUsers, reverse=True))}
 {getWarningText(warningUsers)}
 {commonMessageFooter}
 ''')
