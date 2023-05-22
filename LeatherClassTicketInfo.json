@@ -1,0 +1,74 @@
+[
+    {
+      "id": 8,
+      "name": "Passport Wallet",
+      "description": "https://tandyleather.com/collections/kits/products/passport-wallet-kit",
+      "fee": 50.0,
+      "taxDeductiblePercentage": null,
+      "maxNumberAvailable": null,
+      "numberRemaining": null,
+      "attendeesPerTicketType": "Exactly",
+      "attendeesPerTicketNumber": 1,
+      "craInfo": null
+    },
+    {
+      "id": 7,
+      "name": "Money Clip Wallet",
+      "description": "https://tandyleather.com/collections/kits/products/classic-money-clip-kit",
+      "fee": 55.0,
+      "taxDeductiblePercentage": null,
+      "maxNumberAvailable": null,
+      "numberRemaining": null,
+      "attendeesPerTicketType": "Exactly",
+      "attendeesPerTicketNumber": 1,
+      "craInfo": null
+    },
+    {
+      "id": 6,
+      "name": "Bifold Wallet",
+      "description": "https://tandyleather.com/collections/kits/products/classic-bi-fold-wallet-kit",
+      "fee": 60.0,
+      "taxDeductiblePercentage": null,
+      "maxNumberAvailable": null,
+      "numberRemaining": null,
+      "attendeesPerTicketType": "Exactly",
+      "attendeesPerTicketNumber": 1,
+      "craInfo": null
+    },
+    {
+      "id": 10,
+      "name": "Cheyenne Wristlet",
+      "description": "https://tandyleather.com/collections/kits/products/cheyenne-wristlet-kit",
+      "fee": 65.0,
+      "taxDeductiblePercentage": null,
+      "maxNumberAvailable": null,
+      "numberRemaining": null,
+      "attendeesPerTicketType": "Exactly",
+      "attendeesPerTicketNumber": 1,
+      "craInfo": null
+    },
+    {
+      "id": 9,
+      "name": "Surveyor Wallet",
+      "description": "https://tandyleather.com/collections/kits/products/classic-surveyor-wallet-kit",
+      "fee": 70.0,
+      "taxDeductiblePercentage": null,
+      "maxNumberAvailable": null,
+      "numberRemaining": null,
+      "attendeesPerTicketType": "Exactly",
+      "attendeesPerTicketNumber": 1,
+      "craInfo": null
+    },
+    {
+      "id": 11,
+      "name": "Flora Wallet",
+      "description": "https://tandyleather.com/collections/kits/products/flora-wallet-kit",
+      "fee": 70.0,
+      "taxDeductiblePercentage": null,
+      "maxNumberAvailable": null,
+      "numberRemaining": null,
+      "attendeesPerTicketType": "Exactly",
+      "attendeesPerTicketNumber": 1,
+      "craInfo": null
+    }
+]
