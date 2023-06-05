@@ -1,43 +1,41 @@
-import neon
-import requests
-import json
+import helpers.neon as neon
 import sys
 
-""" json_OrderOutputFields = neon.getOrderOutputFields()
-json_OrderSearchFields = neon.getOrderSearchFields() """
+def giftCertSearch(certNumber):
+    searchFields = f'''
+[
+    {{
+        "field": "Shopping Cart ID",
+        "operator": "EQUAL",
+        "value": "{certNumber}"
+    }}
+]
+'''
 
-""" with open('Search_and_output.json', "w", encoding="utf-8") as f:
-    json.dump(json_OrderOutputFields, f, indent=3)
-    json.dump(json_OrderSearchFields, f, indent=3) """
+    outputFields = '''
+[
+    "Account ID",
+    "First Name",
+    "Last Name",
+    "Email 1"
+]
+'''
+
+    response = neon.postOrderSearch(searchFields, outputFields)
+
+    searchResults = response.get("searchResults")
+
+    return searchResults
+
 
 def main():
     if len(sys.argv) != 2 or not str(sys.argv[1]).isnumeric():
         print(f'''Usage: {sys.argv[0]} <integer Gift Certificate Number>''')
     else:
         gift_cert_num = sys.argv[1]
-        searchFields =  f'''
-[
-    {{
-        "field": "Shopping Cart ID",
-        "operator": "EQUAL",
-        "value": "{gift_cert_num}"
-    }}
-]
-'''
+    holder = giftCertSearch(gift_cert_num)
+    print(holder)
 
-        outputFields =  '''
-[
-    "Account ID",
-    "First Name",
-    "Last Name"
-]
-'''
-
-        response = neon.postOrderSearch(searchFields, outputFields)
-
-        searchResults = response.get("searchResults")
-
-        print(searchResults)
 
 if __name__ == "__main__":
     main()
