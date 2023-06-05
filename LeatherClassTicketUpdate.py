@@ -1,7 +1,7 @@
 import json
 import base64
 
-from helpers.config import N_APIkey, N_APIuser
+from config import N_APIkey, N_APIuser
 from helpers.api import apiCall
 
 # Neon Account Info
