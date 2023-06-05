@@ -244,9 +244,14 @@ Asmbly AdminBot
     #print(emailMsg)
 
     mimeMessage = MIMEMultipart()
-    mimeMessage['To'] = teacherEmails[teacher]
-    mimeMessage['CC'] = "classes@asmbly.org"
-    mimeMessage['Subject'] = f'Your upcoming classes at Asmbly'
+    try:
+        mimeMessage['To'] = teacherEmails[teacher]
+        mimeMessage['CC'] = "classes@asmbly.org"
+        mimeMessage['Subject'] = f'Your upcoming classes at Asmbly'
+    except KeyError:
+        mimeMessage['To'] = 'classes@asmbly.org'
+        mimeMessage['Subject'] = f'Failed Class Reminder - {teacher}'
+    
     mimeMessage.attach(MIMEText(emailMsg, 'plain'))
     raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
 
