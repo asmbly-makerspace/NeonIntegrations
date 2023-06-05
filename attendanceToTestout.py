@@ -7,7 +7,7 @@ import traceback
 
 import helpers.neon as neon
 from helpers.api import apiCall
-from helpers.config import N_APIkey, N_APIuser
+from config import N_APIkey, N_APIuser
 
 # Neon Account Info
 N_auth = f'{N_APIuser}:{N_APIkey}'
