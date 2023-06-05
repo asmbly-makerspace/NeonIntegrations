@@ -37,7 +37,7 @@ import helpers.neon as neon
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-from helpers.config import G_user, G_password
+from config import G_user, G_password
 
 logging.basicConfig(
     format = '%(asctime)s %(levelname)-8s %(message)s',
