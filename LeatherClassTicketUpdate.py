@@ -1,3 +1,6 @@
+#Script to update an instance of the intro to leatherworking class with the correct ticket info.
+#This script relies on a LeatherClassTicketInfo.json file containing all of the ticket options
+
 import json
 import base64
 
@@ -11,6 +14,9 @@ N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
 N_headers = {'Content-Type': 'application/json',
              'Authorization': f'Basic {N_signature}'}
 
+#Change class ID to the event ID of the specific leather class instance you are trying to update
+#Event ID can be found in the registration URL 
+#E.g. for https://asmbly.app.neoncrm.com/event.jsp?event=16782& the Event ID is 16782
 CLASS_ID = '39102'
 
 httpVerb = 'POST'
