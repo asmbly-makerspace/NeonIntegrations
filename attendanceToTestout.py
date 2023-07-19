@@ -48,6 +48,7 @@ EVENT_FIELDS = {
 
 def toolTestingUpdate(className: str, neonId: int, inputDate: str):
     date = datetime.datetime.strftime(datetime.datetime.strptime(inputDate, '%Y-%m-%d'), '%m/%d/%Y')
+    fieldId = None
     for name, id in EVENT_FIELDS.items():
         if name in className:
             fieldId = id
