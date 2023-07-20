@@ -12,7 +12,7 @@
 # containing teacher names and emails which is expected in the same directory
 # as this script.
 
-# Currently this script is set to run on a weekly basis - Sundays at 6:00 PM
+# Currently this script is set to run on a daily basis
 
 from pprint import pprint
 import json
