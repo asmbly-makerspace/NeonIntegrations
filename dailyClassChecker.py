@@ -44,10 +44,12 @@ CORE_CLASSES = {
 
 OTHER_CLASSES = {
     "Bowl Turning": 4,
+    "Epoxy Resin": 3,
     "Vinyl Cutter": 4,
     "Round Materials": 2,
     "Stained Glass": 4,
-    "Sewing": 6,
+    "Serger": 4,
+    "Sewing": 4,
 }
 
 today = datetime.date.today()
