@@ -137,7 +137,8 @@ for teacher in teachers:
         registrantDict = {
             "SUCCEEDED" : [],
             "DEFERRED"  : [],
-            "CANCELED"  : []
+            "CANCELED"  : [],
+            "FAILED"    : []
         }
         # Registrant info formatted for email
         prettyRegistrants = ""
