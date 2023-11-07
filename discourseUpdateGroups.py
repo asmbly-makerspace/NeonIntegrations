@@ -20,7 +20,7 @@ def updateMakers(neonAccounts: dict):
     #Step 1: find all Neon accounts that are paid up, have a DiscourseID, and aren't in Makers
     addMakers = set()
     for account in neonAccounts:
-        if not neonAccounts[account].get("validMembership"):
+        if not neonAccounts[account].get("validMembership") and not neonUtil.accountIsType(neonAccounts[account], neonUtil.STAFF_TYPE):
             continue
         #logging.debug(pformat(neonAccounts[account]))
         if neonAccounts[account].get("DiscourseID") is None or neonAccounts[account].get("DiscourseID") == "":
@@ -42,7 +42,7 @@ def updateMakers(neonAccounts: dict):
     for maker in makers:
         remove = True
         for account in neonAccounts:
-            if maker == neonAccounts[account].get("DiscourseID") and neonAccounts[account].get("validMembership"):
+            if maker == neonAccounts[account].get("DiscourseID") and (neonAccounts[account].get("validMembership") or neonUtil.accountIsType(neonAccounts[account], neonUtil.STAFF_TYPE)):
                     remove = False
 
         if remove:
