@@ -440,11 +440,11 @@ def accountHasShaperAccess(account: dict):
     return False
 
 ####################################################################
-# Helper function: does this user have access to Festool Domino?
+# Helper function: does this user have access to Festool Domino and Makita Track Saw?
 ####################################################################
 def accountHasDominoAccess(account: dict):
     #technically should check if this field contains a valid date... 
-    if account.get("Festool Domino"):
+    if account.get("Woodshop Specialty Tools"):
         return True
     return False
 
