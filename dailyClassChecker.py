@@ -15,6 +15,7 @@ from pprint import pprint
 import json
 import base64
 import datetime
+import sys
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -44,10 +45,13 @@ CORE_CLASSES = {
 
 OTHER_CLASSES = {
     "Bowl Turning": 4,
+    "Epoxy Resin": 3,
     "Vinyl Cutter": 4,
     "Round Materials": 2,
+    "Microcontrollers": 3,
     "Stained Glass": 4,
-    "Sewing": 6,
+    "Serger": 4,
+    "Sewing": 4,
 }
 
 today = datetime.date.today()
@@ -72,7 +76,10 @@ outputFields = '''
     "Event Topic",
     "Event Start Date",
     "Event End Date",
-    "Event Registration Attendee Count"
+    "Event Registration Attendee Count",
+    "Registrants",
+    "Event ID",
+    "Event Capacity"
 ]
 '''
 
@@ -110,16 +117,35 @@ def latestClasses(classesInfo: dict) -> dict:
     for key,value in sortedClassDict.items():
         dates = [event['Event Start Date'] for event in value]
         isEmpty = False
+        earliestAvailable = sys.maxsize
+        totalSeatsAvailable = 0
         for event in value:
+            if event['Event Registration Attendee Count'] == event["Registrants"]:
+                actualRegistrants = int(event['Registrants'])
+            else:
+                registrants = neon.getEventRegistrants(event['Event ID']).get("eventRegistrations")
+                actualRegistrants = neon.getEventRegistrantCount(registrants)
+            eventCapacity = int(event['Event Capacity'])
+            seatsAvailable = eventCapacity - actualRegistrants
+            totalSeatsAvailable += seatsAvailable
+            timestamp = datetime.datetime.timestamp(datetime.datetime.fromisoformat(event['Event Start Date']))
+            if seatsAvailable > 0 and timestamp < earliestAvailable:
+                earliestAvailable = timestamp
+            
             deltaDays = datetime.datetime.strptime(event['Event Start Date'], '%Y-%m-%d').date() - today
             deltaDays = deltaDays.days
             
-            if deltaDays == 1 and event['Event Registration Attendee Count'] == '0':
+            if deltaDays == 1 and actualRegistrants == 0:
                 isEmpty = True
-            
-        classDates.update({key:[dates, isEmpty]})
 
-    latestDates = {className: [latestDate(dates[0])[0], latestDate(dates[0])[1], len(dates[0]), dates[1]] for className, dates in classDates.items()}
+        if earliestAvailable != sys.maxsize:
+            earliestAvailableDate = datetime.datetime.strftime(datetime.datetime.fromtimestamp(earliestAvailable), '%m-%d-%y')
+        else:
+            earliestAvailableDate = "No Seats Available"
+    
+        classDates.update({key:[dates, isEmpty, totalSeatsAvailable, earliestAvailableDate]})
+
+    latestDates = {className: [latestDate(dates[0])[0], latestDate(dates[0])[1], len(dates[0]), dates[1], dates[2], dates[3]] for className, dates in classDates.items()}
 
     return latestDates
 
@@ -146,6 +172,8 @@ def htmlGen(classDict: dict) -> str:
             <td {style}>{v[0]}</td>
             <td {style}>{v[1]}</td>
             <td style="text-align:center; padding: 5px 15px 5px 15px">{v[2]}</td>
+            <td style="text-align:center; padding: 5px 15px 5px 15px">{v[4]}</td>
+            <td style="text-align:center; padding: 5px 15px 5px 15px">{v[5]}</td>
         </tr>
         '''       
         htmlString += text
@@ -181,6 +209,8 @@ emailMsg = f'''
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Latest Scheduled</th>
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Days Away</th>
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Number Scheduled</th>
+                            <th style="text-align:center; padding: 5px 15px 5px 15px">Seats Available</th>
+                            <th style="text-align:center; padding: 5px 15px 5px 15px">Nearest Open Seat</th>
                         </tr>
                         {coreClassesHtml[0]}
                     </table
@@ -200,6 +230,8 @@ emailMsg = f'''
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Latest Scheduled</th>
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Days Away</th>
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Number Scheduled</th>
+                            <th style="text-align:center; padding: 5px 15px 5px 15px">Seats Available</th>
+                            <th style="text-align:center; padding: 5px 15px 5px 15px">Nearest Open Seat</th>
                         </tr>
                         {otherClassesHtml[0]}
                     </table

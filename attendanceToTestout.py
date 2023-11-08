@@ -44,6 +44,7 @@ EVENT_FIELDS = {
     "Resin": "684",
     "Sublimation": "685",
     "Vinyl": "686",
+    "Orientation": "182",
 }
 
 def toolTestingUpdate(className: str, neonId: int, inputDate: str):
