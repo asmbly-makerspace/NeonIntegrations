@@ -45,16 +45,25 @@ O_headers   = {'Authorization': f'Basic {O_signature}', 'Accept': 'application/j
 # Get all defined OpenPath users
 ####################################################################
 def getAllUsers():
-    ### NOTE this GET has a limit of 1000 users.  If we grow that big, this will be the least of our problems
-    url = O_baseURL + f'/users?offset=0&sort=identity.lastName&order=asc'
-    response = requests.get(url, headers=O_headers)
-
-    if (response.status_code != 200):
-        raise ValueError(f'Get {url} returned status code {response.status_code}')
 
     opUsers = {}
-    for i in response.json().get("data"):
-        opUsers[i["id"]] = i 
+
+    limit = 500
+    offset = 0
+    total = 0
+    while offset + limit <= total+limit:
+        url = O_baseURL + f'/users?sort=identity.lastName&order=asc' + "&limit="+str(limit)+"&offset="+str(offset)
+        response = requests.get(url, headers=O_headers)
+
+        if (response.status_code != 200):
+            raise ValueError(f'Get {url} returned status code {response.status_code}')
+
+        offset += limit
+        logging.debug(pformat(response.json().get("meta")))
+        total = int(response.json().get("totalCount"))
+
+        for i in response.json().get("data"):
+            opUsers[i["id"]] = i 
 
     return opUsers
 
