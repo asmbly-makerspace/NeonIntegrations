@@ -8,23 +8,26 @@ from helpers.api import apiCall
 
 
 # Neon Account Info
-N_auth = f'{N_APIuser}:{N_APIkey}'
-N_baseURL = 'https://api.neoncrm.com/v2'
+N_auth = f"{N_APIuser}:{N_APIkey}"
+N_baseURL = "https://api.neoncrm.com/v2"
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
-N_headers = {'Content-Type': 'application/json',
-             'Authorization': f'Basic {N_signature}'}
+N_headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Basic {N_signature}",
+}
 
 
 ###########################
 #####   NEON EVENTS   #####
 ###########################
 
+
 # Get list of custom fields for events
 def getEventCustomFields():
-    httpVerb = 'GET'
-    resourcePath = '/customFields'
-    queryParams = '?category=Event'
-    data = ''
+    httpVerb = "GET"
+    resourcePath = "/customFields"
+    queryParams = "?category=Event"
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseEventFields = apiCall(httpVerb, url, data, N_headers).json()
@@ -36,10 +39,10 @@ def getEventCustomFields():
 
 # Get list of event categories
 def getEventCategories():
-    httpVerb = 'GET'
-    resourcePath = '/properties/eventCategories'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = "/properties/eventCategories"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseCategories = apiCall(httpVerb, url, data, N_headers).json()
@@ -49,8 +52,7 @@ def getEventCategories():
 
 # Filter event categories to active only
 def getEventActiveCategories(responseCategories):
-    categories = list(
-        filter(lambda cat: cat["status"] == "ACTIVE", responseCategories))
+    categories = list(filter(lambda cat: cat["status"] == "ACTIVE", responseCategories))
 
     return categories
 
@@ -67,10 +69,10 @@ def getEventActiveCatNames(responseCategories):
 
 # Get possible search fields for POST to /events/search
 def getEventSearchFields():
-    httpVerb = 'GET'
-    resourcePath = '/events/search/searchFields'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = "/events/search/searchFields"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseSearchFields = apiCall(httpVerb, url, data, N_headers).json()
@@ -80,10 +82,10 @@ def getEventSearchFields():
 
 # Get possible output fields for POST to /events/search
 def getEventOutputFields():
-    httpVerb = 'GET'
-    resourcePath = '/events/search/outputFields'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = "/events/search/outputFields"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseOutputFields = apiCall(httpVerb, url, data, N_headers).json()
@@ -93,10 +95,10 @@ def getEventOutputFields():
 
 # Post search query to get back events (only gets 200 events, pagination not currently supported)
 def postEventSearch(searchFields, outputFields, page=0):
-    httpVerb = 'POST'
-    resourcePath = '/events/search'
-    queryParams = ''
-    data = f'''
+    httpVerb = "POST"
+    resourcePath = "/events/search"
+    queryParams = ""
+    data = f"""
     {{
         "searchFields": {searchFields},
         "outputFields": {outputFields},
@@ -105,20 +107,20 @@ def postEventSearch(searchFields, outputFields, page=0):
         "pageSize": 200
         }}
     }}
-    '''
+    """
 
     url = N_baseURL + resourcePath + queryParams
     responseEvents = apiCall(httpVerb, url, data, N_headers).json()
 
     return responseEvents
 
+
 # Get registrations for a single event by event ID
 def getEventRegistrants(eventId):
-    httpVerb = 'GET'
-    resourcePath = f'/events/{eventId}/eventRegistrations'
-    queryParams = ''
-    # queryParams = '?page=0'
-    data = ''
+    httpVerb = "GET"
+    resourcePath = f"/events/{eventId}/eventRegistrations"
+    queryParams = "?pageSize=30"
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     individualEvent = apiCall(httpVerb, url, data, N_headers).json()
@@ -129,7 +131,7 @@ def getEventRegistrants(eventId):
 # Get event registration count (SUCCEEDED status only) from "eventRegistrations" field in individual event
 def getEventRegistrantCount(registrantList):
     count = 0
-    if type(registrantList) is not type(None): 
+    if type(registrantList) is not type(None):
         for registrant in registrantList:
             status = registrant["tickets"][0]["attendees"][0]["registrationStatus"]
             if status == "SUCCEEDED":
@@ -141,22 +143,23 @@ def getEventRegistrantCount(registrantList):
 
 # Get individual accounts by account ID
 def getAccountIndividual(acctId):
-    httpVerb = 'GET'
-    resourcePath = f'/accounts/{acctId}'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = f"/accounts/{acctId}"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseAccount = apiCall(httpVerb, url, data, N_headers).json()
 
     return responseAccount
 
+
 # Get possible search fields for POST to /orders/search
 def getOrderSearchFields():
-    httpVerb = 'GET'
-    resourcePath = '/orders/search/searchFields'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = "/orders/search/searchFields"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseSearchFields = apiCall(httpVerb, url, data, N_headers).json()
@@ -166,22 +169,23 @@ def getOrderSearchFields():
 
 # Get possible output fields for POST to /events/search
 def getOrderOutputFields():
-    httpVerb = 'GET'
-    resourcePath = '/orders/search/outputFields'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = "/orders/search/outputFields"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseOutputFields = apiCall(httpVerb, url, data, N_headers).json()
 
     return responseOutputFields
 
+
 # Post search query to get back orders (only gets 200 events, pagination not currently supported)
 def postOrderSearch(searchFields, outputFields):
-    httpVerb = 'POST'
-    resourcePath = '/orders/search'
-    queryParams = ''
-    data = f'''
+    httpVerb = "POST"
+    resourcePath = "/orders/search"
+    queryParams = ""
+    data = f"""
     {{
         "searchFields": {searchFields},
         "outputFields": {outputFields},
@@ -190,19 +194,20 @@ def postOrderSearch(searchFields, outputFields):
         "pageSize": 200
         }}
     }}
-    '''
+    """
 
     url = N_baseURL + resourcePath + queryParams
     responseEvents = apiCall(httpVerb, url, data, N_headers).json()
 
     return responseEvents
 
+
 # Get possible search fields for POST to /accounts/search
 def getAccountSearchFields():
-    httpVerb = 'GET'
-    resourcePath = '/accounts/search/searchFields'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = "/accounts/search/searchFields"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseSearchFields = apiCall(httpVerb, url, data, N_headers).json()
@@ -212,22 +217,23 @@ def getAccountSearchFields():
 
 # Get possible output fields for POST to /events/search
 def getAccountOutputFields():
-    httpVerb = 'GET'
-    resourcePath = '/accounts/search/outputFields'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = "/accounts/search/outputFields"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseOutputFields = apiCall(httpVerb, url, data, N_headers).json()
 
     return responseOutputFields
 
+
 # Post search query to get back orders (only gets 200 events, pagination not currently supported)
 def postAccountSearch(searchFields, outputFields):
-    httpVerb = 'POST'
-    resourcePath = '/accounts/search'
-    queryParams = ''
-    data = f'''
+    httpVerb = "POST"
+    resourcePath = "/accounts/search"
+    queryParams = ""
+    data = f"""
     {{
         "searchFields": {searchFields},
         "outputFields": {outputFields},
@@ -236,7 +242,7 @@ def postAccountSearch(searchFields, outputFields):
         "pageSize": 200
         }}
     }}
-    '''
+    """
 
     url = N_baseURL + resourcePath + queryParams
     responseEvents = apiCall(httpVerb, url, data, N_headers).json()
@@ -245,9 +251,9 @@ def postAccountSearch(searchFields, outputFields):
 
 
 def postEventRegistration(accountID, eventID, accountFirstName, accountLastName):
-    httpVerb = 'POST'
-    resourcePath = '/eventRegistrations'
-    queryParams = ''
+    httpVerb = "POST"
+    resourcePath = "/eventRegistrations"
+    queryParams = ""
     data = {
         "id": "string",
         "payments": [
@@ -256,7 +262,7 @@ def postEventRegistration(accountID, eventID, accountFirstName, accountLastName)
                 "amount": 0,
                 "paymentStatus": "Succeeded",
                 "tenderType": 0,
-                "receivedDate": datetime.datetime.today().isoformat()
+                "receivedDate": datetime.datetime.today().isoformat(),
             }
         ],
         "donorCoveredFeeFlag": False,
@@ -278,11 +284,11 @@ def postEventRegistration(accountID, eventID, accountFirstName, accountLastName)
                         "markedAttended": True,
                         "registrantAccountId": accountID,
                         "registrationStatus": "SUCCEEDED",
-                        "registrationDate": datetime.datetime.today().isoformat()
+                        "registrationDate": datetime.datetime.today().isoformat(),
                     }
                 ]
             }
-        ]
+        ],
     }
     data = json.dumps(data)
     url = N_baseURL + resourcePath + queryParams
@@ -290,32 +296,35 @@ def postEventRegistration(accountID, eventID, accountFirstName, accountLastName)
 
     return responseEvents
 
+
 def getAccountEventRegistrations(neonId):
-    httpVerb = 'GET'
-    resourcePath = f'/accounts/{neonId}/eventRegistrations'
-    queryParams = '?sortColumn=registrationDateTime&sortDirection=DESC'
-    data = ''
+    httpVerb = "GET"
+    resourcePath = f"/accounts/{neonId}/eventRegistrations"
+    queryParams = "?sortColumn=registrationDateTime&sortDirection=DESC"
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseEvents = apiCall(httpVerb, url, data, N_headers).json()
 
     return responseEvents
 
+
 def getEvent(eventId):
-    httpVerb = 'GET'
-    resourcePath = f'/events/{eventId}'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = f"/events/{eventId}"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseEvent = apiCall(httpVerb, url, data, N_headers).json()
 
     return responseEvent
 
+
 def cancelClass(registrationId):
-    httpVerb = 'PATCH'
-    resourcePath = f'/eventRegistrations/{registrationId}'
-    queryParams = ''
+    httpVerb = "PATCH"
+    resourcePath = f"/eventRegistrations/{registrationId}"
+    queryParams = ""
     data = {
         "tickets": [
             {
@@ -334,77 +343,83 @@ def cancelClass(registrationId):
 
     return responseStatus
 
+
 def getEventTopics():
-    httpVerb = 'GET'
-    resourcePath = f'/properties/eventTopics'
-    queryParams = ''
-    data = ''
+    httpVerb = "GET"
+    resourcePath = f"/properties/eventTopics"
+    queryParams = ""
+    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseTopics = apiCall(httpVerb, url, data, N_headers).json()
 
     return responseTopics
 
+
 def eventTierCodePatch(classId, tier):
-    httpVerb = 'PATCH'
-    resourcePath = f'/events/{classId}'
-    queryParams = ''
-    data = f'''
+    httpVerb = "PATCH"
+    resourcePath = f"/events/{classId}"
+    queryParams = ""
+    data = f"""
     {{
         "code": "Tier {tier}"
     }}
-    '''
+    """
 
     url = N_baseURL + resourcePath + queryParams
     response = apiCall(httpVerb, url, data, N_headers)
 
     return response
 
-def eventTimePatch(classId: str, eventStartTime: str='hh:mm AM/PM', eventEndTime: str="hh:mm AM/PM"):
-    httpVerb = 'PATCH'
-    resourcePath = f'/events/{classId}'
-    queryParams = ''
-    data = f'''
+
+def eventTimePatch(
+    classId: str, eventStartTime: str = "hh:mm AM/PM", eventEndTime: str = "hh:mm AM/PM"
+):
+    httpVerb = "PATCH"
+    resourcePath = f"/events/{classId}"
+    queryParams = ""
+    data = f"""
     {{
         "eventDates": {{
             "startTime": "{eventStartTime}",
             "endTime": "{eventEndTime}"
         }}
     }}
-    '''
+    """
 
     url = N_baseURL + resourcePath + queryParams
     response = apiCall(httpVerb, url, data, N_headers)
 
     return response
 
+
 def eventAttendeeCountPatch(classId: str, maxAttendees: int):
-    httpVerb = 'PATCH'
-    resourcePath = f'/events/{classId}'
-    queryParams = ''
-    data = f'''
+    httpVerb = "PATCH"
+    resourcePath = f"/events/{classId}"
+    queryParams = ""
+    data = f"""
     {{
         "maximumAttendees": {maxAttendees}
     }}
-    '''
+    """
 
     url = N_baseURL + resourcePath + queryParams
     response = apiCall(httpVerb, url, data, N_headers)
 
     return response
 
+
 def eventNamePatch(classId: str, newName: str):
-    httpVerb = 'PATCH'
-    resourcePath = f'/events/{classId}'
-    queryParams = ''
-    data = f'''
+    httpVerb = "PATCH"
+    resourcePath = f"/events/{classId}"
+    queryParams = ""
+    data = f"""
     {{
         "name": "{newName}"
     }}
-    '''
+    """
 
     url = N_baseURL + resourcePath + queryParams
     response = apiCall(httpVerb, url, data, N_headers)
 
     return response
-
