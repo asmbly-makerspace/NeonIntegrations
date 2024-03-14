@@ -185,4 +185,9 @@ customObjects = getCustomObjects(
 storageAssignments = customObjects.get("listCustomObjectRecordsResponse")\
     .get("searchResults").get("nameValuePairs")
 
+for assignment in storageAssignments:
+    for value in assignment.get("nameValuePair"):
+        print(f'{value.get("name")}: {value.get("value")}')
+    print()
+
 logout = api_logout(SESSION_ID)
