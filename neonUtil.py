@@ -25,7 +25,8 @@ N_headers = {'Content-Type':'application/json','Authorization': f'Basic {N_signa
 
 #Strings relevant to Neon account management
 STAFF_TYPE = "Paid Staff"
-LEADER_TYPE = "Leader"
+DIRECTOR_TYPE = "Leader"
+LEAD_TYPE = "Space Lead"
 SUPER_TYPE = "Super Steward"
 COWORKING_TYPE = "CoWorking Tenant"
 STEWARD_TYPE = "Steward"

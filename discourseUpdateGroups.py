@@ -68,7 +68,7 @@ def updateTypes(neonAccounts: dict):
                 logging.warning(f'''{neonAccounts[account]["First Name"]} {neonAccounts[account]["Last Name"]} ({neonAccounts[account]["Account ID"]}) is interesting but has no Discourse ID''')
             continue
 
-        if neonUtil.accountIsType(neonAccounts[account], neonUtil.LEADER_TYPE):
+        if neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE) or neonUtil.accountIsType(neonAccounts[account], neonUtil.DIRECTOR_TYPE):
             leadershipMembers.add(neonAccounts[account].get("DiscourseID"))
 
         if neonUtil.accountIsType(neonAccounts[account], neonUtil.COWORKING_TYPE):

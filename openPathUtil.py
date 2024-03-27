@@ -191,7 +191,7 @@ def getOpGroups(neonAccount):
     opGroups = set()   #using a set prevents duplicates
 
     #Board / Leaders / SuperStewards 24x7 access
-    if (neonUtil.accountIsType(neonAccount, neonUtil.LEADER_TYPE) or neonUtil.accountIsType(neonAccount, neonUtil.SUPER_TYPE)):
+    if (neonUtil.accountIsType(neonAccount, neonUtil.LEAD_TYPE) or neonUtil.accountIsType(neonAccount, neonUtil.DIRECTOR_TYPE) or neonUtil.accountIsType(neonAccount, neonUtil.SUPER_TYPE)):
         opGroups.add(GROUP_MANAGEMENT)
     elif neonUtil.accountIsType(neonAccount, neonUtil.STAFF_TYPE):
         #non-leader staff have access to all storage during regular hours
@@ -279,7 +279,7 @@ def updateGroups(neonAccount, openPathGroups=None, email=False):
 
         if not neonUtil.accountHasFacilityAccess(neonAccount):
             ##these account types always have factility access even if their term expires.  Note the exception in the log.
-            if neonUtil.accountIsType(neonAccount, neonUtil.LEADER_TYPE) or neonUtil.accountIsType(neonAccount, neonUtil.SUPER_TYPE):
+            if neonUtil.accountIsType(neonAccount, neonUtil.DIRECTOR_TYPE) or neonUtil.accountIsType(neonAccount, neonUtil.LEAD_TYPE) or neonUtil.accountIsType(neonAccount, neonUtil.SUPER_TYPE):
                 logging.warning(f'''I'm not disabling {neonAccount.get("fullName")} ({neonAccount.get("Email 1")}) becuase they're special''')
                 #Send an email if we ever get the renewal-bounce problem figured out.
 
