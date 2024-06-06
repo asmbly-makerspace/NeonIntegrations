@@ -32,6 +32,7 @@ COWORKING_TYPE = "CoWorking Tenant"
 STEWARD_TYPE = "Steward"
 INSTRUCTOR_TYPE = "Instructor"
 WIKI_ADMIN_TYPE = "Wiki Admin"
+ONDUTY_TYPE = "Volunteer"
 
 ####################################################################
 # Update the OpenPathID stored in Neon for an account

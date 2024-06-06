@@ -24,10 +24,11 @@ GROUP_STEWARDS = 27683
 GROUP_INSTRUCTORS = 96676
 GROUP_SHAPER_ORIGIN = 37059
 GROUP_DOMINO = 96643
+GROUP_ONDUTY = 507223
 
 
 def isManagedGroup(group: int):
-    if (group == GROUP_MANAGEMENT or group == GROUP_COWORKING or group == GROUP_SUBSCRIBERS or group == GROUP_COWORKING or
+    if (group == GROUP_MANAGEMENT or group == GROUP_ONDUTY or group == GROUP_SUBSCRIBERS or group == GROUP_COWORKING or
         group == GROUP_STEWARDS or group == GROUP_INSTRUCTORS or group == GROUP_SHAPER_ORIGIN or group == GROUP_DOMINO):
         return True
     return False
@@ -209,6 +210,8 @@ def getOpGroups(neonAccount):
             opGroups.add(GROUP_STEWARDS)
         if neonUtil.accountIsType(neonAccount, neonUtil.INSTRUCTOR_TYPE):
             opGroups.add(GROUP_INSTRUCTORS)
+        if neonUtil.accountIsType(neonAccount, neonUtil.ONDUTY_TYPE):
+            opGroups.add(GROUP_ONDUTY)
         if neonUtil.accountHasShaperAccess(neonAccount):
             opGroups.add(GROUP_SHAPER_ORIGIN)
         if neonUtil.accountHasDominoAccess(neonAccount):
