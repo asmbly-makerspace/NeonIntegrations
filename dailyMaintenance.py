@@ -1,5 +1,6 @@
 from discourseUpdateGroups import discourseUpdateGroups
 from openPathUpdateAll import openPathUpdateAll
+from flodeskUtil import run_flodesk_maintanence
 
 import neonUtil
 import logging
@@ -8,15 +9,16 @@ import datetime, pytz
 import json
 
 logging.basicConfig(
-         format='%(asctime)s %(levelname)-8s %(message)s',
-         level=logging.INFO,
-         datefmt='%Y-%m-%d %H:%M:%S')
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    level=logging.INFO,
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 logging.info("Starting sync cycle.")
 neonAccounts = {}
 
-#For real use, just get neon accounts directly
-#Be aware this takes a long time (2+ minutes)
+# For real use, just get neon accounts directly
+# Be aware this takes a long time (2+ minutes)
 neonAccounts = neonUtil.getRealAccounts()
 
 # Testing goes a lot faster if we're working with a cache of accounts
@@ -25,14 +27,20 @@ neonAccounts = neonUtil.getRealAccounts()
 #     for account in neonAccountJson:
 #         neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]
 
-#we're going to run this multiple times per day, but we don't want to send a zillion emails
+# we're going to run this multiple times per day, but we don't want to send a zillion emails
 now = datetime.datetime.now(pytz.timezone("America/Chicago"))
-mailcutoff = datetime.datetime.combine(datetime.datetime.now(pytz.timezone("America/Chicago")), datetime.time(6, 0, tzinfo=pytz.timezone("America/Chicago")))
+mailcutoff = datetime.datetime.combine(
+    datetime.datetime.now(pytz.timezone("America/Chicago")),
+    datetime.time(6, 0, tzinfo=pytz.timezone("America/Chicago")),
+)
 
-if (now < mailcutoff):
-    openPathUpdateAll(neonAccounts, mailSummary = True)
+
+if now < mailcutoff:
+    openPathUpdateAll(neonAccounts, mailSummary=True)
+    run_flodesk_maintanence(neonAccounts)
 else:
-    openPathUpdateAll(neonAccounts, mailSummary = False)
+    openPathUpdateAll(neonAccounts, mailSummary=False)
+
 
 discourseUpdateGroups(neonAccounts)
 logging.info("Sync cycle complete.")
