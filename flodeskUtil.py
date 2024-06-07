@@ -6,7 +6,7 @@ import base64
 import logging
 import time
 
-from typing import Generator
+from typing import Generator, Optional
 
 import requests
 
@@ -57,7 +57,7 @@ class Subscriber:
         self.signed_waiver = signed_waiver
 
     def create_or_update_sub(
-        self, session: requests.Session, segment_ids: list[str] | None = None
+        self, session: requests.Session, segment_ids: Optional[list[str]] = None
     ) -> None:
         """
         Create a new Flodesk subsriber and add them to the provided segments. If the user already
@@ -167,7 +167,7 @@ class Subscriber:
 
             raise ValueError
 
-        segments: list[dict] | None = response.json().get("segments")
+        segments: Optional[list[dict]] = response.json().get("segments")
 
         if not segments:
             return False
@@ -193,7 +193,7 @@ def backoff_time(retry_count: int) -> float:
 
 
 def get_current_subs(
-    session: requests.Session, segment_id: str | None = None
+    session: requests.Session, segment_id: Optional[str] = None
 ) -> Generator[dict, None, None]:
     """
     Generator function returning current Flodesk subscribers. If a segment_id is provided,
