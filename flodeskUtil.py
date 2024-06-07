@@ -7,7 +7,6 @@ import logging
 import time
 
 from typing import Generator
-from enum import StrEnum
 
 import requests
 
@@ -24,9 +23,8 @@ F_HEADERS = {
 }
 
 
-class SegmentIDs(StrEnum):
-    MEMBER = "6641784c84ebb40fecfd38a8"
-    ORIENTATION = "664174acb5a0ac8c73bb785f"
+MEMBER_SEGMENT_ID = "6641784c84ebb40fecfd38a8"
+ORIENTATION_SEGMENT_ID = "664174acb5a0ac8c73bb785f"
 
 
 class Subscriber:
@@ -174,7 +172,7 @@ class Subscriber:
         if not segments:
             return False
 
-        active = any(segment.get("id") == SegmentIDs.MEMBER for segment in segments)
+        active = any(segment.get("id") == MEMBER_SEGMENT_ID for segment in segments)
 
         return active
 
@@ -283,14 +281,14 @@ def update_flodesk_segments(neon_account_dict: dict) -> None:
 
     current_member_seg_subs = set()
 
-    for page in get_current_subs(session, SegmentIDs.MEMBER):
+    for page in get_current_subs(session, MEMBER_SEGMENT_ID):
         subs = {sub["email"] for sub in page["data"]}
 
         current_member_seg_subs.update(subs)
 
     current_orientation_seg_subs = set()
 
-    for page in get_current_subs(session, SegmentIDs.ORIENTATION):
+    for page in get_current_subs(session, ORIENTATION_SEGMENT_ID):
         subs = {sub["email"] for sub in page["data"]}
 
         current_orientation_seg_subs.update(subs)
@@ -331,19 +329,19 @@ def update_flodesk_segments(neon_account_dict: dict) -> None:
     final_m_only_add_list = member_add_list - orientation_add_list
 
     for sub in final_member_remove_list:
-        accounts[sub].remove_sub([SegmentIDs.MEMBER], session)
+        accounts[sub].remove_sub([MEMBER_SEGMENT_ID], session)
 
     for sub in final_o_and_m_add_list:
         accounts[sub].create_or_update_sub(
-            session, segment_ids=[SegmentIDs.MEMBER, SegmentIDs.ORIENTATION]
+            session, segment_ids=[MEMBER_SEGMENT_ID, ORIENTATION_SEGMENT_ID]
         )
 
     for sub in final_m_only_add_list:
-        accounts[sub].create_or_update_sub(session, segment_ids=[SegmentIDs.MEMBER])
+        accounts[sub].create_or_update_sub(session, segment_ids=[MEMBER_SEGMENT_ID])
 
     for sub in final_o_only_add_list:
         accounts[sub].create_or_update_sub(
-            session, segment_ids=[SegmentIDs.ORIENTATION]
+            session, segment_ids=[ORIENTATION_SEGMENT_ID]
         )
 
     session.close()
@@ -470,7 +468,7 @@ def update_flodesk_custom_fields() -> None:
 
     for sub in subs_to_update.values():
         if sub.attended_orientation:
-            sub.create_or_update_sub(session, segment_ids=[SegmentIDs.ORIENTATION])
+            sub.create_or_update_sub(session, segment_ids=[ORIENTATION_SEGMENT_ID])
         else:
             sub.create_or_update_sub(session)
 
