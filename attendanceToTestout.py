@@ -1,5 +1,3 @@
-from pprint import pprint
-import json
 import base64
 import datetime
 import logging
@@ -18,8 +16,8 @@ N_headers = {
     "Authorization": f"Basic {N_signature}",
 }
 
-today = datetime.date.today()
-deltaDays = today - datetime.timedelta(days=7)
+TODAY = datetime.date.today()
+DELTA_DAYS = (TODAY - datetime.timedelta(days=7)).isoformat()
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(message)s",
@@ -76,67 +74,55 @@ def toolTestingUpdate(className: str, neonId: int, inputDate: str):
             httpVerb = "PATCH"
             resourcePath = f"/accounts/{neonId}"
             queryParams = ""
-            data = f"""
-            {{
-            "individualAccount": {{
-                "accountCustomFields": [
-                {{
-                    "id": "{fieldId}",
-                    "value": "{date}"
-                }}
-                ]
-            }}
-            }}
-            """
+            data = {
+                "individualAccount": {
+                    "accountCustomFields": [{"id": fieldId, "value": date}]
+                }
+            }
+
             url = N_baseURL + resourcePath + queryParams
 
             patch = apiCall(httpVerb, url, data, N_headers)
             if patch.status_code == 200:
                 logging.info(
-                    f"{patch.status_code} SUCCESS!  \n\tAccount ID {neonId} \n\tClass '{shortName}'"
+                    "%s SUCCESS!  \n\tAccount ID %s \n\tClass '%s'",
+                    patch.status_code,
+                    neonId,
+                    shortName,
                 )
             else:
                 logging.error(
-                    f"{patch.status_code} FAILED!  \n\tAccount ID {neonId} \n\tClass '{shortName}'"
+                    "%s FAILED!  \n\tAccount ID %s \n\tClass '%s'",
+                    patch.status_code,
+                    neonId,
+                    shortName,
                 )
 
         except:
             logging.error(
-                f"UPDATE FAILED FOR UNKNOWN REASON!  \n\tAccount ID {neonId} \n\tClass '{shortName}'"
+                "UPDATE FAILED FOR UNKNOWN REASON!  \n\tAccount ID %s \n\tClass '%s'",
+                neonId,
+                shortName,
             )
     elif not fieldId:
-        logging.info(f"{className} does not have a corresponding custom field")
+        logging.info("%s does not have a corresponding custom field", className)
     else:
-        logging.debug(f"Account ID {neonId} already has {shortName} marked")
+        logging.debug("Account ID %s already has %s marked", neonId, shortName)
 
 
-searchFields = f"""
-[
-    {{
-        "field": "Event End Date",
-        "operator": "GREATER_AND_EQUAL",
-        "value": "{deltaDays}"
-    }},
-    {{
+searchFields = [
+    {"field": "Event End Date", "operator": "GREATER_AND_EQUAL", "value": DELTA_DAYS},
+    {
         "field": "Event End Date",
         "operator": "LESS_AND_EQUAL",
-        "value": "{today}"
-    }},
-    {{
-        "field": "Event Archived",
-        "operator": "EQUAL",
-        "value": "No"
-    }}
+        "value": TODAY.isoformat(),
+    },
+    {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
 ]
-"""
-outputFields = """
-[
-    "Event Name", 
-    "Event ID",
-    "Event End Date"
-]
-"""
-logging.info(f"Starting Tool Testing update for {today}:")
+
+outputFields = ["Event Name", "Event ID", "Event End Date"]
+
+logging.info("Starting Tool Testing update for %s:", TODAY.isoformat())
 
 try:
     eventSearch = neon.postEventSearch(searchFields, outputFields)

@@ -6,13 +6,11 @@
 #  This helper script grabs Event data from Neon and cross references two   #
 #  dicts with a list of all classes Asmbly offers and their expected        #
 #  frequency. Sends daily email to education@asmbly.org with latest         #
-#  scheduled class date for each class.                                     #                        
+#  scheduled class date for each class.                                     #
 #############################################################################
 
 # Run daily as cronjob on AWS EC2 instance
 
-from pprint import pprint
-import json
 import base64
 import datetime
 import sys
@@ -34,7 +32,7 @@ CORE_CLASSES = {
     "TIG Welding": 3,
     "Beginner CNC": 2,
     "Filament 3D Printing": 3,
-    "Resin 3D Printing":3,
+    "Resin 3D Printing": 3,
     "Wood Lathe": 4,
     "Big Lasers": 1,
     "Small Lasers": 2,
@@ -55,97 +53,114 @@ OTHER_CLASSES = {
 }
 
 today = datetime.date.today()
-#deltaDays = today + datetime.timedelta(days=90)
-searchFields = f'''
-[
-    {{
-        "field": "Event End Date",
-        "operator": "GREATER_THAN",
-        "value": "{today}"
-    }},
-    {{
-        "field": "Event Archived",
-        "operator": "EQUAL",
-        "value": "No"
-    }}
+# deltaDays = today + datetime.timedelta(days=90)
+searchFields = [
+    {"field": "Event End Date", "operator": "GREATER_THAN", "value": today.isoformat()},
+    {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
 ]
-'''
-outputFields = '''
-[
-    "Event Name", 
+
+outputFields = [
+    "Event Name",
     "Event Topic",
     "Event Start Date",
     "Event End Date",
     "Event Registration Attendee Count",
     "Registrants",
     "Event ID",
-    "Event Capacity"
+    "Event Capacity",
 ]
-'''
 
-responseEvents = neon.postEventSearch(searchFields, outputFields)['searchResults']
 
-#pprint(responseEvents["searchResults"])
+responseEvents = neon.postEventSearch(searchFields, outputFields)["searchResults"]
 
-#take list of date strings, convert each to datetime, find latest and convert result back to string
+# pprint(responseEvents["searchResults"])
+
+
+# take list of date strings, convert each to datetime, find latest and convert result back to string
 def latestDate(dateList: list) -> list:
     if dateList:
-        datetimeDates = [datetime.datetime.strptime(date, '%Y-%m-%d').date() for date in dateList]
-        datetimeDates.sort(reverse = True)
-        
-        latestDate = datetime.datetime.strftime(datetimeDates[0], '%m-%d-%y')
+        datetimeDates = [
+            datetime.datetime.strptime(date, "%Y-%m-%d").date() for date in dateList
+        ]
+        datetimeDates.sort(reverse=True)
+
+        latestDate = datetime.datetime.strftime(datetimeDates[0], "%m-%d-%y")
         deltaDays = datetimeDates[0] - today
         deltaDays = deltaDays.days
 
     else:
         latestDate = "None Scheduled"
         deltaDays = 0
-    
+
     return [latestDate, deltaDays]
 
-#Find the latest scheduled class and number of scheduled classes for each class in classes.json
+
+# Find the latest scheduled class and number of scheduled classes for each class in classes.json
 def latestClasses(classesInfo: dict) -> dict:
-    #create dict of dicts sorting all events into class types 
+    # create dict of dicts sorting all events into class types
     sortedClassDict = {}
     for item in classesInfo:
-        indClassList = [event for event in responseEvents if item in event['Event Name']]
+        indClassList = [
+            event for event in responseEvents if item in event["Event Name"]
+        ]
         dictOfIndClassList = {item: indClassList}
         sortedClassDict.update(dictOfIndClassList)
 
-    #create dict of lists with all currently scheduled dates for each class
+    # create dict of lists with all currently scheduled dates for each class
     classDates = {}
-    for key,value in sortedClassDict.items():
-        dates = [event['Event Start Date'] for event in value]
+    for key, value in sortedClassDict.items():
+        dates = [event["Event Start Date"] for event in value]
         isEmpty = False
         earliestAvailable = sys.maxsize
         totalSeatsAvailable = 0
         for event in value:
-            if event['Event Registration Attendee Count'] == event["Registrants"]:
-                actualRegistrants = int(event['Registrants'])
+            if event["Event Registration Attendee Count"] == event["Registrants"]:
+                actualRegistrants = int(event["Registrants"])
             else:
-                registrants = neon.getEventRegistrants(event['Event ID']).get("eventRegistrations")
+                registrants = neon.getEventRegistrants(event["Event ID"]).get(
+                    "eventRegistrations"
+                )
                 actualRegistrants = neon.getEventRegistrantCount(registrants)
-            eventCapacity = int(event['Event Capacity'])
+            eventCapacity = int(event["Event Capacity"])
             seatsAvailable = eventCapacity - actualRegistrants
             totalSeatsAvailable += seatsAvailable
-            timestamp = datetime.datetime.timestamp(datetime.datetime.fromisoformat(event['Event Start Date']))
+            timestamp = datetime.datetime.timestamp(
+                datetime.datetime.fromisoformat(event["Event Start Date"])
+            )
             if seatsAvailable > 0 and timestamp < earliestAvailable:
                 earliestAvailable = timestamp
-            
-            deltaDays = datetime.datetime.strptime(event['Event Start Date'], '%Y-%m-%d').date() - today
+
+            deltaDays = (
+                datetime.datetime.strptime(event["Event Start Date"], "%Y-%m-%d").date()
+                - today
+            )
             deltaDays = deltaDays.days
-            
+
             if deltaDays == 1 and actualRegistrants == 0:
                 isEmpty = True
 
         if earliestAvailable != sys.maxsize:
-            earliestAvailableDate = datetime.datetime.strftime(datetime.datetime.fromtimestamp(earliestAvailable), '%m-%d-%y')
+            earliestAvailableDate = datetime.datetime.strftime(
+                datetime.datetime.fromtimestamp(earliestAvailable), "%m-%d-%y"
+            )
         else:
             earliestAvailableDate = "No Seats Available"
-    
-        classDates.update({key:[dates, isEmpty, totalSeatsAvailable, earliestAvailableDate]})
 
-    latestDates = {className: [latestDate(dates[0])[0], latestDate(dates[0])[1], len(dates[0]), dates[1], dates[2], dates[3]] for className, dates in classDates.items()}
+        classDates.update(
+            {key: [dates, isEmpty, totalSeatsAvailable, earliestAvailableDate]}
+        )
+
+    latestDates = {
+        className: [
+            latestDate(dates[0])[0],
+            latestDate(dates[0])[1],
+            len(dates[0]),
+            dates[1],
+            dates[2],
+            dates[3],
+        ]
+        for className, dates in classDates.items()
+    }
 
     return latestDates
 
@@ -153,20 +168,23 @@ def latestClasses(classesInfo: dict) -> dict:
 coreClasses = latestClasses(CORE_CLASSES)
 otherClasses = latestClasses(OTHER_CLASSES)
 
+
 def htmlGen(classDict: dict) -> str:
     htmlString = ""
     warning = ""
-    for k,v in classDict.items():
+    for k, v in classDict.items():
         if 10 <= v[1] < 30:
-            style = 'style = "color:orange; text-align:center; padding: 5px 15px 5px 15px"'
+            style = (
+                'style = "color:orange; text-align:center; padding: 5px 15px 5px 15px"'
+            )
         elif v[1] < 10:
             style = 'style = "color:red; text-align:center; padding: 5px 15px 5px 15px"'
         else:
             style = 'style = "text-align:center; padding: 5px 15px 5px 15px"'
         if v[3] == True:
-            warning = f'''<p><b style="color:red">Warning: </b>{k} currently has no registrants for tomorrow's session.</p>'''
+            warning = f"""<p><b style="color:red">Warning: </b>{k} currently has no registrants for tomorrow's session.</p>"""
 
-        text = f'''
+        text = f"""
         <tr>
             <td style="text-align:center; padding: 5px 15px 5px 15px">{k}</td>
             <td {style}>{v[0]}</td>
@@ -175,20 +193,21 @@ def htmlGen(classDict: dict) -> str:
             <td style="text-align:center; padding: 5px 15px 5px 15px">{v[4]}</td>
             <td style="text-align:center; padding: 5px 15px 5px 15px">{v[5]}</td>
         </tr>
-        '''       
+        """
         htmlString += text
 
     return [htmlString, warning]
-    
+
+
 coreClassesHtml = htmlGen(coreClasses)
 otherClassesHtml = htmlGen(otherClasses)
 
 ##### GMAIL #####
 # # Reformat date for email subject
-formattedToday = today.strftime('%B %d')
+formattedToday = today.strftime("%B %d")
 
 # Compose email
-emailMsg = f'''
+emailMsg = f"""
 <html>
     <body>
         <p>
@@ -244,13 +263,13 @@ emailMsg = f'''
         </p>
     </body>
 </html>
-    '''
-#print(emailMsg)
+    """
+# print(emailMsg)
 
 mimeMessage = MIMEMultipart()
-mimeMessage['to'] = 'classes@asmbly.org'
-mimeMessage['subject'] = f'Currently Scheduled Classes - {formattedToday}'
-mimeMessage.attach(MIMEText(emailMsg, 'html'))
+mimeMessage["to"] = "classes@asmbly.org"
+mimeMessage["subject"] = f"Currently Scheduled Classes - {formattedToday}"
+mimeMessage.attach(MIMEText(emailMsg, "html"))
 raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
 
 sendMIMEmessage(mimeMessage)

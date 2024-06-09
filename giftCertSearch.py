@@ -1,25 +1,13 @@
-import helpers.neon as neon
 import sys
+import helpers.neon as neon
+
 
 def giftCertSearch(certNumber):
-    searchFields = f'''
-[
-    {{
-        "field": "Shopping Cart ID",
-        "operator": "EQUAL",
-        "value": "{certNumber}"
-    }}
-]
-'''
+    searchFields = [
+        {"field": "Shopping Cart ID", "operator": "EQUAL", "value": str(certNumber)}
+    ]
 
-    outputFields = '''
-[
-    "Account ID",
-    "First Name",
-    "Last Name",
-    "Email 1"
-]
-'''
+    outputFields = ["Account ID", "First Name", "Last Name", "Email 1"]
 
     response = neon.postOrderSearch(searchFields, outputFields)
 
@@ -30,7 +18,7 @@ def giftCertSearch(certNumber):
 
 def main():
     if len(sys.argv) != 2 or not str(sys.argv[1]).isnumeric():
-        print(f'''Usage: {sys.argv[0]} <integer Gift Certificate Number>''')
+        print(f"""Usage: {sys.argv[0]} <integer Gift Certificate Number>""")
     else:
         gift_cert_num = sys.argv[1]
     holder = giftCertSearch(gift_cert_num)
