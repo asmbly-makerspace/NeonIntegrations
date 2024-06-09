@@ -389,23 +389,10 @@ def update_flodesk_custom_fields() -> None:
         else:
             current_waiver_false.add(sub["email"])
 
-    orientation_search = """
-    [
-        {
-            "field": "FacilityTourDate",
-            "operator": "NOT_BLANK"
-        }
-    ]
-    """
+    orientation_search = [{"field": "FacilityTourDate", "operator": "NOT_BLANK"}]
 
-    waiver_search = """
-    [
-        {
-            "field": "WaiverDate",
-            "operator": "NOT_BLANK"
-        }
-    ]
-    """
+    waiver_search = [{"field": "WaiverDate", "operator": "NOT_BLANK"}]
+
     orientation_neon_accounts = {}
     waiver_neon_accounts = {}
 

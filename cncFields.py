@@ -9,15 +9,18 @@ from config import N_APIkey, N_APIuser
 from helpers.api import apiCall
 
 ### Neon Account Info
-N_auth      = f'{N_APIuser}:{N_APIkey}'
-N_baseURL   = 'https://api.neoncrm.com/v2'
+N_auth = f"{N_APIuser}:{N_APIkey}"
+N_baseURL = "https://api.neoncrm.com/v2"
 N_signature = base64.b64encode(bytearray(N_auth.encode())).decode()
-N_headers   = {'Content-Type':'application/json','Authorization': f'Basic {N_signature}'}
+N_headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Basic {N_signature}",
+}
 
 
 # Import all data and read into memory
-neonFilename   = "./misc/privateAllNeon.csv"
-classFilename  = "./misc/privateClass.csv"
+neonFilename = "./misc/privateAllNeon.csv"
+classFilename = "./misc/privateClass.csv"
 skeddaFilename = "./misc/privateSkedda.csv"
 
 # Read in Neon Data as a dictionary of dictionaries with email as the outer lookup key
@@ -25,10 +28,7 @@ neonData = {}
 with open(neonFilename) as neonFile:
     for line in csv.reader(neonFile):
         keyEmail = line[0].lower()
-        valueDict = {
-            "acctID" : line[2], 
-            "fullname" : line[1].lower()
-        }
+        valueDict = {"acctID": line[2], "fullname": line[1].lower()}
         neonData[keyEmail] = valueDict
 
 # Read in Class Data as a dictionary with email as the lookup key
@@ -81,53 +81,51 @@ for id in recertApproved:
         ##### NEON #####
         # Update part of an account
         # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
-        httpVerb = 'PATCH'
-        resourcePath = f'/accounts/{id}'
-        queryParams = ''
-        data = f'''
-        {{
-        "individualAccount": {{
-            "accountCustomFields": [
-            {{
-                "id": "437",
-                "name": "CNC_Recertification",
-                "value": "Approved",
-                "status": "ACTIVE"
-            }}
-            ]
-        }}
-        }}
-        '''
+        httpVerb = "PATCH"
+        resourcePath = f"/accounts/{id}"
+        queryParams = ""
+        data = {
+            "individualAccount": {
+                "accountCustomFields": [
+                    {
+                        "id": "437",
+                        "name": "CNC_Recertification",
+                        "value": "Approved",
+                        "status": "ACTIVE",
+                    }
+                ]
+            }
+        }
+
         url = N_baseURL + resourcePath + queryParams
         patch = apiCall(httpVerb, url, data, N_headers)
         print(f"{patch.status_code} SUCCESS!  Account ID {id}")
-        if (patch.status_code != 200):
+        if patch.status_code != 200:
             print(f"\t{patch.status_code} FAILED!  Account ID {id}")
             failed.append(id)
 
         # Update Refresher field for anyone that qualifies for recertification
         # Recert is more restrictive than refresh; no one should have recert and not refresh
-        httpVerb = 'PATCH'
-        resourcePath = f'/accounts/{id}'
-        queryParams = ''
-        data = f'''
-        {{
-        "individualAccount": {{
-            "accountCustomFields": [
-            {{
-                "id": "438",
-                "name": "CNC_Refresher",
-                "value": "Approved",
-                "status": "ACTIVE"
-            }}
-            ]
-        }}
-        }}
-        '''
+        httpVerb = "PATCH"
+        resourcePath = f"/accounts/{id}"
+        queryParams = ""
+        data = {
+            "individualAccount": {
+                "accountCustomFields": [
+                    {
+                        "id": "438",
+                        "name": "CNC_Refresher",
+                        "value": "Approved",
+                        "status": "ACTIVE",
+                    }
+                ]
+            }
+        }
+
         url = N_baseURL + resourcePath + queryParams
         patch = apiCall(httpVerb, url, data, N_headers)
         print(f"{patch.status_code} SUCCESS!  Account ID {id}")
-        if (patch.status_code != 200):
+        if patch.status_code != 200:
             print(f"\t{patch.status_code} FAILED!  Account ID {id}")
             failed.append(id)
     except:
@@ -141,27 +139,26 @@ for id in refreshApproved:
         ##### NEON #####
         # Update part of an account
         # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
-        httpVerb = 'PATCH'
-        resourcePath = f'/accounts/{id}'
-        queryParams = ''
-        data = f'''
-        {{
-        "individualAccount": {{
-            "accountCustomFields": [
-            {{
-                "id": "438",
-                "name": "CNC_Refresher",
-                "value": "Approved",
-                "status": "ACTIVE"
-            }}
-            ]
-        }}
-        }}
-        '''
+        httpVerb = "PATCH"
+        resourcePath = f"/accounts/{id}"
+        queryParams = ""
+        data = {
+            "individualAccount": {
+                "accountCustomFields": [
+                    {
+                        "id": "438",
+                        "name": "CNC_Refresher",
+                        "value": "Approved",
+                        "status": "ACTIVE",
+                    }
+                ]
+            }
+        }
+
         url = N_baseURL + resourcePath + queryParams
         patch = apiCall(httpVerb, url, data, N_headers)
         print(f"{patch.status_code} SUCCESS!  Account ID {id}")
-        if (patch.status_code != 200):
+        if patch.status_code != 200:
             print(f"\t{patch.status_code} FAILED!  Account ID {id}")
             failed.append(id)
     except:

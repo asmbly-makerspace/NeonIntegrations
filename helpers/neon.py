@@ -1,6 +1,4 @@
-from pprint import pprint
 import base64
-import json
 import datetime
 
 from config import N_APIkey, N_APIuser
@@ -98,16 +96,11 @@ def postEventSearch(searchFields, outputFields, page=0):
     httpVerb = "POST"
     resourcePath = "/events/search"
     queryParams = ""
-    data = f"""
-    {{
-        "searchFields": {searchFields},
-        "outputFields": {outputFields},
-        "pagination": {{
-        "currentPage": {page},
-        "pageSize": 200
-        }}
-    }}
-    """
+    data = {
+        "searchFields": searchFields,
+        "outputFields": outputFields,
+        "pagination": {"currentPage": page, "pageSize": 200},
+    }
 
     url = N_baseURL + resourcePath + queryParams
     responseEvents = apiCall(httpVerb, url, data, N_headers).json()
@@ -185,16 +178,11 @@ def postOrderSearch(searchFields, outputFields):
     httpVerb = "POST"
     resourcePath = "/orders/search"
     queryParams = ""
-    data = f"""
-    {{
-        "searchFields": {searchFields},
-        "outputFields": {outputFields},
-        "pagination": {{
-        "currentPage": 0,
-        "pageSize": 200
-        }}
-    }}
-    """
+    data = {
+        "searchFields": searchFields,
+        "outputFields": outputFields,
+        "pagination": {"currentPage": 0, "pageSize": 200},
+    }
 
     url = N_baseURL + resourcePath + queryParams
     responseEvents = apiCall(httpVerb, url, data, N_headers).json()
@@ -233,16 +221,11 @@ def postAccountSearch(searchFields, outputFields):
     httpVerb = "POST"
     resourcePath = "/accounts/search"
     queryParams = ""
-    data = f"""
-    {{
-        "searchFields": {searchFields},
-        "outputFields": {outputFields},
-        "pagination": {{
-        "currentPage": 0,
-        "pageSize": 200
-        }}
-    }}
-    """
+    data = {
+        "searchFields": searchFields,
+        "outputFields": outputFields,
+        "pagination": {"currentPage": 0, "pageSize": 200},
+    }
 
     url = N_baseURL + resourcePath + queryParams
     responseEvents = apiCall(httpVerb, url, data, N_headers).json()
@@ -290,7 +273,7 @@ def postEventRegistration(accountID, eventID, accountFirstName, accountLastName)
             }
         ],
     }
-    data = json.dumps(data)
+
     url = N_baseURL + resourcePath + queryParams
     responseEvents = apiCall(httpVerb, url, data, N_headers).json()
 
@@ -336,7 +319,6 @@ def cancelClass(registrationId):
             }
         ]
     }
-    data = json.dumps(data)
 
     url = N_baseURL + resourcePath + queryParams
     responseStatus = apiCall(httpVerb, url, data, N_headers)
@@ -360,11 +342,7 @@ def eventTierCodePatch(classId, tier):
     httpVerb = "PATCH"
     resourcePath = f"/events/{classId}"
     queryParams = ""
-    data = f"""
-    {{
-        "code": "Tier {tier}"
-    }}
-    """
+    data = {"code": f"Tier {tier}"}
 
     url = N_baseURL + resourcePath + queryParams
     response = apiCall(httpVerb, url, data, N_headers)
@@ -378,14 +356,7 @@ def eventTimePatch(
     httpVerb = "PATCH"
     resourcePath = f"/events/{classId}"
     queryParams = ""
-    data = f"""
-    {{
-        "eventDates": {{
-            "startTime": "{eventStartTime}",
-            "endTime": "{eventEndTime}"
-        }}
-    }}
-    """
+    data = {"eventDates": {"startTime": eventStartTime, "endTime": eventEndTime}}
 
     url = N_baseURL + resourcePath + queryParams
     response = apiCall(httpVerb, url, data, N_headers)
@@ -397,11 +368,7 @@ def eventAttendeeCountPatch(classId: str, maxAttendees: int):
     httpVerb = "PATCH"
     resourcePath = f"/events/{classId}"
     queryParams = ""
-    data = f"""
-    {{
-        "maximumAttendees": {maxAttendees}
-    }}
-    """
+    data = {"maximumAttendees": maxAttendees}
 
     url = N_baseURL + resourcePath + queryParams
     response = apiCall(httpVerb, url, data, N_headers)
@@ -413,11 +380,7 @@ def eventNamePatch(classId: str, newName: str):
     httpVerb = "PATCH"
     resourcePath = f"/events/{classId}"
     queryParams = ""
-    data = f"""
-    {{
-        "name": "{newName}"
-    }}
-    """
+    data = {"name": newName}
 
     url = N_baseURL + resourcePath + queryParams
     response = apiCall(httpVerb, url, data, N_headers)

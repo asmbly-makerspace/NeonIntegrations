@@ -8,13 +8,12 @@
 #  emails each week about scheduled classes.                                #
 #############################################################################
 
-# Outside of the following imports, this script relies on teachers.json file 
+# Outside of the following imports, this script relies on teachers.json file
 # containing teacher names and emails which is expected in the same directory
 # as this script.
 
 # Currently this script is set to run on a daily basis
 
-from pprint import pprint
 import json
 import base64
 import datetime
@@ -27,38 +26,28 @@ from helpers.gmail import sendMIMEmessage
 import helpers.neon as neon
 
 logging.basicConfig(
-    format = '%(asctime)s %(levelname)-8s %(message)s',
-    level = logging.INFO,
-    datefmt= '%Y-%m-%d %H:%H:%S'
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    level=logging.INFO,
+    datefmt="%Y-%m-%d %H:%H:%S",
 )
 
 
 # Get events for the next deltaDays days
 today = datetime.date.today()
 logging.info(today)
-deltaDays = today + datetime.timedelta(days=2)
-searchFields = f'''
-[
-    {{
+deltaDays = (today + datetime.timedelta(days=2)).isoformat()
+searchFields = [
+    {
         "field": "Event Start Date",
         "operator": "GREATER_AND_EQUAL",
-        "value": "{today}"
-    }},
-    {{
-        "field": "Event Start Date",
-        "operator": "LESS_AND_EQUAL",
-        "value": "{deltaDays}"
-    }},
-    {{
-        "field": "Event Archived",
-        "operator": "EQUAL",
-        "value": "No"
-    }}
+        "value": today.isoformat(),
+    },
+    {"field": "Event Start Date", "operator": "LESS_AND_EQUAL", "value": deltaDays},
+    {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
 ]
-'''
-outputFields = '''
-[
-    "Event Name", 
+
+outputFields = [
+    "Event Name",
     "Event ID",
     "Event Topic",
     "Event Start Date",
@@ -68,13 +57,12 @@ outputFields = '''
     "Event Registration Attendee Count",
     "Registrants",
     "Hold To Waiting List",
-    "Waiting List Status"
+    "Waiting List Status",
 ]
-'''
 
 responseEvents = neon.postEventSearch(searchFields, outputFields)
 
-#pprint(responseEvents["searchResults"])
+# pprint(responseEvents["searchResults"])
 
 # Remove duplicates in the list of teachers
 rawTeachers = [item.get("Event Topic") for item in responseEvents["searchResults"]]
@@ -110,15 +98,19 @@ alreadySent = [
 for teacher in teachers:
     if teacher == None:
         logging.info("WARNING:  No teacher assigned!")
-        teacherEmails[ None ] = "classes@asmbly.org"
+        teacherEmails[None] = "classes@asmbly.org"
     if teacher in alreadySent:
         logging.info(f"Already emailed {teacher}")
         continue
 
     # Find all events for each teacher
-    events = list(filter(lambda x:x["Event Topic"] == teacher, responseEvents["searchResults"]))
+    events = list(
+        filter(lambda x: x["Event Topic"] == teacher, responseEvents["searchResults"])
+    )
     logging.info(f"\n\n_____\n\nEmailing {teacher} about {len(events)} event(s)...")
-    sortedEvents = sorted(events, key = lambda x:datetime.datetime.fromisoformat(x["Event Start Date"]))
+    sortedEvents = sorted(
+        events, key=lambda x: datetime.datetime.fromisoformat(x["Event Start Date"])
+    )
 
     # Reformat event data so it looks nice in email
     prettyEvents = ""
@@ -128,27 +120,24 @@ for teacher in teachers:
         logging.info(event["Event Name"])
 
         individualEventReg = neon.getEventRegistrants(eventId)
-        #logging.info(individualEventReg)
+        # logging.info(individualEventReg)
 
         # Declare empty variable that may or may not get filled depending on whether there are registrations
         # registrantDict will be a dictionary of dictionaries
         ### outer key is the registration status
         ### inner key is registrant account id
-        registrantDict = {
-            "SUCCEEDED" : [],
-            "DEFERRED"  : [],
-            "CANCELED"  : [],
-            "FAILED"    : []
-        }
+        registrantDict = {"SUCCEEDED": [], "DEFERRED": [], "CANCELED": [], "FAILED": []}
         # Registrant info formatted for email
         prettyRegistrants = ""
 
         # Get total number of attendees - This does not always coordinate with number of account IDs
-        attendeeCount = neon.getEventRegistrantCount(individualEventReg["eventRegistrations"])
+        attendeeCount = neon.getEventRegistrantCount(
+            individualEventReg["eventRegistrations"]
+        )
         logging.info(attendeeCount)
 
         # Only add info if there are registrations
-        if (attendeeCount > 0):
+        if attendeeCount > 0:
 
             # Iterate over response to add registrant account IDs to dictionary organized by registration status
             for registrant in individualEventReg["eventRegistrations"]:
@@ -162,30 +151,28 @@ for teacher in teachers:
                 email = acctInfo["individualAccount"]["primaryContact"]["email1"]
                 phone = ""
                 try:
-                    phone = acctInfo["individualAccount"]["primaryContact"]["addresses"][0]["phone1"]
+                    phone = acctInfo["individualAccount"]["primaryContact"][
+                        "addresses"
+                    ][0]["phone1"]
                 except KeyError:
-                    phone = acctInfo["individualAccount"]["primaryContact"]["addresses"][1]["phone1"]
-                
+                    phone = acctInfo["individualAccount"]["primaryContact"][
+                        "addresses"
+                    ][1]["phone1"]
+
                 # Build a dictionary list of attendee names under this registration
-                attendeeList = {
-                    "name"  : [],
-                    "email" : email,
-                    "phone" : phone
-                }
+                attendeeList = {"name": [], "email": email, "phone": phone}
                 for attendee in registrant["tickets"][0]["attendees"]:
                     attendee = f'{attendee["firstName"]} {attendee["lastName"]}'
                     attendeeList["name"].append(attendee)
-                
+
                 # Build entry to add to registrantDict with all attendees associated with this acct Id
-                entry = {
-                    acctId : attendeeList
-                }
+                entry = {acctId: attendeeList}
 
                 # Add to registrantDict under the appropriate status
                 registrantDict[status].append(entry)
-            
+
             for account in registrantDict["SUCCEEDED"]:
-                for k,v in account.items():
+                for k, v in account.items():
                     for it in v["name"]:
                         student = f"{it}:  {v['email']}, {v['phone']}"
                         prettyRegistrants += f"\t{student}\n\t"
@@ -195,35 +182,32 @@ for teacher in teachers:
         # Build up formatted event info for email body
         rawTime = event["Event Start Time"]
         rawDate = event["Event Start Date"]
-        datetimeDate = datetime.datetime.strptime(rawDate, '%Y-%m-%d').date()
-        formattedDate = datetime.date.strftime(datetimeDate, '%B %d')
-        startTime = datetime.datetime.strptime(rawTime,'%H:%M:%S').strftime('%I:%M %p')
+        datetimeDate = datetime.datetime.strptime(rawDate, "%Y-%m-%d").date()
+        formattedDate = datetime.date.strftime(datetimeDate, "%B %d")
+        startTime = datetime.datetime.strptime(rawTime, "%H:%M:%S").strftime("%I:%M %p")
         if datetimeDate == today:
-            dateString = f'TODAY - {formattedDate}'
+            dateString = f"TODAY - {formattedDate}"
         elif datetimeDate == today + datetime.timedelta(days=1):
-            dateString = f'Tomorrow - {formattedDate}'
+            dateString = f"Tomorrow - {formattedDate}"
         else:
             dateString = formattedDate
-        info = f'''
+        info = f"""
         {event["Event Name"]}
         Date: {dateString}
         Time: {startTime}
         Number of registrants: {event["Registrants"]}
             {prettyRegistrants}
-        '''
+        """
         prettyEvents += info
-        
 
     ##### GMAIL #####
     # Reformat date for email subject
-    formattedToday = today.strftime('%B %d')
+    formattedToday = today.strftime("%B %d")
 
-
-
-    teacherFirstName = teacher[:teacher.index(" ")]
+    teacherFirstName = teacher[: teacher.index(" ")]
 
     # Compose email
-    emailMsg = f'''
+    emailMsg = f"""
 Hi {teacherFirstName},
 
 This is an automated email to remind you of the upcoming classes you are scheduled to teach at Asmbly.
@@ -241,19 +225,19 @@ Email classes@asmbly.org if you have any questions about the above schedule.
 
 Thanks again!
 Asmbly AdminBot
-    '''
-    #print(emailMsg)
+    """
+    # print(emailMsg)
 
     mimeMessage = MIMEMultipart()
     try:
-        mimeMessage['To'] = teacherEmails[teacher]
-        mimeMessage['CC'] = "classes@asmbly.org"
-        mimeMessage['Subject'] = f'Your upcoming classes at Asmbly'
+        mimeMessage["To"] = teacherEmails[teacher]
+        mimeMessage["CC"] = "classes@asmbly.org"
+        mimeMessage["Subject"] = f"Your upcoming classes at Asmbly"
     except KeyError:
-        mimeMessage['To'] = 'classes@asmbly.org'
-        mimeMessage['Subject'] = f'Failed Class Reminder - {teacher}'
-    
-    mimeMessage.attach(MIMEText(emailMsg, 'plain'))
+        mimeMessage["To"] = "classes@asmbly.org"
+        mimeMessage["Subject"] = f"Failed Class Reminder - {teacher}"
+
+    mimeMessage.attach(MIMEText(emailMsg, "plain"))
     raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
 
     sendMIMEmessage(mimeMessage)
