@@ -15,7 +15,6 @@
 # Currently this script is set to run on a daily basis
 
 import json
-import base64
 import datetime
 import logging
 
@@ -23,7 +22,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from helpers.gmail import sendMIMEmessage
 
-import helpers.neon as neon
+from helpers import neon
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(message)s",
@@ -32,21 +31,21 @@ logging.basicConfig(
 )
 
 
-# Get events for the next deltaDays days
-today = datetime.date.today()
-logging.info(today)
-deltaDays = (today + datetime.timedelta(days=2)).isoformat()
-searchFields = [
+# Get events for the next DELTA_DAYS days
+TODAY = datetime.date.today()
+logging.info("\n\n----- Beginning class reminders for %s -----\n\n", TODAY.isoformat())
+DELTA_DAYS = (TODAY + datetime.timedelta(days=2)).isoformat()
+SEARCH_FIELDS = [
     {
         "field": "Event Start Date",
         "operator": "GREATER_AND_EQUAL",
-        "value": today.isoformat(),
+        "value": TODAY.isoformat(),
     },
-    {"field": "Event Start Date", "operator": "LESS_AND_EQUAL", "value": deltaDays},
+    {"field": "Event Start Date", "operator": "LESS_AND_EQUAL", "value": DELTA_DAYS},
     {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
 ]
 
-outputFields = [
+OUTPUT_FIELDS = [
     "Event Name",
     "Event ID",
     "Event Topic",
@@ -60,160 +59,151 @@ outputFields = [
     "Waiting List Status",
 ]
 
-responseEvents = neon.postEventSearch(searchFields, outputFields)
+RESPONSE_EVENTS = neon.postEventSearch(SEARCH_FIELDS, OUTPUT_FIELDS)
 
-# pprint(responseEvents["searchResults"])
 
 # Remove duplicates in the list of teachers
-rawTeachers = [item.get("Event Topic") for item in responseEvents["searchResults"]]
-teachers = []
-[teachers.append(teacher) for teacher in rawTeachers if teacher not in teachers]
-# print(f"Teachers for the next 10 days: {teachers}")
+TEACHERS = {item.get("Event Topic") for item in RESPONSE_EVENTS["searchResults"]}
 
 # Import teacher contact info
-contactInfo = "teachers.json"
-teacherEmails = json.loads(open(contactInfo).read())
+CONTACT_INFO = "teachers.json"
+with open(CONTACT_INFO, "r", encoding="utf-8") as f:
+    TEACHER_EMAILS = json.load(f)
 
 # For use if script ran and failed to complete
-alreadySent = [
-    # "Greg Raines",
-    # "Charlie Staley",
-    # "Danny Miller",
-    # "Matt Mancuso",
-    # "Bryan Ribas",
-    # "Stephen Loftus-Mercer",
-    # "Doug Squires",
-    # "George Mossessian",
-    # "James McNees",
-    # "Josh Cross",
-    # "Scott Wynd",
-    # "Joe Ngo",
-    # "Billy Nelson",
-    # "Keiarra Ortiz-Cedeno"
-]
-
+ALREADY_SENT = []
 
 # Begin gathering data for emailing each teacher
 # Send each teacher an email reminder about classes they are scheduled to teach
-for teacher in teachers:
-    if teacher == None:
+for teacher in TEACHERS:
+    if teacher is None:
         logging.info("WARNING:  No teacher assigned!")
-        teacherEmails[None] = "classes@asmbly.org"
-    if teacher in alreadySent:
-        logging.info(f"Already emailed {teacher}")
+        TEACHER_EMAILS[None] = "classes@asmbly.org"
+    if teacher in ALREADY_SENT:
+        logging.info("Already emailed %s", teacher)
         continue
 
     # Find all events for each teacher
     events = list(
-        filter(lambda x: x["Event Topic"] == teacher, responseEvents["searchResults"])
+        filter(
+            lambda x, teach=teacher: x["Event Topic"] == teach,
+            RESPONSE_EVENTS["searchResults"],
+        )
     )
-    logging.info(f"\n\n_____\n\nEmailing {teacher} about {len(events)} event(s)...")
-    sortedEvents = sorted(
+    logging.info("\n\n_____\n\nEmailing %s about %s event(s)...", teacher, len(events))
+    sorted_events = sorted(
         events, key=lambda x: datetime.datetime.fromisoformat(x["Event Start Date"])
     )
 
     # Reformat event data so it looks nice in email
-    prettyEvents = ""
-    for event in sortedEvents:
-        eventId = event["Event ID"]
-        logging.info(eventId)
+    pretty_events = ""
+    for event in sorted_events:
+        event_id = event["Event ID"]
+        logging.info(event_id)
         logging.info(event["Event Name"])
 
-        individualEventReg = neon.getEventRegistrants(eventId)
+        individual_event_reg = neon.getEventRegistrants(event_id)
         # logging.info(individualEventReg)
 
         # Declare empty variable that may or may not get filled depending on whether there are registrations
         # registrantDict will be a dictionary of dictionaries
         ### outer key is the registration status
         ### inner key is registrant account id
-        registrantDict = {"SUCCEEDED": [], "DEFERRED": [], "CANCELED": [], "FAILED": []}
+        registrant_dict = {
+            "SUCCEEDED": [],
+            "DEFERRED": [],
+            "CANCELED": [],
+            "FAILED": [],
+        }
         # Registrant info formatted for email
-        prettyRegistrants = ""
+        pretty_registrants = ""
 
         # Get total number of attendees - This does not always coordinate with number of account IDs
-        attendeeCount = neon.getEventRegistrantCount(
-            individualEventReg["eventRegistrations"]
+        attendee_count = neon.getEventRegistrantCount(
+            individual_event_reg["eventRegistrations"]
         )
-        logging.info(attendeeCount)
+        logging.info(attendee_count)
 
         # Only add info if there are registrations
-        if attendeeCount > 0:
+        if attendee_count > 0:
 
             # Iterate over response to add registrant account IDs to dictionary organized by registration status
-            for registrant in individualEventReg["eventRegistrations"]:
+            for registrant in individual_event_reg["eventRegistrations"]:
                 status = registrant["tickets"][0]["attendees"][0]["registrationStatus"]
-                acctId = registrant["registrantAccountId"]
+                acct_id = registrant["registrantAccountId"]
 
                 # Retrieve email and phone associated with this account ID
                 # Registrations with multiple attendees may have different emails listed in the UI
                 # but these aren't accessible from the API, so we will just use the info from the main account
-                acctInfo = neon.getAccountIndividual(acctId)
-                email = acctInfo["individualAccount"]["primaryContact"]["email1"]
+                acct_info = neon.getAccountIndividual(acct_id)
+                email = acct_info["individualAccount"]["primaryContact"]["email1"]
                 phone = ""
                 try:
-                    phone = acctInfo["individualAccount"]["primaryContact"][
+                    phone = acct_info["individualAccount"]["primaryContact"][
                         "addresses"
                     ][0]["phone1"]
                 except KeyError:
-                    phone = acctInfo["individualAccount"]["primaryContact"][
+                    phone = acct_info["individualAccount"]["primaryContact"][
                         "addresses"
                     ][1]["phone1"]
 
                 # Build a dictionary list of attendee names under this registration
-                attendeeList = {"name": [], "email": email, "phone": phone}
+                attendee_list = {"name": [], "email": email, "phone": phone}
                 for attendee in registrant["tickets"][0]["attendees"]:
                     attendee = f'{attendee["firstName"]} {attendee["lastName"]}'
-                    attendeeList["name"].append(attendee)
+                    attendee_list["name"].append(attendee)
 
                 # Build entry to add to registrantDict with all attendees associated with this acct Id
-                entry = {acctId: attendeeList}
+                entry = {acct_id: attendee_list}
 
                 # Add to registrantDict under the appropriate status
-                registrantDict[status].append(entry)
+                registrant_dict[status].append(entry)
 
-            for account in registrantDict["SUCCEEDED"]:
+            for account in registrant_dict["SUCCEEDED"]:
                 for k, v in account.items():
                     for it in v["name"]:
                         student = f"{it}:  {v['email']}, {v['phone']}"
-                        prettyRegistrants += f"\t{student}\n\t"
+                        pretty_registrants += f"\t{student}\n\t"
         else:
-            prettyRegistrants += f"\tNo attendees registered currently. Check Neon for updates as event approaches.\n\t"
+            pretty_registrants += "\tNo attendees registered currently. Check Neon for updates as event approaches.\n\t"
 
         # Build up formatted event info for email body
-        rawTime = event["Event Start Time"]
-        rawDate = event["Event Start Date"]
-        datetimeDate = datetime.datetime.strptime(rawDate, "%Y-%m-%d").date()
-        formattedDate = datetime.date.strftime(datetimeDate, "%B %d")
-        startTime = datetime.datetime.strptime(rawTime, "%H:%M:%S").strftime("%I:%M %p")
-        if datetimeDate == today:
-            dateString = f"TODAY - {formattedDate}"
-        elif datetimeDate == today + datetime.timedelta(days=1):
-            dateString = f"Tomorrow - {formattedDate}"
+        raw_time = event["Event Start Time"]
+        raw_date = event["Event Start Date"]
+        datetime_date = datetime.datetime.strptime(raw_date, "%Y-%m-%d").date()
+        formatted_date = datetime.date.strftime(datetime_date, "%B %d")
+        start_time = datetime.datetime.strptime(raw_time, "%H:%M:%S").strftime(
+            "%I:%M %p"
+        )
+        if datetime_date == TODAY:
+            date_string = f"TODAY - {formatted_date}"
+        elif datetime_date == TODAY + datetime.timedelta(days=1):
+            date_string = f"Tomorrow - {formatted_date}"
         else:
-            dateString = formattedDate
+            date_string = formatted_date
         info = f"""
         {event["Event Name"]}
-        Date: {dateString}
-        Time: {startTime}
+        Date: {date_string}
+        Time: {start_time}
         Number of registrants: {event["Registrants"]}
-            {prettyRegistrants}
+            {pretty_registrants}
         """
-        prettyEvents += info
+        pretty_events += info
 
     ##### GMAIL #####
     # Reformat date for email subject
-    formattedToday = today.strftime("%B %d")
+    formatted_today = TODAY.strftime("%B %d")
 
-    teacherFirstName = teacher[: teacher.index(" ")]
+    teacher_first_name = teacher[: teacher.index(" ")]
 
     # Compose email
-    emailMsg = f"""
-Hi {teacherFirstName},
+    email_msg = f"""
+Hi {teacher_first_name},
 
 This is an automated email to remind you of the upcoming classes you are scheduled to teach at Asmbly.
 Thank you for sharing your knowledge with the community!
 
-{prettyEvents}
+{pretty_events}
 
 Please note these are the registrations as of the time of this email and may not reflect final registrations for your class.
 You can see more details about these events and registrants in your Neon backend account.  
@@ -226,18 +216,16 @@ Email classes@asmbly.org if you have any questions about the above schedule.
 Thanks again!
 Asmbly AdminBot
     """
-    # print(emailMsg)
 
-    mimeMessage = MIMEMultipart()
+    mime_message = MIMEMultipart()
     try:
-        mimeMessage["To"] = teacherEmails[teacher]
-        mimeMessage["CC"] = "classes@asmbly.org"
-        mimeMessage["Subject"] = f"Your upcoming classes at Asmbly"
+        mime_message["To"] = TEACHER_EMAILS[teacher]
+        mime_message["CC"] = "classes@asmbly.org"
+        mime_message["Subject"] = "Your upcoming classes at Asmbly"
     except KeyError:
-        mimeMessage["To"] = "classes@asmbly.org"
-        mimeMessage["Subject"] = f"Failed Class Reminder - {teacher}"
+        mime_message["To"] = "classes@asmbly.org"
+        mime_message["Subject"] = f"Failed Class Reminder - {teacher}"
 
-    mimeMessage.attach(MIMEText(emailMsg, "plain"))
-    raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
+    mime_message.attach(MIMEText(email_msg, "plain"))
 
-    sendMIMEmessage(mimeMessage)
+    sendMIMEmessage(mime_message)

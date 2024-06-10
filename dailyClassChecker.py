@@ -11,7 +11,6 @@
 
 # Run daily as cronjob on AWS EC2 instance
 
-import base64
 import datetime
 import sys
 
@@ -19,17 +18,18 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from helpers.gmail import sendMIMEmessage
 
-import helpers.neon as neon
+from helpers import neon
 
 CORE_CLASSES = {
     "Orientation": 0.33,
     "Woodshop Safety": 0.33,
     "Metal Shop Safety": 0.5,
-    "Woodshop Specialty Tools": 2,
+    "Festool Domino": 2,
     "Metal Lathe": 4,
     "Milling": 3,
     "MIG Welding": 2,
-    "TIG Welding": 3,
+    "TIG Welding Steel": 3,
+    "TIG Welding: Aluminum": 3,
     "Beginner CNC": 2,
     "Filament 3D Printing": 3,
     "Resin 3D Printing": 3,
@@ -50,16 +50,18 @@ OTHER_CLASSES = {
     "Stained Glass": 4,
     "Serger": 4,
     "Sewing": 4,
+    "Leatherworking": 4,
+    "Embroidery": 4,
 }
 
-today = datetime.date.today()
+TODAY = datetime.date.today()
 # deltaDays = today + datetime.timedelta(days=90)
-searchFields = [
-    {"field": "Event End Date", "operator": "GREATER_THAN", "value": today.isoformat()},
+SEARCH_FIELDS = [
+    {"field": "Event End Date", "operator": "GREATER_THAN", "value": TODAY.isoformat()},
     {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
 ]
 
-outputFields = [
+OUTPUT_FIELDS = [
     "Event Name",
     "Event Topic",
     "Event Start Date",
@@ -71,108 +73,113 @@ outputFields = [
 ]
 
 
-responseEvents = neon.postEventSearch(searchFields, outputFields)["searchResults"]
-
-# pprint(responseEvents["searchResults"])
+RESPONSE_EVENTS = neon.postEventSearch(SEARCH_FIELDS, OUTPUT_FIELDS)["searchResults"]
 
 
-# take list of date strings, convert each to datetime, find latest and convert result back to string
-def latestDate(dateList: list) -> list:
-    if dateList:
-        datetimeDates = [
-            datetime.datetime.strptime(date, "%Y-%m-%d").date() for date in dateList
+def latest_date(date_list: list[str]) -> list:
+    """
+    Take list of date strings, convert each to datetime, find latest and convert result
+    back to string.
+    """
+
+    if date_list:
+        datetime_dates = [
+            datetime.datetime.strptime(date, "%Y-%m-%d").date() for date in date_list
         ]
-        datetimeDates.sort(reverse=True)
+        datetime_dates.sort(reverse=True)
 
-        latestDate = datetime.datetime.strftime(datetimeDates[0], "%m-%d-%y")
-        deltaDays = datetimeDates[0] - today
-        deltaDays = deltaDays.days
+        _latest_date = datetime.datetime.strftime(datetime_dates[0], "%m-%d-%y")
+        delta_days = (datetime_dates[0] - TODAY).days
 
     else:
-        latestDate = "None Scheduled"
-        deltaDays = 0
+        _latest_date = "None Scheduled"
+        delta_days = 0
 
-    return [latestDate, deltaDays]
+    return [_latest_date, delta_days]
 
 
-# Find the latest scheduled class and number of scheduled classes for each class in classes.json
-def latestClasses(classesInfo: dict) -> dict:
+def latest_classes(classes_info: dict) -> dict:
+    """
+    Find the latest scheduled class and number of scheduled classes
+    for each class in classes.json
+    """
     # create dict of dicts sorting all events into class types
-    sortedClassDict = {}
-    for item in classesInfo:
-        indClassList = [
-            event for event in responseEvents if item in event["Event Name"]
+    sorted_class_dict = {}
+    for item in classes_info:
+        ind_class_list = [
+            event for event in RESPONSE_EVENTS if item in event["Event Name"]
         ]
-        dictOfIndClassList = {item: indClassList}
-        sortedClassDict.update(dictOfIndClassList)
+        dict_of_ind_class_list = {item: ind_class_list}
+        sorted_class_dict.update(dict_of_ind_class_list)
 
     # create dict of lists with all currently scheduled dates for each class
-    classDates = {}
-    for key, value in sortedClassDict.items():
+    class_dates = {}
+    for key, value in sorted_class_dict.items():
         dates = [event["Event Start Date"] for event in value]
-        isEmpty = False
-        earliestAvailable = sys.maxsize
-        totalSeatsAvailable = 0
+        is_empty = False
+        earliest_available = sys.maxsize
+        total_seats_available = 0
         for event in value:
             if event["Event Registration Attendee Count"] == event["Registrants"]:
-                actualRegistrants = int(event["Registrants"])
+                actual_registrants = int(event["Registrants"])
             else:
                 registrants = neon.getEventRegistrants(event["Event ID"]).get(
                     "eventRegistrations"
                 )
-                actualRegistrants = neon.getEventRegistrantCount(registrants)
-            eventCapacity = int(event["Event Capacity"])
-            seatsAvailable = eventCapacity - actualRegistrants
-            totalSeatsAvailable += seatsAvailable
+                actual_registrants = neon.getEventRegistrantCount(registrants)
+            event_capacity = int(event["Event Capacity"])
+            seats_available = event_capacity - actual_registrants
+            total_seats_available += seats_available
             timestamp = datetime.datetime.timestamp(
                 datetime.datetime.fromisoformat(event["Event Start Date"])
             )
-            if seatsAvailable > 0 and timestamp < earliestAvailable:
-                earliestAvailable = timestamp
+            if seats_available > 0 and timestamp < earliest_available:
+                earliest_available = timestamp
 
-            deltaDays = (
+            delta_days = (
                 datetime.datetime.strptime(event["Event Start Date"], "%Y-%m-%d").date()
-                - today
+                - TODAY
             )
-            deltaDays = deltaDays.days
+            delta_days = delta_days.days
 
-            if deltaDays == 1 and actualRegistrants == 0:
-                isEmpty = True
+            if delta_days == 1 and actual_registrants == 0:
+                is_empty = True
 
-        if earliestAvailable != sys.maxsize:
-            earliestAvailableDate = datetime.datetime.strftime(
-                datetime.datetime.fromtimestamp(earliestAvailable), "%m-%d-%y"
+        if earliest_available != sys.maxsize:
+            earliest_available_date = datetime.datetime.strftime(
+                datetime.datetime.fromtimestamp(earliest_available), "%m-%d-%y"
             )
         else:
-            earliestAvailableDate = "No Seats Available"
+            earliest_available_date = "No Seats Available"
 
-        classDates.update(
-            {key: [dates, isEmpty, totalSeatsAvailable, earliestAvailableDate]}
+        class_dates.update(
+            {key: [dates, is_empty, total_seats_available, earliest_available_date]}
         )
 
-    latestDates = {
+    latest_dates = {
         className: [
-            latestDate(dates[0])[0],
-            latestDate(dates[0])[1],
+            latest_date(dates[0])[0],
+            latest_date(dates[0])[1],
             len(dates[0]),
             dates[1],
             dates[2],
             dates[3],
         ]
-        for className, dates in classDates.items()
+        for className, dates in class_dates.items()
     }
 
-    return latestDates
+    return latest_dates
 
 
-coreClasses = latestClasses(CORE_CLASSES)
-otherClasses = latestClasses(OTHER_CLASSES)
+CORE_CLASSES = latest_classes(CORE_CLASSES)
+OTHER_CLASSES = latest_classes(OTHER_CLASSES)
 
 
-def htmlGen(classDict: dict) -> str:
-    htmlString = ""
+def html_gen(class_dict: dict) -> str:
+    """Generate HTML table for class dictionary"""
+    html_string = ""
     warning = ""
-    for k, v in classDict.items():
+    for k, v in class_dict.items():
         if 10 <= v[1] < 30:
             style = (
                 'style = "color:orange; text-align:center; padding: 5px 15px 5px 15px"'
@@ -181,7 +188,7 @@ def htmlGen(classDict: dict) -> str:
             style = 'style = "color:red; text-align:center; padding: 5px 15px 5px 15px"'
         else:
             style = 'style = "text-align:center; padding: 5px 15px 5px 15px"'
-        if v[3] == True:
+        if v[3] is True:
             warning = f"""<p><b style="color:red">Warning: </b>{k} currently has no registrants for tomorrow's session.</p>"""
 
         text = f"""
@@ -194,20 +201,20 @@ def htmlGen(classDict: dict) -> str:
             <td style="text-align:center; padding: 5px 15px 5px 15px">{v[5]}</td>
         </tr>
         """
-        htmlString += text
+        html_string += text
 
-    return [htmlString, warning]
+    return [html_string, warning]
 
 
-coreClassesHtml = htmlGen(coreClasses)
-otherClassesHtml = htmlGen(otherClasses)
+CORE_CLASS_HTML = html_gen(CORE_CLASSES)
+OTHER_CLASS_HTML = html_gen(OTHER_CLASSES)
 
 ##### GMAIL #####
 # # Reformat date for email subject
-formattedToday = today.strftime("%B %d")
+FORMATTED_TODAY = TODAY.strftime("%B %d")
 
 # Compose email
-emailMsg = f"""
+EMAIL_MSG = f"""
 <html>
     <body>
         <p>
@@ -217,7 +224,7 @@ emailMsg = f"""
             <tr>
                 <td style="text-align:center">
                     <h3>Core Classes</h3>
-                    {coreClassesHtml[1]}
+                    {CORE_CLASS_HTML[1]}
                 </td>
             </tr>
             <tr style="width: 100%">
@@ -231,14 +238,14 @@ emailMsg = f"""
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Seats Available</th>
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Nearest Open Seat</th>
                         </tr>
-                        {coreClassesHtml[0]}
+                        {CORE_CLASS_HTML[0]}
                     </table
                 </td>
             </tr>
             <tr>
                 <td style="text-align:center">
                     <h3>Other Classes</h3>
-                    {otherClassesHtml[1]}
+                    {OTHER_CLASS_HTML[1]}
                 </td>
             </tr>
             <tr style="width: 100%">
@@ -252,7 +259,7 @@ emailMsg = f"""
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Seats Available</th>
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Nearest Open Seat</th>
                         </tr>
-                        {otherClassesHtml[0]}
+                        {OTHER_CLASS_HTML[0]}
                     </table
                 </td>
             </tr>
@@ -264,12 +271,11 @@ emailMsg = f"""
     </body>
 </html>
     """
-# print(emailMsg)
+# print(EMAIL_MSG)
 
-mimeMessage = MIMEMultipart()
-mimeMessage["to"] = "classes@asmbly.org"
-mimeMessage["subject"] = f"Currently Scheduled Classes - {formattedToday}"
-mimeMessage.attach(MIMEText(emailMsg, "html"))
-raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
+MIME_MESSAGE = MIMEMultipart()
+MIME_MESSAGE["to"] = "classes@asmbly.org"
+MIME_MESSAGE["subject"] = f"Currently Scheduled Classes - {FORMATTED_TODAY}"
+MIME_MESSAGE.attach(MIMEText(EMAIL_MSG, "html"))
 
-sendMIMEmessage(mimeMessage)
+sendMIMEmessage(MIME_MESSAGE)
