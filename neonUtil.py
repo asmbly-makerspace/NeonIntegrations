@@ -59,7 +59,7 @@ def updateOpenPathID(account: dict):
         }
     }
 
-    url = N_baseURL + f'/accounts/{account.get("Account ID")}' + "?category=Account"
+    url = N_baseURL + f'/accounts/{account.get("Account ID")}'
     if dryRun:
         logging.warning("DryRun in neonUtil.updateOpenPathID()")
         return
@@ -84,7 +84,7 @@ def updateDID(account: dict):
         }
     }
 
-    url = N_baseURL + f'/accounts/{account.get("Account ID")}' + "?category=Account"
+    url = N_baseURL + f'/accounts/{account.get("Account ID")}'
     if dryRun:
         logging.warning("DryRun in neonUtil.updateDID()")
         return

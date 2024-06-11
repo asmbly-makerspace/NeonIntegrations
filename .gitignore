@@ -24,3 +24,6 @@ JupyterNotebooks/**
 
 # Ignore Mac stuff
 .DS_Store
+
+# Ignore VScode files
+.vscode
