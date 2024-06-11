@@ -1,5 +1,6 @@
 import base64
 import datetime
+import requests
 
 from config import N_APIkey, N_APIuser
 from helpers.api import apiCall
@@ -386,3 +387,39 @@ def eventNamePatch(classId: str, newName: str):
     response = apiCall(httpVerb, url, data, N_headers)
 
     return response
+
+
+def account_patch(neon_id: int, new_info: dict) -> requests.Response:
+    httpVerb = "PATCH"
+    resourcePath = f"/accounts/{neon_id}"
+    queryParams = ""
+    json = {"individualAccount": new_info}
+
+    url = N_baseURL + resourcePath + queryParams
+    response = apiCall(httpVerb, url, json, N_headers)
+
+    return response
+
+
+def get_acct_by_email(email: str) -> list:
+    search_fields = [{"field": "Email", "operator": "EQUAL", "value": email}]
+
+    output_fields = [
+        "Account ID",
+        "First Name",
+        "Last Name",
+        "Email 1",
+        "Membership Start Date",
+        "Individual Type",
+        182,
+        179,
+    ]
+
+    response = postAccountSearch(search_fields, output_fields)
+
+    try:
+        search_results = response.get("searchResults")
+    except AttributeError:
+        search_results = []
+
+    return search_results
