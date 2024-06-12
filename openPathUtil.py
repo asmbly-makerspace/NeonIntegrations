@@ -376,11 +376,11 @@ def createUser(neonAccount):
 
     data = {
         "identity": {
-            "email": f"{neonAccount.get('Email 1')}",
-            "firstName": f"{neonAccount.get('First Name')}",
-            "lastName": f"{neonAccount.get('Last Name')}",
+            "email": neonAccount.get("Email 1"),
+            "firstName": neonAccount.get("First Name"),
+            "lastName": neonAccount.get("Last Name"),
         },
-        "externalId": f"{neonAccount.get('Account ID')}",
+        "externalId": neonAccount.get("Account ID"),
         "hasRemoteUnlock": False,
     }
     url = O_baseURL + "/users"
@@ -421,7 +421,7 @@ def createUser(neonAccount):
             # ...confirmed that updating FirstName and LastName fixes initials and FullName too
             url = O_baseURL + f"""/users/{opUser.get("id")}"""
             logging.debug("PATCH to %s %s", url, pformat(data))
-            response = requests.patch(url, data=data, headers=O_headers)
+            response = requests.patch(url, json=data, headers=O_headers)
             if response.status_code != 200:
                 raise ValueError(
                     f"Patch {url} returned status code {response.status_code}; expected 200"
