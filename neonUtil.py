@@ -51,11 +51,13 @@ def updateOpenPathID(account: dict):
         pass
     elif account.get("OpenPathID") is not None:
         # if we get random non-numeric crap in the openPathID, int() will fail
-        OpId = f'''"{int(account.get("OpenPathID"))}"'''
+        OpId = int(account.get("OpenPathID"))
 
     data = {
         "individualAccount": {
-            "accountCustomFields": [{"id": "178", "name": "OpenPathID", "value": OpId}]
+            "accountCustomFields": [
+                {"id": "178", "name": "OpenPathID", "value": str(OpId)}
+            ]
         }
     }
 
