@@ -479,10 +479,10 @@ def createMobileCredential(neonAccount):
         neonAccount.get("fullName"),
         neonAccount.get("OpenPathID"),
     )
-    httpVerb = "POST"
+
     url = (
         O_baseURL
-        + f'/users/{neonAccount.get("OpenPathID")}/credentials/{response.json().get("data").get("id")}/setupMobile'
+        + f'/users/{neonAccount.get("OpenPathID")}/credentials/{response.get("id")}/setupMobile'
     )
     logging.debug("POST to %s", url)
     response = requests.post(url, headers=O_headers)
