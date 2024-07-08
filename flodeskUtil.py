@@ -25,6 +25,7 @@ F_HEADERS = {
 
 MEMBER_SEGMENT_ID = "6641784c84ebb40fecfd38a8"
 ORIENTATION_SEGMENT_ID = "664174acb5a0ac8c73bb785f"
+NEW_MEMBER_SEGMENT_ID = "668586285a2c31dd0f69494b"
 
 
 class Subscriber:
@@ -293,6 +294,13 @@ def update_flodesk_segments(neon_account_dict: dict) -> None:
 
         current_orientation_seg_subs.update(subs)
 
+    current_new_member_seg_subs = set()
+
+    for page in get_current_subs(session, NEW_MEMBER_SEGMENT_ID):
+        subs = {sub["email"] for sub in page["data"]}
+
+        current_new_member_seg_subs.update(subs)
+
     accounts: dict[str, Subscriber] = {}
     for account in neon_account_dict:
 
@@ -321,6 +329,7 @@ def update_flodesk_segments(neon_account_dict: dict) -> None:
     member_add_list = active_accounts - current_member_seg_subs
 
     final_member_remove_list = current_member_seg_subs - active_accounts
+    final_new_member_seg_remove_list = current_new_member_seg_subs - active_accounts
 
     final_o_and_m_add_list = orientation_add_list & member_add_list
 
@@ -329,7 +338,32 @@ def update_flodesk_segments(neon_account_dict: dict) -> None:
     final_m_only_add_list = member_add_list - orientation_add_list
 
     for sub in final_member_remove_list:
-        accounts[sub].remove_sub([MEMBER_SEGMENT_ID], session)
+        try:
+            accounts[sub].remove_sub([MEMBER_SEGMENT_ID], session)
+        except KeyError:
+            dangling_sub = Subscriber(
+                email=sub,
+                first_name="None",
+                last_name="None",
+                attended_orientation=False,
+                signed_waiver=False,
+            )
+
+            dangling_sub.remove_sub([MEMBER_SEGMENT_ID], session)
+
+    for sub in final_new_member_seg_remove_list:
+        try:
+            accounts[sub].remove_sub([NEW_MEMBER_SEGMENT_ID], session)
+        except KeyError:
+            dangling_sub = Subscriber(
+                email=sub,
+                first_name="None",
+                last_name="None",
+                attended_orientation=False,
+                signed_waiver=False,
+            )
+
+            dangling_sub.remove_sub([NEW_MEMBER_SEGMENT_ID], session)
 
     for sub in final_o_and_m_add_list:
         accounts[sub].create_or_update_sub(
