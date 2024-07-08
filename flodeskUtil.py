@@ -6,7 +6,7 @@ import base64
 import logging
 import time
 
-from typing import Generator, Optional
+from typing import Generator, Optional, Union
 
 import requests
 
@@ -266,6 +266,53 @@ def get_current_subs(
                 break
 
 
+def get_individual_sub(
+    session: requests.Session, email_or_id: str
+) -> Union[Subscriber, None]:
+    """
+    Get an individual Flodesk subscriber.
+
+    Args:
+        email_or_id (str): Subscriber email or Flodesk user id
+        session (requests.Session): Requests library Session object
+
+    Returns:
+        Subscriber: Instance of the Subscriber class
+    """
+    endpoint = f"/subscribers/{email_or_id}"
+    url = F_BASE_URL + endpoint
+    max_retries = 10
+
+    for i in range(max_retries):
+        response = session.get(url, headers=F_HEADERS)
+
+        if response.ok:
+            response = response.json()
+            return Subscriber(
+                email=response.get("email"),
+                first_name=response.get("first_name", "None"),
+                last_name=response.get("last_name", "None"),
+                attended_orientation=response.get("custom_fields").get(
+                    "attendedOrientation"
+                )
+                == "True",
+                signed_waiver=response.get("custom_fields").get("signedWaiver")
+                == "True",
+                active_member=response.get("custom_fields").get("neonAccountStatus")
+                == "Active",
+            )
+        elif response.status_code == 429:
+            time.sleep(backoff_time(i))
+        else:
+            logging.error(
+                "Flodesk subscriber fetch failed with status code %s. Message: %s. Raw Request: %s",
+                response.status_code,
+                response.json(),
+                response.request.body,
+            )
+            return None
+
+
 def update_flodesk_segments(neon_account_dict: dict) -> None:
     """
     Update audience segments in Flodesk to reflect current Membership status and Orientation
@@ -485,7 +532,12 @@ def update_flodesk_custom_fields() -> None:
 
     for email in all_incorrect:
         if not subs_to_update.get(email):
-            subs_to_update[email] = all_neon_accounts[email]
+            try:
+                subs_to_update[email] = all_neon_accounts[email]
+            except KeyError:
+                acct = get_individual_sub(session, email)
+                if acct:
+                    subs_to_update[email] = acct
 
     for sub in subs_to_update.values():
         if sub.attended_orientation:

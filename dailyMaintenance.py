@@ -40,6 +40,7 @@ if now < mailcutoff:
     run_flodesk_maintanence(neonAccounts)
 else:
     openPathUpdateAll(neonAccounts, mailSummary=False)
+    run_flodesk_maintanence(neonAccounts)
 
 
 discourseUpdateGroups(neonAccounts)
