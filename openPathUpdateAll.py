@@ -29,19 +29,23 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
 
     subscriberCount = 0
     facilityUserCount = 0
-    compedSubscriberCount = 0
 
     warningUsers = []
-    missingTourUsers = {}
-    missingWaiverUsers = {}
+    missingTourSubscribers = {}
+    missingWaiverSubscribers = {}
+    compedSubscribers = []
+    compedLeaders = []
 
     for account in neonAccounts:
         if neonAccounts[account].get("validMembership"):
             subscriberCount += 1
+            if neonAccounts[account].get("comped"):
+                compedSubscribers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
+        elif neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE):
+            compedLeaders.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
+
         if neonUtil.subscriberHasFacilityAccess(neonAccounts[account]):
             facilityUserCount += 1
-        if neonAccounts[account].get("comped"):
-            compedSubscriberCount += 1
 
         if neonAccounts[account].get("OpenPathID"):
             openPathUtil.updateGroups(neonAccounts[account], 
@@ -58,25 +62,39 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
         elif neonAccounts[account].get("validMembership"):
             startDate = neonAccounts[account].get("Membership Start Date")
             if not neonAccounts[account].get("WaiverDate"):
-                missingWaiverUsers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
+                missingWaiverSubscribers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
             if not neonAccounts[account].get("FacilityTourDate"):
-                missingTourUsers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
+                missingTourSubscribers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
 
     list_separator = '\n            '
     compedSubscriberString = ""
-    if (compedSubscriberCount > 0):
-        compedSubscriberString = f''' plus {compedSubscriberCount} complimentary memberships'''
+    compedSubscriberDetails =""
+    compedLeaderDetails = ""
+    if (len(compedSubscribers)+len(compedLeaders) > 0):
+        compedSubscriberString = f''' plus {len(compedSubscribers)+len(compedLeaders)} complimentary memberships'''
+        if (len(compedLeaders) > 0):
+            compedLeaderDetails = f'''
+        Comped Volunteer Leaders:
+            {list_separator.join(compedLeaders[x] for x in range(len(compedLeaders)))}
+'''
+        if (len(compedSubscribers) > 0):
+            compedSubscriberDetails = f'''
+        Other Comped Memberships:
+            {list_separator.join(compedSubscribers[x] for x in range(len(compedSubscribers)))}
+'''
 
     msg = MIMEText(f'''
-    Today Asmbly has {(subscriberCount - compedSubscriberCount)} paying subscribers{compedSubscriberString}.
+    Today Asmbly has {(subscriberCount - len(compedSubscribers))} paying subscribers{compedSubscriberString}.
 
     Of those:
         {facilityUserCount} have facility access
-        {len(missingWaiverUsers)} are missing the waiver {':' if len(missingWaiverUsers) > 0 else ' (yay!)'}
-            {list_separator.join(missingWaiverUsers[x] for x in sorted(missingWaiverUsers, reverse=True))}
-        {len(missingTourUsers)} are missing orientation{':' if len(missingTourUsers) > 0 else ' (yay!)'}
-            {list_separator.join(missingTourUsers[x] for x in sorted(missingTourUsers, reverse=True))}
+        {len(missingWaiverSubscribers)} are missing the waiver {':' if len(missingWaiverSubscribers) > 0 else ' (yay!)'}
+            {list_separator.join(missingWaiverSubscribers[x] for x in sorted(missingWaiverSubscribers, reverse=True))}
+        {len(missingTourSubscribers)} are missing orientation{':' if len(missingTourSubscribers) > 0 else ' (yay!)'}
+            {list_separator.join(missingTourSubscribers[x] for x in sorted(missingTourSubscribers, reverse=True))}
 {getWarningText(warningUsers)}
+{compedLeaderDetails}
+{compedSubscriberDetails}
 {commonMessageFooter}
 ''')
     msg['To'] = "membership@asmbly.org"

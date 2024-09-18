@@ -383,6 +383,8 @@ def getRealAccounts():
     neonAccountDict = getMembersFast()
     # Staff accounts might not have any membership records
     neonAccountDict = getAccountsByType(STAFF_TYPE, neonAccountDict=neonAccountDict)
+    # Leader accounts might not have any membership records (though this is less likely)
+    neonAccountDict = getAccountsByType(LEAD_TYPE, neonAccountDict=neonAccountDict)
     # former Staff accounts might not have any membership records
     neonAccountDict = getOrphanDiscourseAccounts(neonAccountDict=neonAccountDict)
     neonAccountDict = getOrphanOpAccounts(neonAccountDict=neonAccountDict)
@@ -521,7 +523,7 @@ def subscriberHasFacilityAccess(account: dict):
 # Helper function: is this Neon account allowed facility access for any reason
 ####################################################################
 def accountHasFacilityAccess(account: dict):
-    if accountIsType(account, STAFF_TYPE) or subscriberHasFacilityAccess(account):
+    if accountIsType(account, STAFF_TYPE) or accountIsType(account, LEAD_TYPE) or subscriberHasFacilityAccess(account):
         return True
 
     # CoWorking is a moderately permissive group - they can ride out subscription lapses, but not other membership requirements
