@@ -7,13 +7,15 @@ import logging
 
 from urllib.parse import quote
 from dataclasses import dataclass
-from typing import Protocol, Literal
+from typing import Protocol, Literal, Self, Any
 from enum import StrEnum
+from zoneinfo import ZoneInfo
 
 import boto3
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator, field_serializer
 from mailjet_rest import Client  # type: ignore
+from neonUtil import getNeonAccounts
 
 
 logging.basicConfig(
@@ -24,14 +26,19 @@ logging.basicConfig(
 
 
 class MJContactProperties(StrEnum):
-    FIRSTNAME = "firstname"
-    LASTNAME = "lastname"
-    NAME = "name"
+    FIRSTNAME = "first_name"
+    LASTNAME = "last_name"
     ATTENDED_ORIENTATION = "attended_orientation"
     SIGNED_WAIVER = "signed_waiver"
     ACTIVE_MEMBER = "active_member"
     ORIENTATION_DATE = "orientation_date"
     LATEST_MEMBERSHIP_END = "latest_membership_end"
+
+
+class MJContactListNames(StrEnum):
+    NEW_MEMBERS = "NewMembers"
+    NEON_ACCOUNTS = "NeonAccounts"
+    NEWSLETTER_ONLY = "NewsletterOnly"
 
 
 class MailjetAction(StrEnum):
@@ -41,17 +48,8 @@ class MailjetAction(StrEnum):
     UNSUB = "unsub"
 
 
-class MailjetContact(BaseModel):
-    created_at: datetime.datetime = Field(..., alias="CreatedAt")
-    email: str = Field(..., alias="Email")
-    id_: int = Field(..., alias="ID")
-    name: str = Field(..., alias="Name")
-    is_excluded_from_campaigns: bool = Field(..., alias="IsExcludedFromCampaigns")
-
-
 class StringProperty(BaseModel):
     name: Literal[
-        MJContactProperties.NAME,
         MJContactProperties.FIRSTNAME,
         MJContactProperties.LASTNAME,
     ] = Field(..., alias="Name")
@@ -74,12 +72,54 @@ class DateProperty(BaseModel):
     value: datetime.datetime = Field(..., alias="Value")
 
 
+class UnknownProperty(BaseModel):
+    name: str = Field(..., alias="Name")
+    value: datetime.datetime | bool | float | int | str = Field(..., alias="Value")
+
+
+class MailjetContact(BaseModel):
+    created_at: datetime.datetime = Field(..., alias="CreatedAt", exclude=True)
+    email: str = Field(..., alias="Email")
+    id_: int = Field(..., alias="ID", exclude=True)
+    name: str = Field(..., alias="Name")
+    is_excluded_from_campaigns: bool = Field(..., alias="IsExcludedFromCampaigns")
+    properties: (
+        list[StringProperty | BoolProperty | DateProperty | UnknownProperty] | None
+    ) = Field(None, alias="Properties")
+
+    @field_serializer("properties")
+    def serialize_properties(
+        self,
+        properties: (
+            list[StringProperty | BoolProperty | DateProperty | UnknownProperty] | None
+        ),
+    ) -> dict[str, Any] | None:
+        if properties is None:
+            return None
+
+        return {prop.name: prop.value for prop in properties}
+
+
 class MJContactWithProperties(BaseModel):
     contact_id: int = Field(..., alias="ContactID")
-    data: list[DateProperty | BoolProperty | StringProperty] = Field(
+    data: list[DateProperty | BoolProperty | StringProperty | UnknownProperty] = Field(
         ..., alias="Data", discriminator="Name"
     )
     id_: int = Field(..., alias="ID")
+
+
+class MJContactList(BaseModel):
+    id_: int = Field(..., alias="ID")
+    name: str = Field(..., alias="Name")
+    is_deleted: bool = Field(..., alias="IsDeleted")
+    subscriber_count: int = Field(..., alias="SubscriberCount")
+    created_at: datetime.datetime = Field(..., alias="CreatedAt")
+
+
+class MJContactListResponse(BaseModel):
+    count: int = Field(..., alias="Count")
+    data: list[MJContactList] = Field(..., alias="Data")
+    total: int = Field(..., alias="Total")
 
 
 class MJContactDataResponse(BaseModel):
@@ -102,15 +142,19 @@ class CustomContactMetadataField(BaseModel):
     namespace: Literal["static", "historic"] = Field("static", alias="NameSpace")
 
 
-@dataclass
-class MJCredentials:
-    public_key: str
-    secret_key: str
+class MJBulkListUpdateRequest(BaseModel):
+    action: Literal[
+        MailjetAction.ADD_FORCE,
+        MailjetAction.ADD_NOFORCE,
+        MailjetAction.REMOVE,
+        MailjetAction.UNSUB,
+    ] = Field(..., alias="Action")
+    contacts: list[MailjetContact] = Field(..., alias="Contacts")
 
 
-@dataclass
-class Subscriber:
-    _email: str
+class Subscriber(BaseModel):
+    email_: str | None
+    id_: int | None
     first_name: str
     last_name: str
     attended_orientation: bool
@@ -120,12 +164,27 @@ class Subscriber:
     latest_membership_end: datetime.datetime | None
 
     @property
-    def email(self) -> str:
-        return self._email.lower()
+    def email(self) -> str | None:
+        if self.email_ is not None:
+            return self.email_.lower()
+
+        return self.email_
 
     @property
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}"
+
+    @model_validator(mode="after")
+    def validate_either_email_or_id(self) -> Self:
+        if self.email_ is None and self.id_ is None:
+            raise ValueError("Either email_ or id_ must be provided for a subscriber.")
+        return self
+
+
+@dataclass
+class MJCredentials:
+    public_key: str
+    secret_key: str
 
 
 class MailserviceInterface(Protocol):
@@ -156,10 +215,38 @@ class MailserviceInterface(Protocol):
 
 
 class MJService:
-    def __init__(self, credentials: MJCredentials):
+    newsletter_only_list_id: int | None = None
+    new_members_list_id: int | None = None
+    neon_accounts_list_id: int | None = None
+
+    def __init__(self, credentials: MJCredentials) -> None:
         self.client = Client(
             auth=(credentials.public_key, credentials.secret_key), version="v3"
         )
+
+        self.set_list_ids()
+
+    def set_list_ids(self) -> None:
+        response = self.client.contactslist.get()
+
+        if not response.ok:
+            logging.error(
+                "Mailjet contact list retrieval request failed with status code %s. Response: %s.",
+                response.status_code,
+                response.json(),
+            )
+
+            return
+
+        contact_lists = MJContactListResponse.model_validate_json(response.content).data
+
+        lists = {list.name: list.id_ for list in contact_lists if not list.is_deleted}
+
+        self.newsletter_only_list_id = lists.get(
+            MJContactListNames.NEWSLETTER_ONLY, None
+        )
+        self.new_members_list_id = lists.get(MJContactListNames.NEW_MEMBERS, None)
+        self.neon_accounts_list_id = lists.get(MJContactListNames.NEON_ACCOUNTS, None)
 
     def create_contact_metadata_fields(
         self, metadata: list[CustomContactMetadataField]
@@ -223,11 +310,23 @@ class MJService:
                     "IsExcludedFromCampaigns": False,
                     "Name": sub.full_name,
                     "Properties": {
+                        "first_name": sub.first_name,
+                        "last_name": sub.last_name,
                         "attended_orientation": sub.attended_orientation,
                         "signed_waiver": sub.signed_waiver,
                         "active_member": sub.active_member,
-                        "latest_membership_end": sub.latest_membership_end,
-                        "orientation_date": sub.orientation_date,
+                        "latest_membership_end": (
+                            sub.latest_membership_end.astimezone(
+                                ZoneInfo("America/Chicago")
+                            ).isoformat()
+                            if sub.latest_membership_end
+                            else None
+                        ),
+                        "orientation_date": (
+                            sub.orientation_date.isoformat()
+                            if sub.orientation_date
+                            else None
+                        ),
                     },
                 }
                 for sub in subscribers
@@ -308,31 +407,15 @@ class MJService:
 
             return None
 
-        contacts_list = response.json().get("Data")
+        contacts_list = MJContactDataResponse.model_validate_json(response.content)
 
-        if not contacts_list:
+        if len(contacts_list.data) == 0:
             logging.info("No contacts found.")
             return None
 
         return (
-            response.json().get("Count"),
-            [
-                Subscriber(
-                    _email=contact.get("Email"),
-                    first_name=contact.get("Name").split()[0],
-                    last_name=contact.get("Name").split()[1],
-                    attended_orientation=contact.get("Properties").get(
-                        "attended_orientation", False
-                    ),
-                    orientation_date=contact.get("Properties").get("orientation_date"),
-                    signed_waiver=contact.get("Properties").get("signed_waiver", False),
-                    active_member=contact.get("Properties").get("active_member", False),
-                    latest_membership_end=contact.get("Properties").get(
-                        "latest_membership_end"
-                    ),
-                )
-                for contact in contacts_list
-            ],
+            contacts_list.count,
+            [self.validate_contact_props(contact) for contact in contacts_list.data],
         )
 
     def get_all_contacts_in_list(self, list_id: int) -> list[Subscriber] | None:
@@ -345,19 +428,23 @@ class MJService:
         count = response[0]
         subscribers = response[1]
 
+        offset += 50
+
         while offset < count:
-            offset += 50
             response = self.get_contacts(list_id=list_id, offset=offset)
 
             if response is None:
-                return None
+                return subscribers
 
             subscribers.extend(response[1])
+            offset += 50
 
         return subscribers
 
     def validate_contact_props(
-        self, contact_data: MJContactWithProperties, email: str
+        self,
+        contact_data: MJContactWithProperties,
+        email: str | None = None,
     ) -> Subscriber:
         contact_props = {prop.name: prop.value for prop in contact_data.data}
 
@@ -391,7 +478,8 @@ class MJService:
         assert isinstance(active_member, bool)
 
         return Subscriber(
-            _email=email,
+            email_=email,
+            id_=contact_data.id_,
             first_name=first_name,
             last_name=last_name,
             attended_orientation=attended_orientation,
@@ -423,79 +511,54 @@ class MJService:
         return self.validate_contact_props(contact, email)
 
 
-def run_mailjet_maintenance(neon_account_dict: dict) -> None:
-    ssm_mj_creds = boto3.client("ssm").get_parameters(
-        Names=[
-            "/mailjet/api_key",
-            "/mailjet/api_secret",
-        ],
-        WithDecryption=True,
-    )
+def update_mj_neon_accounts_list(mailjet: MJService, neon_account_dict: dict) -> None:
+    neon_accounts_mj_list_id = mailjet.neon_accounts_list_id
 
-    mj_creds = MJCredentials(
-        public_key=ssm_mj_creds["Parameters"][0]["Value"],
-        secret_key=ssm_mj_creds["Parameters"][1]["Value"],
-    )
-
-    mailjet = MJService(mj_creds)
-
-    current_active_mj_list = mailjet.get_all_contacts_in_list(list_id=1)
-
-    if current_active_mj_list is None:
-        logging.error("Failed to get active members from Mailjet.")
+    if neon_accounts_mj_list_id is None:
+        logging.error("Failed to get NeonAccounts list ID from Mailjet.")
         return None
 
-    current_active_mj_emails = {sub.email for sub in current_active_mj_list}
-
     accounts: list[Subscriber] = []
-    active_accounts_emails: set[str] = set()
     for account in neon_account_dict:
 
         account = Subscriber(
-            _email=neon_account_dict[account].get("Email 1").lower(),
+            email_=neon_account_dict[account].get("Email 1").lower(),
+            id_=neon_account_dict[account].get("MailjetContactID"),
             first_name=neon_account_dict[account].get("First Name"),
             last_name=neon_account_dict[account].get("Last Name"),
             attended_orientation=neon_account_dict[account].get("FacilityTourDate")
             is not None,
-            orientation_date=datetime.datetime.fromisoformat(
-                neon_account_dict[account].get("FacilityTourDate")
+            orientation_date=(
+                datetime.datetime.strptime(
+                    neon_account_dict[account].get("FacilityTourDate"), "%m/%d/%Y"
+                ).astimezone(ZoneInfo("America/Chicago"))
+                if neon_account_dict[account].get("FacilityTourDate")
+                else None
             ),
-            active_member=neon_account_dict[account].get("validMembership"),
-            latest_membership_end=neon_account_dict[account].get("Membership End Date"),
+            active_member=neon_account_dict[account].get(
+                "Account Current Membership Status"
+            )
+            == "Active",
+            latest_membership_end=neon_account_dict[account].get(
+                "Membership Expiration Date"
+            ),
             signed_waiver=neon_account_dict[account].get("WaiverDate") is not None,
         )
 
         accounts.append(account)
 
-        if account.active_member:
-            active_accounts_emails.add(account.email)
-
-    member_add_list_emails = active_accounts_emails - current_active_mj_emails
-    member_remove_list_emails = current_active_mj_emails - active_accounts_emails
-
-    member_add_list = list(
-        filter(lambda x: x.email in member_add_list_emails, accounts)
-    )
-    member_remove_list = list(
-        filter(lambda x: x.email in member_remove_list_emails, current_active_mj_list)
+    mailjet.bulk_update_subscribers_in_list(
+        list_id=neon_accounts_mj_list_id,
+        subscribers=accounts,
+        action=MailjetAction.ADD_NOFORCE,
     )
 
-    if member_add_list:
-        mailjet.bulk_update_subscribers_in_list(
-            list_id=1,
-            subscribers=member_add_list,
-            action=MailjetAction.ADD_NOFORCE,
-        )
 
-    if member_remove_list:
-        mailjet.bulk_update_subscribers_in_list(
-            list_id=1,
-            subscribers=member_remove_list,
-            action=MailjetAction.REMOVE,
-        )
+def run_mailjet_maintenance() -> None:
+    """
+    Main entry point for running maintenance tasks on Mailjet.
+    """
 
-
-if __name__ == "__main__":
     ssm_mj_creds = boto3.client("ssm").get_parameters(
         Names=[
             "/mailjet/api_key",
@@ -511,10 +574,76 @@ if __name__ == "__main__":
 
     mailjet = MJService(mj_creds)
 
-    # current_active_mj_list = mailjet.get_all_contacts_in_list(list_id=10482790)
+    orientation_search_fields = [
+        {"field": "Account Type", "operator": "EQUAL", "value": "Individual"},
+        {"field": "Email 1", "operator": "NOT_BLANK"},
+        {
+            "field": "Email Opt-Out",
+            "operator": "EQUAL",
+            "value": "At least one email opted in",
+        },
+        {"field": "FacilityTourDate", "operator": "NOT_BLANK"},
+    ]
 
-    # test = mailjet.get_contacts()
+    waiver_search_fields = [
+        {"field": "Account Type", "operator": "EQUAL", "value": "Individual"},
+        {"field": "Email 1", "operator": "NOT_BLANK"},
+        {
+            "field": "Email Opt-Out",
+            "operator": "EQUAL",
+            "value": "At least one email opted in",
+        },
+        {"field": "WaiverDate", "operator": "NOT_BLANK"},
+    ]
 
-    test = mailjet.get_ind_contact(email="max.chandler@example.com")
+    # This will only retrieve accounts who have had at least one membership at some point
+    member_search_fields = [
+        {"field": "Account Type", "operator": "EQUAL", "value": "Individual"},
+        {"field": "Email 1", "operator": "NOT_BLANK"},
+        {
+            "field": "Email Opt-Out",
+            "operator": "EQUAL",
+            "value": "At least one email opted in",
+        },
+        {
+            "field": "Most Recent Membership Only",
+            "operator": "EQUAL",
+            "value": "Yes",
+        },
+    ]
 
-    pprint.pprint(test)
+    # all_acct_search_fields = [
+    #     {"field": "Account Type", "operator": "EQUAL", "value": "Individual"},
+    #     {"field": "Email 1", "operator": "NOT_BLANK"},
+    #     {
+    #         "field": "Email Opt-Out",
+    #         "operator": "EQUAL",
+    #         "value": "At least one email opted in",
+    #     },
+    # ]
+
+    orientation_accts: dict[str, dict] = {}
+    waiver_accts: dict[str, dict] = {}
+    member_accts: dict[str, dict] = {}
+
+    orientation_accts = getNeonAccounts(
+        searchFields=orientation_search_fields, neonAccountDict=orientation_accts
+    )
+    waiver_accts = getNeonAccounts(
+        searchFields=waiver_search_fields, neonAccountDict=waiver_accts
+    )
+    member_accts = getNeonAccounts(
+        searchFields=member_search_fields, neonAccountDict=member_accts
+    )
+
+    all_accts = orientation_accts | waiver_accts | member_accts
+
+    # all_accts = getNeonAccounts(searchFields=all_acct_search_fields)
+
+    update_mj_neon_accounts_list(mailjet, all_accts)
+
+    logging.info("Finished running Mailjet maintenance tasks.")
+
+
+if __name__ == "__main__":
+    run_mailjet_maintenance()
