@@ -196,6 +196,8 @@ class MailserviceInterface(Protocol):
         self, metadata: list[CustomContactMetadataField]
     ) -> None: ...
 
+    def get_ind_contact(self, email: str) -> None | Subscriber: ...
+
     def update_ind_contact_metadata(
         self, email: str, metadata: list[DateProperty | BoolProperty | StringProperty]
     ) -> None: ...
@@ -210,6 +212,8 @@ class MailserviceInterface(Protocol):
         limit: int = 50,
         offset: int = 0,
     ) -> None | tuple[int, list[Subscriber]]: ...
+
+    def get_all_contacts_in_list(self, list_id: int) -> list[Subscriber] | None: ...
 
 
 class MJService:
@@ -509,7 +513,9 @@ def update_mj_all_contacts_list(mailjet: MJService, neon_account_dict: dict) -> 
     all_contacts_mj_list_id = mailjet.all_contacts_list_id
 
     if all_contacts_mj_list_id is None:
-        logging.error("Failed to get NeonAccounts list ID from Mailjet.")
+        logging.error(
+            "Failed to get %s list ID from Mailjet.", MJContactListNames.ALL_CONTACTS
+        )
         return None
 
     accounts: list[Subscriber] = []
