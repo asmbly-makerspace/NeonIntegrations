@@ -1,7 +1,6 @@
 ############### Asmbly Mailjet API Integrations ##################
 #      Mailjet API docs - https://dev.mailjet.com/email/guides/  #
 ##################################################################
-import pprint
 import datetime
 import logging
 
@@ -37,8 +36,7 @@ class MJContactProperties(StrEnum):
 
 class MJContactListNames(StrEnum):
     NEW_MEMBERS = "NewMembers"
-    NEON_ACCOUNTS = "NeonAccounts"
-    NEWSLETTER_ONLY = "NewsletterOnly"
+    ALL_CONTACTS = "AllContacts"
 
 
 class MailjetAction(StrEnum):
@@ -215,9 +213,8 @@ class MailserviceInterface(Protocol):
 
 
 class MJService:
-    newsletter_only_list_id: int | None = None
     new_members_list_id: int | None = None
-    neon_accounts_list_id: int | None = None
+    all_contacts_list_id: int | None = None
 
     def __init__(self, credentials: MJCredentials) -> None:
         self.client = Client(
@@ -242,11 +239,8 @@ class MJService:
 
         lists = {list.name: list.id_ for list in contact_lists if not list.is_deleted}
 
-        self.newsletter_only_list_id = lists.get(
-            MJContactListNames.NEWSLETTER_ONLY, None
-        )
         self.new_members_list_id = lists.get(MJContactListNames.NEW_MEMBERS, None)
-        self.neon_accounts_list_id = lists.get(MJContactListNames.NEON_ACCOUNTS, None)
+        self.all_contacts_list_id = lists.get(MJContactListNames.ALL_CONTACTS, None)
 
     def create_contact_metadata_fields(
         self, metadata: list[CustomContactMetadataField]
@@ -511,10 +505,10 @@ class MJService:
         return self.validate_contact_props(contact, email)
 
 
-def update_mj_neon_accounts_list(mailjet: MJService, neon_account_dict: dict) -> None:
-    neon_accounts_mj_list_id = mailjet.neon_accounts_list_id
+def update_mj_all_contacts_list(mailjet: MJService, neon_account_dict: dict) -> None:
+    all_contacts_mj_list_id = mailjet.all_contacts_list_id
 
-    if neon_accounts_mj_list_id is None:
+    if all_contacts_mj_list_id is None:
         logging.error("Failed to get NeonAccounts list ID from Mailjet.")
         return None
 
@@ -548,7 +542,7 @@ def update_mj_neon_accounts_list(mailjet: MJService, neon_account_dict: dict) ->
         accounts.append(account)
 
     mailjet.bulk_update_subscribers_in_list(
-        list_id=neon_accounts_mj_list_id,
+        list_id=all_contacts_mj_list_id,
         subscribers=accounts,
         action=MailjetAction.ADD_NOFORCE,
     )
@@ -640,7 +634,7 @@ def run_mailjet_maintenance() -> None:
 
     # all_accts = getNeonAccounts(searchFields=all_acct_search_fields)
 
-    update_mj_neon_accounts_list(mailjet, all_accts)
+    update_mj_all_contacts_list(mailjet, all_accts)
 
     logging.info("Finished running Mailjet maintenance tasks.")
 
