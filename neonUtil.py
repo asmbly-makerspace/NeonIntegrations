@@ -297,6 +297,7 @@ def getNeonAccounts(searchFields, neonAccountDict={}):
                 "Membership Expiration Date",
                 "Membership Start Date",
                 "Individual Type",
+                "Account Current Membership Status",
                 85,
                 77,
                 179,
