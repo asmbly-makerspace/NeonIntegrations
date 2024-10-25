@@ -101,7 +101,7 @@ class MailjetContact(BaseModel):
 class MJContactWithProperties(BaseModel):
     contact_id: int = Field(..., alias="ContactID")
     data: list[DateProperty | BoolProperty | StringProperty | UnknownProperty] = Field(
-        ..., alias="Data", discriminator="Name"
+        ..., alias="Data"
     )
     id_: int = Field(..., alias="ID")
 
