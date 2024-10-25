@@ -294,14 +294,13 @@ class MJService:
             "Mailjet contact metadata updated for %s: %s", email, response.json()
         )
 
-    def bulk_update_subscribers_in_list(
-        self, list_id: int, subscribers: list[Subscriber], action: MailjetAction
+    def bulk_update_subscribers_in_lists(
+        self, list_ids: list[int], subscribers: list[Subscriber], action: MailjetAction
     ) -> None | int:
         if not subscribers:
             return None
 
         data = {
-            "Action": action.value,
             "Contacts": [
                 {
                     "Email": sub.email,
@@ -329,11 +328,16 @@ class MJService:
                 }
                 for sub in subscribers
             ],
+            "ContactsLists": [
+                {
+                    "ListID": list_id,
+                    "Action": action.value,
+                }
+                for list_id in list_ids
+            ],
         }
 
-        response = self.client.contactslist_managemanycontacts.create(
-            id=list_id, data=data
-        )
+        response = self.client.contact_managemanycontacts.create(data=data)
 
         if response.status_code != 201:
             logging.error(
@@ -547,8 +551,8 @@ def update_mj_all_contacts_list(mailjet: MJService, neon_account_dict: dict) -> 
 
         accounts.append(account)
 
-    mailjet.bulk_update_subscribers_in_list(
-        list_id=all_contacts_mj_list_id,
+    mailjet.bulk_update_subscribers_in_lists(
+        list_ids=[all_contacts_mj_list_id],
         subscribers=accounts,
         action=MailjetAction.ADD_NOFORCE,
     )
