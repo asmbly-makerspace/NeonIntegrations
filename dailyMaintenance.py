@@ -1,6 +1,6 @@
 from discourseUpdateGroups import discourseUpdateGroups
 from openPathUpdateAll import openPathUpdateAll
-from flodeskUtil import run_flodesk_maintanence
+from mailjetUtil import run_mailjet_maintenance
 
 import neonUtil
 import logging
@@ -37,11 +37,10 @@ mailcutoff = datetime.datetime.combine(
 
 if now < mailcutoff:
     openPathUpdateAll(neonAccounts, mailSummary=True)
-    run_flodesk_maintanence(neonAccounts)
 else:
     openPathUpdateAll(neonAccounts, mailSummary=False)
-    run_flodesk_maintanence(neonAccounts)
 
 
 discourseUpdateGroups(neonAccounts)
+run_mailjet_maintenance()
 logging.info("Sync cycle complete.")

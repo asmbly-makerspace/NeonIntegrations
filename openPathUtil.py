@@ -3,7 +3,7 @@
 #################################################################
 
 from curses import use_default_colors
-from os import openpty
+from os import openpty, environ
 from pprint import pformat
 from base64 import b64encode
 import datetime, pytz
@@ -14,7 +14,11 @@ from pprint import pprint
 import neonUtil
 import AsmblyMessageFactory
 import gmailUtil
-from config import O_APIkey, O_APIuser
+
+if environ.get("USER") == "ec2-user":
+    from aws_ssm import O_APIkey, O_APIuser
+else:
+    from config import O_APIkey, O_APIuser
 
 # OpenPath Group IDs
 GROUP_MANAGEMENT = 23174

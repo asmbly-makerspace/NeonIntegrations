@@ -1,8 +1,13 @@
 import base64
 import datetime
+import os
 import requests
 
-from config import N_APIkey, N_APIuser
+if os.environ.get("USER") == "ec2-user":
+    from aws_ssm import N_APIkey, N_APIuser
+else:
+    from config import N_APIkey, N_APIuser
+
 from helpers.api import apiCall
 
 

@@ -1,10 +1,14 @@
 import smtplib
 import ssl
+import os
 import logging
 
 from email.mime.multipart import MIMEMultipart
 
-from config import G_user, G_password
+if os.environ.get("USER") == "ec2-user":
+    from aws_ssm import G_user, G_password
+else:
+    from config import G_user, G_password
 
 
 #################################################################################

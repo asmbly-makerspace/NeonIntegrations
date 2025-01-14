@@ -28,6 +28,7 @@ import datetime
 import smtplib
 import ssl
 import logging
+import os
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -37,7 +38,10 @@ import helpers.neon as neon
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-from config import G_user, G_password
+if os.environ.get("USER") == "ec2-user":
+    from aws_ssm import G_user, G_password
+else:
+    from config import G_user, G_password
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(message)s",
