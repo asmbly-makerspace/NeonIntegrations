@@ -114,6 +114,7 @@ for teacher in TEACHERS:
             "DEFERRED": [],
             "CANCELED": [],
             "FAILED": [],
+            "REFUNDED": [],
         }
         # Registrant info formatted for email
         pretty_registrants = ""
@@ -157,6 +158,9 @@ for teacher in TEACHERS:
                 entry = {acct_id: attendee_list}
 
                 # Add to registrantDict under the appropriate status
+                # First check that this registration status is in the dictionary
+                if status not in registrant_dict:
+                    registrant_dict[status] = []
                 registrant_dict[status].append(entry)
 
             for account in registrant_dict["SUCCEEDED"]:
