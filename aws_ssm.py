@@ -17,8 +17,8 @@ ssm_creds = boto3.client("ssm").get_parameters(
 N_APIkey = ssm_creds["Parameters"][6]["Value"]
 N_APIuser = ssm_creds["Parameters"][7]["Value"]
 
-G_user = ssm_creds["Parameters"][4]["Value"]
-G_password = ssm_creds["Parameters"][5]["Value"]
+G_user = ssm_creds["Parameters"][5]["Value"]
+G_password = ssm_creds["Parameters"][4]["Value"]
 
 O_APIkey = ssm_creds["Parameters"][0]["Value"]
 O_APIuser = ssm_creds["Parameters"][1]["Value"]
