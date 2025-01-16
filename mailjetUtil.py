@@ -101,7 +101,7 @@ class MailjetContact(BaseModel):
 class MJContactWithProperties(BaseModel):
     contact_id: int = Field(..., alias="ContactID")
     data: list[DateProperty | BoolProperty | StringProperty | UnknownProperty] = Field(
-        ..., alias="Data", discriminator="Name"
+        ..., alias="Data"
     )
     id_: int = Field(..., alias="ID")
 
@@ -294,14 +294,13 @@ class MJService:
             "Mailjet contact metadata updated for %s: %s", email, response.json()
         )
 
-    def bulk_update_subscribers_in_list(
-        self, list_id: int, subscribers: list[Subscriber], action: MailjetAction
+    def bulk_update_subscribers_in_lists(
+        self, list_ids: list[int], subscribers: list[Subscriber], action: MailjetAction
     ) -> None | int:
         if not subscribers:
             return None
 
         data = {
-            "Action": action.value,
             "Contacts": [
                 {
                     "Email": sub.email,
@@ -329,11 +328,16 @@ class MJService:
                 }
                 for sub in subscribers
             ],
+            "ContactsLists": [
+                {
+                    "ListID": list_id,
+                    "Action": action.value,
+                }
+                for list_id in list_ids
+            ],
         }
 
-        response = self.client.contactslist_managemanycontacts.create(
-            id=list_id, data=data
-        )
+        response = self.client.contact_managemanycontacts.create(data=data)
 
         if response.status_code != 201:
             logging.error(
@@ -349,7 +353,7 @@ class MJService:
         return job_id
 
     def get_job_status(self, job_id: int) -> str | None:
-        response = self.client.contactslist_managemanycontacts.get(id=job_id)
+        response = self.client.contact_managemanycontacts.get(id=job_id)
 
         if response.status_code != 200:
             logging.error(
@@ -509,7 +513,9 @@ class MJService:
         return self.validate_contact_props(contact, email)
 
 
-def update_mj_all_contacts_list(mailjet: MJService, neon_account_dict: dict) -> None:
+def update_mj_all_contacts_list(
+    mailjet: MJService, neon_account_dict: dict
+) -> int | None:
     all_contacts_mj_list_id = mailjet.all_contacts_list_id
 
     if all_contacts_mj_list_id is None:
@@ -547,11 +553,13 @@ def update_mj_all_contacts_list(mailjet: MJService, neon_account_dict: dict) -> 
 
         accounts.append(account)
 
-    mailjet.bulk_update_subscribers_in_list(
-        list_id=all_contacts_mj_list_id,
+    job_id = mailjet.bulk_update_subscribers_in_lists(
+        list_ids=[all_contacts_mj_list_id],
         subscribers=accounts,
         action=MailjetAction.ADD_NOFORCE,
     )
+
+    return job_id
 
 
 def run_mailjet_maintenance() -> None:
@@ -640,7 +648,13 @@ def run_mailjet_maintenance() -> None:
 
     # all_accts = getNeonAccounts(searchFields=all_acct_search_fields)
 
-    update_mj_all_contacts_list(mailjet, all_accts)
+    job_id = update_mj_all_contacts_list(mailjet, all_accts)
+
+    if job_id is None:
+        logging.error("Failed to update all contacts list")
+    else:
+        logging.info("Updated all contacts list with job id %s", job_id)
+        logging.info("Job status: %s", mailjet.get_job_status(job_id))
 
     logging.info("Finished running Mailjet maintenance tasks.")
 

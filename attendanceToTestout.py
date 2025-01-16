@@ -2,10 +2,15 @@ import base64
 import datetime
 import logging
 import traceback
+import os
 
 import helpers.neon as neon
 from helpers.api import apiCall
-from config import N_APIkey, N_APIuser
+
+if os.environ.get("USER") == "ec2-user":
+    from aws_ssm import N_APIkey, N_APIuser
+else:
+    from config import N_APIkey, N_APIuser
 
 # Neon Account Info
 N_auth = f"{N_APIuser}:{N_APIkey}"

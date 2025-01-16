@@ -7,8 +7,12 @@ import logging
 import base64
 import datetime, pytz
 import requests
+import os
 
-from config import N_APIkey, N_APIuser
+if os.environ.get("USER") == "ec2-user":
+    from aws_ssm import N_APIkey, N_APIuser
+else:
+    from config import N_APIkey, N_APIuser
 
 
 # I'm not absolutely certain NeonCRM thinks it's in central time, but it's in the ballpark.
@@ -524,7 +528,11 @@ def subscriberHasFacilityAccess(account: dict):
 # Helper function: is this Neon account allowed facility access for any reason
 ####################################################################
 def accountHasFacilityAccess(account: dict):
-    if accountIsType(account, STAFF_TYPE) or accountIsType(account, LEAD_TYPE) or subscriberHasFacilityAccess(account):
+    if (
+        accountIsType(account, STAFF_TYPE)
+        or accountIsType(account, LEAD_TYPE)
+        or subscriberHasFacilityAccess(account)
+    ):
         return True
 
     # CoWorking is a moderately permissive group - they can ride out subscription lapses, but not other membership requirements
