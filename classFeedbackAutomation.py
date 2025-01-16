@@ -226,7 +226,7 @@ for event in responseEvents:
             <html>
                 <body>
                     <p>Hi {v[0]},</p>
-                    <p>We hope you enjoyed your class yesterday!</p>
+                    <p>We hope you enjoyed {eventName} yesterday!</p>
                     <p>
                         Asmbly is always looking to improve our class offerings. As part of that goal, we hope you will take a minute to respond to a very brief survey about your class.
                     </p>
@@ -239,7 +239,7 @@ for event in responseEvents:
 
         mimeMessage = MIMEMultipart()
 
-        mimeMessage["Subject"] = "Your Feedback is Requested"
+        mimeMessage["Subject"] = f"Your Feedback On {eventName} is Requested"
         mimeMessage.attach(MIMEText(emailMsg, "html"))
         raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
 
