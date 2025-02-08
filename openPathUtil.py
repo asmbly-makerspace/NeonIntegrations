@@ -238,6 +238,13 @@ def disableAccount(neonAccount):
 def getOpGroups(neonAccount):
     opGroups = set()  # using a set prevents duplicates
 
+    # Instructors and On-Duty volunteers might not be members, but still need
+    # access to Instructor's storage and clock in/out buttons, respectively
+    if neonUtil.accountIsType(neonAccount, neonUtil.INSTRUCTOR_TYPE):
+        opGroups.add(GROUP_INSTRUCTORS)
+    if neonUtil.accountIsType(neonAccount, neonUtil.ONDUTY_TYPE):
+        opGroups.add(GROUP_ONDUTY)
+
     # Board / Leaders / SuperStewards 24x7 access
     if (
         neonUtil.accountIsType(neonAccount, neonUtil.LEAD_TYPE)
@@ -259,10 +266,6 @@ def getOpGroups(neonAccount):
             opGroups.add(GROUP_COWORKING)
         if neonUtil.accountIsType(neonAccount, neonUtil.STEWARD_TYPE):
             opGroups.add(GROUP_STEWARDS)
-        if neonUtil.accountIsType(neonAccount, neonUtil.INSTRUCTOR_TYPE):
-            opGroups.add(GROUP_INSTRUCTORS)
-        if neonUtil.accountIsType(neonAccount, neonUtil.ONDUTY_TYPE):
-            opGroups.add(GROUP_ONDUTY)
         if neonUtil.accountHasShaperAccess(neonAccount):
             opGroups.add(GROUP_SHAPER_ORIGIN)
         if neonUtil.accountHasDominoAccess(neonAccount):
@@ -505,7 +508,10 @@ def updateOpenPathByNeonId(neonId):
     # logging.debug(account)
     if account.get("OpenPathID"):
         updateGroups(account, email=True)
-    elif neonUtil.accountHasFacilityAccess(account):
+    #instructors and on-duty volunteers might need OP credentials without having facility access
+    elif ( neonUtil.accountHasFacilityAccess(account) or 
+           neonUtil.accountIsType(account, neonUtil.INSTRUCTOR_TYPE) or
+           neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE)):
         account = createUser(account)
         updateGroups(
             account, openPathGroups=[]

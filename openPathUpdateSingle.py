@@ -18,7 +18,10 @@ def openPathUpdateSingle(neonID):
         openPathUtil.updateGroups(account)
         #note that this isn't necessarily 100% accurate, because we have Neon users with provisioned OpenPath IDs and no access groups
         #assuming that typical users who gained and lost openPath access have a signed waiver
-    elif neonUtil.accountHasFacilityAccess(account):
+    #instructors and on-duty volunteers might need OP credentials without having facility access
+    elif ( neonUtil.accountHasFacilityAccess(account) or 
+           neonUtil.accountIsType(account, neonUtil.INSTRUCTOR_TYPE) or
+           neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE)):
         account = openPathUtil.createUser(account)
         openPathUtil.updateGroups(account, openPathGroups=[]) #pass empty groups list to skip the http get
         openPathUtil.createMobileCredential(account)
