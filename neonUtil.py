@@ -398,10 +398,12 @@ def getRealAccounts():
     activeSubscriptions = 0
 
     neonAccountDict = getMembersFast()
-    # Staff accounts might not have any membership records
+    # Special accounts might not have any membership records
     neonAccountDict = getAccountsByType(STAFF_TYPE, neonAccountDict=neonAccountDict)
-    # Leader accounts might not have any membership records (though this is less likely)
+    neonAccountDict = getAccountsByType(INSTRUCTOR_TYPE, neonAccountDict=neonAccountDict)
+    neonAccountDict = getAccountsByType(ONDUTY_TYPE, neonAccountDict=neonAccountDict)
     neonAccountDict = getAccountsByType(LEAD_TYPE, neonAccountDict=neonAccountDict)
+
     # former Staff accounts might not have any membership records
     neonAccountDict = getOrphanDiscourseAccounts(neonAccountDict=neonAccountDict)
     neonAccountDict = getOrphanOpAccounts(neonAccountDict=neonAccountDict)
