@@ -23,6 +23,7 @@ else:
 # OpenPath Group IDs
 GROUP_MANAGEMENT = 23174
 GROUP_SUBSCRIBERS = 23172
+GROUP_CERAMICS = 691741
 GROUP_COWORKING = 23175
 GROUP_STEWARDS = 27683
 GROUP_INSTRUCTORS = 96676
@@ -36,6 +37,7 @@ def isManagedGroup(group: int):
         group == GROUP_MANAGEMENT
         or group == GROUP_ONDUTY
         or group == GROUP_SUBSCRIBERS
+        or group == GROUP_CERAMICS
         or group == GROUP_COWORKING
         or group == GROUP_STEWARDS
         or group == GROUP_INSTRUCTORS
@@ -253,15 +255,18 @@ def getOpGroups(neonAccount):
     ):
         opGroups.add(GROUP_MANAGEMENT)
     elif neonUtil.accountIsType(neonAccount, neonUtil.STAFF_TYPE):
-        # non-leader staff have access to all storage during regular hours
+        # non-leader staff have access to all areas during regular hours
         opGroups.add(GROUP_SUBSCRIBERS)  # shop
         opGroups.add(GROUP_STEWARDS)  # stewards storage
         opGroups.add(GROUP_INSTRUCTORS)  # instructor storage
         opGroups.add(GROUP_COWORKING)  # coworking
+        opGroups.add(GROUP_CERAMICS)
 
     # Other groups are effectively subsets of overall facility access
     if neonUtil.accountHasFacilityAccess(neonAccount):
         opGroups.add(GROUP_SUBSCRIBERS)
+        if neonUtil.subscriberHasCeramicsAccess(neonAccount):
+            opGroups.add(GROUP_CERAMICS)
         if neonUtil.accountIsType(neonAccount, neonUtil.COWORKING_TYPE):
             opGroups.add(GROUP_COWORKING)
         if neonUtil.accountIsType(neonAccount, neonUtil.STEWARD_TYPE):

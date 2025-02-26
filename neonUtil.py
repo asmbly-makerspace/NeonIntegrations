@@ -43,6 +43,9 @@ INSTRUCTOR_TYPE = "Instructor"
 WIKI_ADMIN_TYPE = "Wiki Admin"
 ONDUTY_TYPE = "Volunteer"
 
+#we use membership IDs so we're not impacted if tier names change in Neon
+MEMBERSHIP_ID_REGULAR = 1
+MEMBERSHIP_ID_CERAMICS = 7
 
 ####################################################################
 # Update the OpenPathID stored in Neon for an account
@@ -125,6 +128,7 @@ def appendMemberships(account: dict, detailed=False):
         account["membershipDates"] = {}
         ### end date of the most recent active membership (initialize to ancient history)
         lastActiveMembershipExpiration = datetime.date(1970, 1, 1)
+        lastActiveMembershipTier = MEMBERSHIP_ID_REGULAR
         ##start date of earliest membership (initialize to today)
         firstActiveMembershipStart = today
         ##flag indicating the account has at least one active membership
@@ -141,8 +145,9 @@ def appendMemberships(account: dict, detailed=False):
             ).date()
 
             logging.debug(
-                "Membership ending %s status %s autorenewal is %s",
+                "Membership ending %s tier %s status %s autorenewal is %s",
                 membershipExpiration,
+                membership.get("membershipLevel").get("id"),
                 membership["status"],
                 membership["autoRenewal"],
             )
@@ -158,9 +163,11 @@ def appendMemberships(account: dict, detailed=False):
                 ### flag this account as having at least once been active.
                 atLeastOneActiveMembership = True
 
-                ### If this active membership is later than the latest we know about, remember its end date
+                ### If this active membership is later than the latest we know about, remember its end date and tier
                 if membershipExpiration > lastActiveMembershipExpiration:
                     lastActiveMembershipExpiration = membershipExpiration
+                    if membership.get("membershipLevel").get("id"):
+                        lastActiveMembershipTier = int(membership.get("membershipLevel").get("id"))
 
                     # in my testing membership[autoRenewal] is the same value for all memberships and
                     # reflects the current Neon setting.  It seems safest to keep the latest successful
@@ -174,6 +181,8 @@ def appendMemberships(account: dict, detailed=False):
                 ### If today is during this active membership, mark the account as valid (should probably be called "active" but well...)
                 if membershipExpiration >= today and membershipStart <= today:
                     account["validMembership"] = True
+                    if int(membership.get("membershipLevel").get("id")) == MEMBERSHIP_ID_CERAMICS:
+                        account["ceramicsMembership"] = True
                     if membership.get("fee") == 0:
                         account["comped"] = True
 
@@ -191,6 +200,7 @@ def appendMemberships(account: dict, detailed=False):
                 and currentMembershipStatus == "No Record"
             ):
                 account["validMembership"] = True
+                account["ceramicsMembership"] = (lastActiveMembershipTier == MEMBERSHIP_ID_CERAMICS)
                 logging.info(
                     "Neon %s expired yesterday. Keeping active pending auto-renewal processing",
                     account.get("Account ID"),
@@ -284,6 +294,7 @@ def getNeonAccounts(searchFields, neonAccountDict={}):
     # 180 is AccessSuspended
     # 274 is ShaperOrigin Date
     # 440 is Domino date
+    # 1248 is CSI Date
 
     # Neon does pagination as a data parameter, so need to update data for each page
     page = 0
@@ -311,6 +322,7 @@ def getNeonAccounts(searchFields, neonAccountDict={}):
                 182,
                 274,
                 440,
+                1248
             ],
             "pagination": {"currentPage": page, "pageSize": 200},
         }
@@ -523,6 +535,32 @@ def subscriberHasFacilityAccess(account: dict):
     )
     return False
 
+####################################################################
+# Helper function: is this Neon subscriber allowed facility access?
+####################################################################
+def subscriberHasCeramicsAccess(account: dict):
+    if (
+        subscriberHasFacilityAccess(account)
+        and account.get("ceramicsMembership")
+        and account.get("CsiDate")
+    ):
+        logging.debug(
+            "Account %s is a subscriber with ceramics access", account.get("Account ID")
+        )
+        return True
+    logging.debug(
+        """
+        Subscriber Account %s DOES NOT have ceramics access: 
+        FacilityAccess(%s),
+        CeramicsMembership(%s),
+        CsiDate(%s)
+        """,
+        account.get("Account ID"),
+        subscriberHasFacilityAccess(account),
+        account.get("ceramicsMembership"),
+        account.get("CsiDate")
+    )
+    return False
 
 ####################################################################
 # Helper function: is this Neon account allowed facility access for any reason
