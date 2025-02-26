@@ -28,17 +28,26 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     opUsers = openPathUtil.getAllUsers()
 
     subscriberCount = 0
+    ceramicsCount = 0
     facilityUserCount = 0
+    ceramicsFacilityCount = 0
+    ceramicsCompedCount = 0
+
 
     warningUsers = []
     missingTourSubscribers = {}
     missingWaiverSubscribers = {}
+    missingCsiSubscribers = {}
     compedSubscribers = []
     compedLeaders = []
 
     for account in neonAccounts:
         if neonAccounts[account].get("validMembership"):
             subscriberCount += 1
+            if neonAccounts[account].get("ceramicsMembership"):
+                ceramicsCount += 1
+                if neonAccounts[account].get("comped"):
+                    ceramicsCompedCount += 1
             if neonAccounts[account].get("comped"):
                 compedSubscribers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
         elif neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE):
@@ -46,6 +55,9 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
 
         if neonUtil.subscriberHasFacilityAccess(neonAccounts[account]):
             facilityUserCount += 1
+
+        if neonUtil.subscriberHasCeramicsAccess(neonAccounts[account]):
+            ceramicsFacilityCount += 1
 
         if neonAccounts[account].get("OpenPathID"):
             openPathUtil.updateGroups(neonAccounts[account], 
@@ -62,9 +74,13 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
         elif neonAccounts[account].get("validMembership"):
             startDate = neonAccounts[account].get("Membership Start Date")
             if not neonAccounts[account].get("WaiverDate"):
-                missingWaiverSubscribers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
+                missingWaiverSubscribers[account] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
             if not neonAccounts[account].get("FacilityTourDate"):
-                missingTourSubscribers[startDate] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
+                missingTourSubscribers[account] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
+
+        #an account might be missing CSI but still have regular facility access stuff handled
+        if neonAccounts[account].get("ceramicsMembership") and not neonAccounts[account].get("CsiDate"):
+            missingCsiSubscribers[account] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {neonAccounts[account].get("Ceramics Start Date")}'''
 
     list_separator = '\n            '
     compedSubscriberString = ""
@@ -84,14 +100,16 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
 '''
 
     msg = MIMEText(f'''
-    Today Asmbly has {(subscriberCount - len(compedSubscribers))} paying subscribers{compedSubscriberString}.
+    Today Asmbly has {(subscriberCount - ceramicsCount - len(compedSubscribers))} regular and {ceramicsCount - ceramicsCompedCount} ceramics subscribers{compedSubscriberString}.
 
     Of those:
-        {facilityUserCount} have facility access
+        {facilityUserCount} have facility access and {ceramicsFacilityCount} have ceramics access
         {len(missingWaiverSubscribers)} are missing the waiver {':' if len(missingWaiverSubscribers) > 0 else ' (yay!)'}
             {list_separator.join(missingWaiverSubscribers[x] for x in sorted(missingWaiverSubscribers, reverse=True))}
         {len(missingTourSubscribers)} are missing orientation{':' if len(missingTourSubscribers) > 0 else ' (yay!)'}
             {list_separator.join(missingTourSubscribers[x] for x in sorted(missingTourSubscribers, reverse=True))}
+        {len(missingCsiSubscribers)} are missing Ceramics Introduction{':' if len(missingCsiSubscribers) > 0 else ' (yay!)'}
+            {list_separator.join(missingCsiSubscribers[x] for x in sorted(missingCsiSubscribers, reverse=True))}
 {getWarningText(warningUsers)}
 {compedLeaderDetails}
 {compedSubscriberDetails}
@@ -114,10 +132,10 @@ def main():
     neonAccounts = neonUtil.getRealAccounts()
 
     # Testing goes a lot faster if we're working with a cache of accounts
-    # with open("Neon/neonAccounts.json") as neonFile:
-    #     neonAccountJson = json.load(neonFile)
-    #     for account in neonAccountJson:
-    #         neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]
+    #with open("Neon/neonAccounts.json") as neonFile:
+    #    neonAccountJson = json.load(neonFile)
+    #    for account in neonAccountJson:
+    #        neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]
 
     openPathUpdateAll(neonAccounts)
 

@@ -128,9 +128,12 @@ def appendMemberships(account: dict, detailed=False):
         account["membershipDates"] = {}
         ### end date of the most recent active membership (initialize to ancient history)
         lastActiveMembershipExpiration = datetime.date(1970, 1, 1)
+        lastCeramicsMembershipExpiration = datetime.date(1970, 1, 1)
         lastActiveMembershipTier = MEMBERSHIP_ID_REGULAR
         ##start date of earliest membership (initialize to today)
         firstActiveMembershipStart = today
+        ##start date of earliest ceramics membership (initialize to today)
+        firstCeramicsMembershipStart = today
         ##flag indicating the account has at least one active membership
         atLeastOneActiveMembership = False
         ##flag indicating the current membership has hard-failed (denied/cancelled/refunded)
@@ -157,9 +160,7 @@ def appendMemberships(account: dict, detailed=False):
 
             ### If this membership *was* actually paid for (or comped):
             if membership["status"] == "SUCCEEDED":
-                account["membershipDates"][membership["termStartDate"]] = membership[
-                    "termEndDate"
-                ]
+                account["membershipDates"][membership["termStartDate"]] = [membership["termEndDate"], membership["membershipLevel"]["id"]]
                 ### flag this account as having at least once been active.
                 atLeastOneActiveMembership = True
 
@@ -174,9 +175,15 @@ def appendMemberships(account: dict, detailed=False):
                     # value, but we should probably spot-check this from time to time
                     account["autoRenewal"] = membership["autoRenewal"]
 
+                ### If this ceramics membership is later than the latest we know about, remember its end date
+                if int(membership.get("membershipLevel").get("id")) == MEMBERSHIP_ID_CERAMICS and membershipExpiration > lastCeramicsMembershipExpiration:
+                    lastCeramicsMembershipExpiration = membershipExpiration
+
                 ### If this active membership is the earliest one we know about, remember the start date
                 if membershipStart < firstActiveMembershipStart:
                     firstActiveMembershipStart = membershipStart
+                    if int(membership.get("membershipLevel").get("id")) == MEMBERSHIP_ID_CERAMICS:
+                        firstCeramicsMembershipStart = membershipStart
 
                 ### If today is during this active membership, mark the account as valid (should probably be called "active" but well...)
                 if membershipExpiration >= today and membershipStart <= today:
@@ -189,6 +196,8 @@ def appendMemberships(account: dict, detailed=False):
         #!!! NOTE no promise that membership was continuous between these two dates !!!
         if atLeastOneActiveMembership:
             account["Membership Start Date"] = str(firstActiveMembershipStart)
+            account["Ceramics Start Date"] = str(firstCeramicsMembershipStart)
+            account["Ceramics Expiration Date"] = str(lastCeramicsMembershipExpiration)
             account["Membership Expiration Date"] = str(lastActiveMembershipExpiration)
 
         if (
@@ -409,13 +418,14 @@ def getRealAccounts():
     neonAccountDict = getOrphanOpAccounts(neonAccountDict=neonAccountDict)
 
     # some progress logging
-    num_pings = 5
+    num_pings = 10
     num_loops = len(neonAccountDict)
     loops_per_ping = num_loops / num_pings
     progress_per_ping = 100 / num_pings
     progress = 0
     counter = 0
 
+    logging.info(f"Updating Membership Info {int(progress)}% complete")
     for account in neonAccountDict:
         counter += 1
         accountCount += 1
