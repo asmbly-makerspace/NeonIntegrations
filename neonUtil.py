@@ -42,6 +42,7 @@ STEWARD_TYPE = "Steward"
 INSTRUCTOR_TYPE = "Instructor"
 WIKI_ADMIN_TYPE = "Wiki Admin"
 ONDUTY_TYPE = "Volunteer"
+ONDUTY_TYPE_CERAMICS = "Ceramics Volunteer"
 
 #we use membership IDs so we're not impacted if tier names change in Neon
 MEMBERSHIP_ID_REGULAR = 1
@@ -411,6 +412,7 @@ def getRealAccounts():
     neonAccountDict = getAccountsByType(STAFF_TYPE, neonAccountDict=neonAccountDict)
     neonAccountDict = getAccountsByType(INSTRUCTOR_TYPE, neonAccountDict=neonAccountDict)
     neonAccountDict = getAccountsByType(ONDUTY_TYPE, neonAccountDict=neonAccountDict)
+    neonAccountDict = getAccountsByType(ONDUTY_TYPE_CERAMICS, neonAccountDict=neonAccountDict)
     neonAccountDict = getAccountsByType(LEAD_TYPE, neonAccountDict=neonAccountDict)
 
     # former Staff accounts might not have any membership records

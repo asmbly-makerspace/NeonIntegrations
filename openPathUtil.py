@@ -30,7 +30,7 @@ GROUP_INSTRUCTORS = 96676
 GROUP_SHAPER_ORIGIN = 37059
 GROUP_DOMINO = 96643
 GROUP_ONDUTY = 507223
-
+GROUP_CERAMICS_ONDUTY = 730657
 
 def isManagedGroup(group: int):
     if (
@@ -38,6 +38,7 @@ def isManagedGroup(group: int):
         or group == GROUP_ONDUTY
         or group == GROUP_SUBSCRIBERS
         or group == GROUP_CERAMICS
+        or group == GROUP_CERAMICS_ONDUTY
         or group == GROUP_COWORKING
         or group == GROUP_STEWARDS
         or group == GROUP_INSTRUCTORS
@@ -242,10 +243,14 @@ def getOpGroups(neonAccount):
 
     # Instructors and On-Duty volunteers might not be members, but still need
     # access to Instructor's storage and clock in/out buttons, respectively
+    # ceramics_onduty gets the interior ceramics door but not exterior entry
+    #   so non-member volunteers can't get into the shop unsupervised via ceramics
     if neonUtil.accountIsType(neonAccount, neonUtil.INSTRUCTOR_TYPE):
         opGroups.add(GROUP_INSTRUCTORS)
     if neonUtil.accountIsType(neonAccount, neonUtil.ONDUTY_TYPE):
         opGroups.add(GROUP_ONDUTY)
+    if neonUtil.accountIsType(neonAccount, neonUtil.ONDUTY_TYPE_CERAMICS):
+        opGroups.add(GROUP_CERAMICS_ONDUTY)
 
     # Board / Leaders / SuperStewards 24x7 access
     if (
@@ -260,7 +265,7 @@ def getOpGroups(neonAccount):
         opGroups.add(GROUP_STEWARDS)  # stewards storage
         opGroups.add(GROUP_INSTRUCTORS)  # instructor storage
         opGroups.add(GROUP_COWORKING)  # coworking
-        opGroups.add(GROUP_CERAMICS)
+        opGroups.add(GROUP_CERAMICS) #ceramics interior and exterior doors
 
     # Other groups are effectively subsets of overall facility access
     if neonUtil.accountHasFacilityAccess(neonAccount):
@@ -516,7 +521,8 @@ def updateOpenPathByNeonId(neonId):
     #instructors and on-duty volunteers might need OP credentials without having facility access
     elif ( neonUtil.accountHasFacilityAccess(account) or 
            neonUtil.accountIsType(account, neonUtil.INSTRUCTOR_TYPE) or
-           neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE)):
+           neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE) or
+           neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE_CERAMICS)):
         account = createUser(account)
         updateGroups(
             account, openPathGroups=[]
