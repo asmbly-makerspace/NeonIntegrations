@@ -50,7 +50,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
                     ceramicsCompedCount += 1
             if neonAccounts[account].get("comped"):
                 compedSubscribers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
-        elif neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE):
+        elif neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE) and not neonUtil.accountIsType(neonAccounts[account], neonUtil.STAFF_TYPE):
             compedLeaders.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
 
         if neonUtil.subscriberHasFacilityAccess(neonAccounts[account]):
