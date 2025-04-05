@@ -191,8 +191,15 @@ def appendMemberships(account: dict, detailed=False):
                     account["validMembership"] = True
                     if int(membership.get("membershipLevel").get("id")) == MEMBERSHIP_ID_CERAMICS:
                         account["ceramicsMembership"] = True
-                    if membership.get("fee") == 0:
-                        account["comped"] = True
+                        if membership.get("fee") == 0:
+                            account["compedCeramics"] = True
+                        else:
+                            account["paidCeramics"] = True
+                    else:
+                        if membership.get("fee") == 0:
+                            account["compedRegular"] = True
+                        else:
+                            account["paidRegular"] = True
 
         #!!! NOTE no promise that membership was continuous between these two dates !!!
         if atLeastOneActiveMembership:

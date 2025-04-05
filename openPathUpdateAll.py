@@ -31,8 +31,6 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     ceramicsCount = 0
     facilityUserCount = 0
     ceramicsFacilityCount = 0
-    ceramicsCompedCount = 0
-
 
     warningUsers = []
     missingTourSubscribers = {}
@@ -41,17 +39,31 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     compedSubscribers = []
     compedLeaders = []
 
+    paidRegulars = 0
+    paidCeramics = 0
+
     for account in neonAccounts:
+        if not neonAccounts[account].get("paidRegular") and not neonAccounts[account].get("paidCeramics") and not neonUtil.accountIsType(neonAccounts[account], neonUtil.STAFF_TYPE):
+            #Accounts that are neither paid nor staff might still have access
+            if neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE):
+                compedLeaders.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
+            elif neonAccounts[account].get("compedRegular") or neonAccounts[account].get("compedCeramics"):
+                compedSubscribers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
+
         if neonAccounts[account].get("validMembership"):
             subscriberCount += 1
             if neonAccounts[account].get("ceramicsMembership"):
                 ceramicsCount += 1
-                if neonAccounts[account].get("comped"):
-                    ceramicsCompedCount += 1
-            if neonAccounts[account].get("comped"):
-                compedSubscribers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
-        elif neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE) and not neonUtil.accountIsType(neonAccounts[account], neonUtil.STAFF_TYPE):
-            compedLeaders.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
+
+            #accounts with concurrent paid regular and ceramics memberships are most likely
+            #upgrades that should be only counted as ceramics members
+            if neonAccounts[account].get("paidCeramics"):
+                paidCeramics += 1
+            elif neonAccounts[account].get("paidRegular"):
+                paidRegulars += 1
+
+        if neonAccounts[account].get("paidRegular") and neonAccounts[account].get("paidCeramics"):
+            logging.info(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) has concurrent paid memberships.''')
 
         if neonUtil.subscriberHasFacilityAccess(neonAccounts[account]):
             facilityUserCount += 1
@@ -100,7 +112,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
 '''
 
     msg = MIMEText(f'''
-    Today Asmbly has {(subscriberCount - ceramicsCount - len(compedSubscribers))} regular and {ceramicsCount - ceramicsCompedCount} ceramics subscribers{compedSubscriberString}.
+    Today Asmbly has {paidRegulars} regular and {paidCeramics} ceramics subscribers{compedSubscriberString}.
 
     Of those:
         {facilityUserCount} have facility access and {ceramicsFacilityCount} have ceramics access
