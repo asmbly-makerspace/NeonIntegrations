@@ -116,7 +116,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
 
     Of those:
         {facilityUserCount} have facility access and {ceramicsFacilityCount} have ceramics access
-        {len(missingWaiverSubscribers)} are missing the waiver {':' if len(missingWaiverSubscribers) > 0 else ' (yay!)'}
+        {len(missingWaiverSubscribers)} are missing the waiver{':' if len(missingWaiverSubscribers) > 0 else ' (yay!)'}
             {list_separator.join(missingWaiverSubscribers[x] for x in sorted(missingWaiverSubscribers, reverse=True))}
         {len(missingTourSubscribers)} are missing orientation{':' if len(missingTourSubscribers) > 0 else ' (yay!)'}
             {list_separator.join(missingTourSubscribers[x] for x in sorted(missingTourSubscribers, reverse=True))}
@@ -130,10 +130,29 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     msg['To'] = "membership@asmbly.org"
     msg['Subject'] = "Asmbly Daily Subscriber Update"
 
+    summaryMsg = MIMEText(f'''
+    Today Asmbly has {paidRegulars} regular and {paidCeramics} ceramics paid subscribers.
+
+    Additionally:
+        {len(compedLeaders)} Asmbly leaders have free memberships.
+        {len(compedSubscribers)} other Asmbly volunteers have free memberships.
+
+    {facilityUserCount} users have facility access and {ceramicsFacilityCount} have ceramics access
+    {len(missingWaiverSubscribers)} are missing the waiver.
+    {len(missingTourSubscribers)} are missing orientation.
+    {len(missingCsiSubscribers)} are missing Ceramics Introduction.
+
+{commonMessageFooter}
+''')
+    summaryMsg['To'] = "membership.committee@asmbly.org"
+    summaryMsg['Subject'] = "Asmbly Daily Subscriber Summary"
+
     if mailSummary:
         gmailUtil.sendMIMEmessage(msg)
+        gmailUtil.sendMIMEmessage(summaryMsg)
 
-    logging.info(msg)
+    logging.info(msg.get_payload())
+    print(summaryMsg.get_payload())
 
 #begin standalone script functionality -- pull neonAccounts and call our function
 def main():
