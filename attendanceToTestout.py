@@ -51,7 +51,7 @@ EVENT_FIELDS = {
     "Sublimation": "685",
     "Vinyl": "686",
     "Orientation": "182",
-    "Ceramics Studio Introduction": "1248"
+    "CSI": "1248" # Ceramics Safety and Information
 }
 
 
