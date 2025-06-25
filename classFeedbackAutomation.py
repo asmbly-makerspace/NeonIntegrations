@@ -142,7 +142,9 @@ def getSurveyLink(eventName):
     # if no hits, create a new survey for the teacher-class combo from the master survey template
     # and return the response URL
     else:
-        originFileId = "1TG7_qzC728qaDcqZhAZ9NO4B6EtCPuPJd21qh6BemGA"  # master survey template fileId
+        # originFileId = "1TG7_qzC728qaDcqZhAZ9NO4B6EtCPuPJd21qh6BemGA"  # OLD master survey template fileId
+        # Google Forms was updated to use new permission settings for responders
+        originFileId = "1zCmHpktgblR8auKWMO6eNdTBt2frGj3Q6ExFTP9rHKI"  # NEW master survey template fileId
         copiedFileParams = {"name": eventName, "parents": [f"{parentFolderId}"]}
         newSurvey = (
             driveService.files()
