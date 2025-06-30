@@ -483,6 +483,23 @@ def getRealAccounts():
 
 
 ####################################################################
+# MOCK: Get all staf and current/past members from Neon, incuding detailed subscription info
+####################################################################
+def getRealAccountsMock():
+    return {
+        '12af34e5': { # What does this value look like? Int/hex/string?
+            'OpenPathID': '4321',
+            'validMembership': True,
+            'fullName': 'Cam Herringshaw',
+        },
+        '12a34': {
+            'OpenPathID': '1234',
+            'fullName': 'Test User',
+        },
+    }
+
+
+####################################################################
 # Helper function: is this Neon account marked with any type
 ####################################################################
 def accountIsAnyType(account: dict):
