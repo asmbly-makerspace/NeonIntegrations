@@ -2,12 +2,10 @@
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 #################################################################
 
-import pdb
 import openPathUtil
 import neonUtil
 import logging
 import argparse
-
 
 
 def getParserArgs():
@@ -56,7 +54,6 @@ def main():
             log.debug('No match found for {uid}')
             extraAltaUsers.append(uid)
 
-    # Display
     if len(extraAltaUsers) == 0:
         log.info('All users in Alta are supported by a Neon entry')
     else:
