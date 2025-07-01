@@ -198,7 +198,7 @@ for teacher in TEACHERS:
     # Reformat date for email subject
     formatted_today = TODAY.strftime("%B %d")
 
-    teacher_first_name = teacher[: teacher.index(" ")]
+    teacher_first_name = teacher.split(' ')[0] if teacher else 'N/A'
 
     # Compose email
     email_msg = f"""
