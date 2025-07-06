@@ -78,7 +78,7 @@ ALREADY_SENT = []
 for teacher in TEACHERS:
     if not teacher:
         logging.info("WARNING:  No teacher assigned!")
-        TEACHER_EMAILS[None] = "classes@asmbly.org"
+        TEACHER_EMAILS[teacher] = "classes@asmbly.org"
     if teacher in ALREADY_SENT:
         logging.info("Already emailed %s", teacher)
         continue
