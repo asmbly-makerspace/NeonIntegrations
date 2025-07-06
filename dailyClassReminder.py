@@ -138,15 +138,12 @@ for teacher in TEACHERS:
                 # but these aren't accessible from the API, so we will just use the info from the main account
                 acct_info = neon.getAccountIndividual(acct_id)
                 email = acct_info["individualAccount"]["primaryContact"]["email1"]
-                phone = ""
-                try:
-                    phone = acct_info["individualAccount"]["primaryContact"][
-                        "addresses"
-                    ][0]["phone1"]
-                except KeyError:
-                    phone = acct_info["individualAccount"]["primaryContact"][
-                        "addresses"
-                    ][1]["phone1"]
+                addresses = acct_info["individualAccount"]["primaryContact"]["addresses"]
+                # Get all phone numbers in the address entries, then use the first non-None result
+                phones = [addr.get('phone1') for addr in addresses]
+                phone = [p for p in phones if p][0]
+                if not phone:
+                    phone = "N/A"
 
                 # Build a dictionary list of attendee names under this registration
                 attendee_list = {"name": [], "email": email, "phone": phone}
