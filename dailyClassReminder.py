@@ -76,9 +76,9 @@ ALREADY_SENT = []
 # Begin gathering data for emailing each teacher
 # Send each teacher an email reminder about classes they are scheduled to teach
 for teacher in TEACHERS:
-    if teacher is None:
+    if not teacher:
         logging.info("WARNING:  No teacher assigned!")
-        TEACHER_EMAILS[None] = "classes@asmbly.org"
+        TEACHER_EMAILS[teacher] = "classes@asmbly.org"
     if teacher in ALREADY_SENT:
         logging.info("Already emailed %s", teacher)
         continue
@@ -198,7 +198,7 @@ for teacher in TEACHERS:
     # Reformat date for email subject
     formatted_today = TODAY.strftime("%B %d")
 
-    teacher_first_name = teacher[: teacher.index(" ")]
+    teacher_first_name = teacher.split(' ')[0] if teacher else 'N/A'
 
     # Compose email
     email_msg = f"""
