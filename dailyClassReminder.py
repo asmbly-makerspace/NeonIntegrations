@@ -201,24 +201,24 @@ def main():
 
             # Compose email
             email_msg = f"""
-        Hi {teacher_first_name},
+Hi {teacher_first_name},
 
-        This is an automated email to remind you of the upcoming classes you are scheduled to teach at Asmbly.
-        Thank you for sharing your knowledge with the community!
+This is an automated email to remind you of the upcoming classes you are scheduled to teach at Asmbly.
+Thank you for sharing your knowledge with the community!
 
-        {pretty_events}
+{pretty_events}
 
-        Please note these are the registrations as of the time of this email and may not reflect final registrations for your class.
-        You can see more details about these events and registrants in your Neon backend account.  
-        The login URL is https://asmbly.z2systems.com/np/admin/content/contentList.do
-        Email classes@asmbly.org if you have any questions about the above schedule.
+Please note these are the registrations as of the time of this email and may not reflect final registrations for your class.
+You can see more details about these events and registrants in your Neon backend account.  
+The login URL is https://asmbly.z2systems.com/np/admin/content/contentList.do
+Email classes@asmbly.org if you have any questions about the above schedule.
 
-        \t* Note: Some registrants are purchased under a single account and thus end up with the same email and phone number.
+\t* Note: Some registrants are purchased under a single account and thus end up with the same email and phone number.
 
 
-        Thanks again!
-        Asmbly AdminBot
-            """
+Thanks again!
+Asmbly AdminBot
+"""
 
             mime_message = MIMEMultipart()
             try:
@@ -234,6 +234,7 @@ def main():
             sendMIMEmessage(mime_message)
         except Exception as e:
             # Log the error, then move on to the next email
+            logging.error(f'Could not send daily class reminder for teacher: {teacher}')
             logging.error(e)
 
 
