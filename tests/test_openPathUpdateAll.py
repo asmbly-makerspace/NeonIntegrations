@@ -13,25 +13,32 @@ from mock_alta_users import MockAltaUserBuilder
 
 class TestOpenPathUpdateAll:
     def _create_alta_accounts(self, *group_lists):
-        mock_alta_accounts = {}
+        accts = {}
         for i, groups in enumerate(group_lists):
             # Cannot have a user with id 0
-            mock_alta_account = (MockAltaUserBuilder()
+            acct = (MockAltaUserBuilder()
                                  .with_id(i+1)
                                  .with_groups(groups)
                                  .build()
                                 )
-            mock_alta_accounts[mock_alta_account['OpenPathID']] = mock_alta_account
-        return mock_alta_accounts
+            accts[acct['OpenPathID']] = acct
+        return accts
 
     def _create_neon_accounts(self, alta_ids):
-        mock_neon_accounts = {}
+        accts = {}
         for aid in alta_ids:
-            mock_neon_acct = (MockNeonUserBuilder()
+            acct = (MockNeonUserBuilder()
                               .with_alta_id(aid)
                               .build())
-            mock_neon_accounts.update({mock_neon_acct['id']: mock_neon_acct})
-        return mock_neon_accounts
+            accts.update({acct['id']: acct})
+        return accts
+
+    def _create_matching_alta_and_neon_accounts(self, group_lists):
+        # Create two users with accounts in Alta and in Neon (linked by OpenPathID)
+        alta_accounts = self._create_alta_accounts(*group_lists)
+        neon_accounts = self._create_neon_accounts(alta_accounts.keys())
+        return (alta_accounts, neon_accounts)
+
 
     @pytest.fixture
     def setup_mocks(self, mocker):
@@ -41,12 +48,10 @@ class TestOpenPathUpdateAll:
         }
 
     def test_update_all(self, mocker, setup_mocks):
-        # Create two users with accounts in Alta and in Neon (linked by OpenPathID)
         test_groups = (['test_group'], ['test_group_2'])
-        alta_accts = self._create_alta_accounts(*test_groups)
-        neon_accounts = self._create_neon_accounts(alta_accts.keys())
+        (alta_accounts, neon_accounts) = self._create_matching_alta_and_neon_accounts(test_groups)
 
-        setup_mocks['getAllUsers'].return_value = alta_accts
+        setup_mocks['getAllUsers'].return_value = alta_accounts
 
         expected_calls = [
             mocker.call(neon_acct, openPathGroups=group_list)
