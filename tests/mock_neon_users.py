@@ -24,8 +24,7 @@ class MockNeonUserBuilder():
         self._name = "John Doe"
         self._email = "john@example.com"
         self._individual_types = []
-        # TODO: Does this need to match the value in the MockAltaUserBuilder?
-        self._open_path_id = '123'
+        self._open_path_id = random.randint(1, 100000)
         return self
 
     def with_type(self, neon_type):
