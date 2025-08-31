@@ -1,3 +1,7 @@
+from typing import Self
+import string
+import random
+
 ##### Needed for importing script files (as opposed to classes)
 import sys
 import os
@@ -10,9 +14,13 @@ class MockNeonUserBuilder():
     def __init__(self):
         self.reset()
 
+    def random_alphanumeric(self, length):
+        characters = string.ascii_letters + string.digits
+        return ''.join(random.choice(characters) for _ in range(length))
+
     def reset(self):
         # TODO: Determine whether Neon IDs are alphanumeric or just numeric
-        self._id = '123ab'
+        self._id = self.random_alphanumeric(6)
         self._name = "John Doe"
         self._email = "john@example.com"
         self._individual_types = []
@@ -20,8 +28,12 @@ class MockNeonUserBuilder():
         self._open_path_id = '123'
         return self
 
-    def add_type(self, neon_type):
+    def with_type(self, neon_type):
         self._individual_types.append({'name': neon_type})
+        return self
+
+    def with_alta_id(self, alta_id: int) -> Self:
+        self._open_path_id = alta_id
         return self
 
     def build(self):

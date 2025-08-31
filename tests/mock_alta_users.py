@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List, Self
 
 ##### Needed for importing script files (as opposed to classes)
 import sys
@@ -20,11 +20,15 @@ class MockAltaUserBuilder():
         self._groups = []
         return self
 
-    def with_groups(self, groups: List[str]):
+    def with_groups(self, groups: List[str]) -> Self:
         self._groups.extend(groups)
         return self
 
-    def build(self):
+    def with_id(self, alta_id: int) -> Self:
+        self._alta_id = alta_id
+        return self
+
+    def build(self) -> Dict[str, Any]:
         return {
             'OpenPathID': self._alta_id,
             'name': self._name,
