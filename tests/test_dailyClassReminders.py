@@ -10,19 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 ##### End block
 
 from mock_events import MockEventBuilder
-
-# ======================= Note on Imports ===================================
-# In dailyClassReminder.py, we call the Neon API and store the result in a
-# global variable. This happens outside of a function, so the code runs
-# immediately when the script is imported. We need to mock out that API call,
-# so we can't import the script until after we have our mocks in place. This
-# results in an import step within each test function.
-# 
-# In the future, if we remove the global variables and put the API calls inside
-# a function, we'll be able to import dailyClassReminder normally.
-
 import dailyClassReminder 
-# ======================= End Note on Imports ================================
 
 
 class TestClassReminders:

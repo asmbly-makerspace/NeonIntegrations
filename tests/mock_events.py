@@ -3,17 +3,11 @@ from unittest.mock import patch, MagicMock, call
 from typing import Dict, List, Any
 import datetime
 
-##### Needed for importing script files (as opposed to classes)
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-##### End block
-
 
 class MockEventBuilder:
     def __init__(self):
         self.reset()
-    
+
     def reset(self):
         self._event_id = "12345"
         self._event_name = "Test Class"
@@ -25,24 +19,24 @@ class MockEventBuilder:
         self._registrants = 5
         self._registration_count = 5
         return self
-    
+
     def with_teacher(self, teacher_name: str):
         self._event_topic = teacher_name
         return self
-    
+
     def with_date(self, date: str):
         self._event_start_date = date
         self._event_end_date = date
         return self
-    
+
     def with_event_id(self, event_id: str):
         self._event_id = event_id
         return self
-    
+
     def with_event_name(self, name: str):
         self._event_name = name
         return self
-    
+
     def build(self) -> Dict[str, Any]:
         return {
             "Event ID": self._event_id,
