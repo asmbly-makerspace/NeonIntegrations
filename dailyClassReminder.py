@@ -59,16 +59,16 @@ OUTPUT_FIELDS = [
     "Waiting List Status",
 ]
 
-RESPONSE_EVENTS = neon.postEventSearch(SEARCH_FIELDS, OUTPUT_FIELDS)
-
-
-# Remove duplicates in the list of teachers
-TEACHERS = {item.get("Event Topic") for item in RESPONSE_EVENTS["searchResults"]}
+def get_response_events(search_fields, output_fields):
+    return neon.postEventSearch(search_fields, output_fields)
 
 # Import teacher contact info
-CONTACT_INFO = "teachers.json"
-with open(CONTACT_INFO, "r", encoding="utf-8") as f:
-    TEACHER_EMAILS = json.load(f)
+def get_teacher_contact_info():
+    CONTACT_INFO = "teachers.json"
+    teacher_emails = {}
+    with open(CONTACT_INFO, "r", encoding="utf-8") as f:
+        teacher_emails = json.load(f)
+    return teacher_emails
 
 # For use if script ran and failed to complete
 ALREADY_SENT = []
@@ -76,6 +76,12 @@ ALREADY_SENT = []
 # Begin gathering data for emailing each teacher
 # Send each teacher an email reminder about classes they are scheduled to teach
 def main():
+    TEACHER_EMAILS = get_teacher_contact_info()
+    RESPONSE_EVENTS = get_response_events(SEARCH_FIELDS, OUTPUT_FIELDS)
+
+    # Remove duplicates in the list of teachers
+    TEACHERS = {item.get("Event Topic") for item in RESPONSE_EVENTS["searchResults"]}
+
     for teacher in TEACHERS:
         try:
             if not teacher:
