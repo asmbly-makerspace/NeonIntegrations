@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 ##### End block
 
 from mock_events import MockEventBuilder
+
+import mock_config_call # Mock out the config module for the gmail helper
 import dailyClassReminder 
 
 
