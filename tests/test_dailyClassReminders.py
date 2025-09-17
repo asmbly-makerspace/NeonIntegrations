@@ -176,3 +176,25 @@ class TestClassReminders:
         ])
 
         assert event_count_logged, "Should log the number of events per teacher"
+
+    def test_multiple_teachers_with_same_class(self, setup_mocks):
+        """Test that multiple teachers teaching the same class get separate emails"""
+        mocks = setup_mocks
+        events = self._create_mock_events({
+            "John Doe": ["Woodworking 101"],
+            "Jane Smith": ["Woodworking 101"],
+        })
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        self._setup_mock_registrations(mocks)
+
+        dailyClassReminder.main()
+
+        # Should send one email per teacher
+        assert mocks['sendMIMEmessage'].call_count == 2
+
+        # Verify correct recipients
+        email_calls = mocks['sendMIMEmessage'].call_args_list
+        recipients = [call[0][0]['To'] for call in email_calls]
+
+        assert "john@example.com" in recipients
+        assert "jane@example.com" in recipients
