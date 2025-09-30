@@ -1,4 +1,3 @@
-from typing import Self
 import string
 import random
 
@@ -31,7 +30,7 @@ class MockNeonUserBuilder():
         self._individual_types.append({'name': neon_type})
         return self
 
-    def with_alta_id(self, alta_id: int) -> Self:
+    def with_alta_id(self, alta_id: int):
         self._open_path_id = alta_id
         return self
 

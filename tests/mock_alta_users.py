@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Self
+from typing import Any, Dict, List
 import random
 
 ##### Needed for importing script files (as opposed to classes)
@@ -19,11 +19,11 @@ class MockAltaUserBuilder():
         self._groups = []
         return self
 
-    def with_groups(self, groups: List[str]) -> Self:
+    def with_groups(self, groups: List[str]):
         self._groups.extend(groups)
         return self
 
-    def with_id(self, alta_id: int) -> Self:
+    def with_id(self, alta_id: int):
         self._alta_id = alta_id
         return self
 
