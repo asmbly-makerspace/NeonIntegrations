@@ -288,6 +288,7 @@ def getOpGroups(neonAccount):
 # Given a Neon account and optionally an OpenPath user, perform necessary updates
 #################################################################################
 def updateGroups(neonAccount, openPathGroups=None, email=False):
+    logging.info(f'''Updating Neon group memberships for {neonAccount.get("Email 1")}''')
     if not neonAccount.get("OpenPathID"):
         logging.error("No OpenPathID found to update groups")
         return
@@ -450,6 +451,7 @@ def createUser(neonAccount):
         # Update our local copy of the account so we don't have to fetch again
         neonAccount["OpenPathID"] = opUser.get("id")
         neonUtil.updateOpenPathID(neonAccount)
+        logging.info(f'Successfully updated Neon groups for Alta user {neonAccount["OpenPathID"]}')
     else:
         logging.warning("DryRun in openPathUtil.createUser()")
 
@@ -460,8 +462,9 @@ def createUser(neonAccount):
 # Create and Activate OpenPath mobile credential for given Neon account
 #################################################################################
 def createMobileCredential(neonAccount):
+    logging.info(f'Creating mobile credential for user {neonAccount.get("OpenPathID")}')
     if not neonAccount.get("OpenPathID"):
-        logging.error("No OpenPathID found to create mobile credential")
+        logging.error(f"No OpenPathID found to create mobile credential for Neon user {neonAccount.get('Account ID')}")
         return
     # this should be a pretty thorough check for sane argument
     assert int(neonAccount.get("OpenPathID")) > 0
@@ -523,8 +526,10 @@ def updateOpenPathByNeonId(neonId):
            neonUtil.accountIsType(account, neonUtil.INSTRUCTOR_TYPE) or
            neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE) or
            neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE_CERAMICS)):
+        logging.info(f'Creating account for Neon user {neonId}')
         account = createUser(account)
         updateGroups(
             account, openPathGroups=[]
         )  # pass empty groups list to skip the http get
         createMobileCredential(account)
+    logging.info(f'Successfully updated Alta groups for Neon user {neonID}')
