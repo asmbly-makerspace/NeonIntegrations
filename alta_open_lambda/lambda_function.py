@@ -67,8 +67,8 @@ def add_member_to_mailjet(
 ) -> None:
     facility_tour_date = account.get("FacilityTourDate")
     if not isinstance(facility_tour_date, str):
-        logging.error(
-            f"Facility tour date is not a string for {account.get('Account ID')}"
+        logger.warning(
+            "Facility tour date is not a string for %s", account.get("Account ID")
         )
         return
     attended_orientation = facility_tour_date is not None
@@ -86,8 +86,8 @@ def add_member_to_mailjet(
         or not account_last_name
         or not account_mailjet_contact_id
     ):
-        logging.error(
-            f"Missing required account information for {account.get('Account ID')}"
+        logger.warning(
+            "Missing required account information for %s", account.get("Account ID")
         )
         return
 
@@ -190,18 +190,21 @@ def get_neon_id_from_membership_id(membership_id: int) -> int | None:
             headers=N_headers,
         )
     except requests.exceptions.RequestException as e:
-        logging.error(f"Error retrieving membership {membership_id} from Neon: {e}")
+        logger.error("Error retrieving membership %s from Neon: %s", membership_id, e)
         return None
 
     if not response.ok:
-        logging.error(
-            f"Error retrieving membership {membership_id} from Neon: {response.json()} ({response.status_code})"
+        logger.error(
+            "Error retrieving membership %s from Neon: %s (%s)",
+            membership_id,
+            response.json(),
+            response.status_code,
         )
         return None
 
     neon_id = find_key_bfs(response.json(), "accountId")
     if not neon_id:
-        logging.error(f"No Neon ID found in membership {membership_id} response")
+        logger.warning("No Neon ID found in membership %s response", membership_id)
         return None
 
     return neon_id
@@ -218,7 +221,7 @@ def lambda_handler(event: dict, _: dict) -> None:
     if hour > 2 and hour < 5:
         return
 
-    logging.info("## EVENT INFO ## \n %s", event)
+    logger.info("## EVENT INFO ## \n %s", event)
 
     if not (body := event.get("body")):
         return
@@ -232,11 +235,11 @@ def lambda_handler(event: dict, _: dict) -> None:
     match event_trigger:
         case "createMembership":
             if not (data := neon_response.get("data")):
-                logging.error("No data found in event object")
+                logger.error("No data found in event object")
                 return
             neon_id = find_key_bfs(data, "accountId")
             if not neon_id:
-                logging.error("No Neon ID found in event data")
+                logger.error("No Neon ID found in event data")
                 return
 
             if find_key_bfs(data, "transactionStatus") == "SUCCEEDED" and find_key_bfs(
@@ -252,13 +255,13 @@ def lambda_handler(event: dict, _: dict) -> None:
 
         case "updateMembership":
             neon_id = find_key_bfs(neon_response, "accountId")
-        case "editAccount" | "mergeAccount":
+        case "editAccount" | "mergedAccount":
             neon_id = find_key_bfs(neon_response, "accountId")
 
         case "deleteMembership":
             membership_id = find_key_bfs(neon_response, "membershipId")
             if not membership_id:
-                logging.error("No membership ID found in event data")
+                logger.error("No membership ID found in event data")
                 return
 
             neon_id = get_neon_id_from_membership_id(membership_id)
