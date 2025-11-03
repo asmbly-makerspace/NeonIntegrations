@@ -9,7 +9,7 @@ import logging
 import os
 
 ### Discourse Account Info
-if os.environ.get("USER") == "ec2-user":
+if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
     from aws_ssm import D_APIkey, D_APIuser
 else:
     from config import D_APIkey, D_APIuser
