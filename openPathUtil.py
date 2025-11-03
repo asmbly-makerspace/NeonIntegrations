@@ -15,7 +15,7 @@ import neonUtil
 import AsmblyMessageFactory
 import gmailUtil
 
-if environ.get("USER") == "ec2-user":
+if environ.get("USER") == "ec2-user" or environ.get("LAMBDA_TASK_ROOT"):
     from aws_ssm import O_APIkey, O_APIuser
 else:
     from config import O_APIkey, O_APIuser

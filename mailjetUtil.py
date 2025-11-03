@@ -295,9 +295,14 @@ class MJService:
         )
 
     def bulk_update_subscribers_in_lists(
-        self, list_ids: list[int], subscribers: list[Subscriber], action: MailjetAction
+        self, list_ids: list[int | None], subscribers: list[Subscriber], action: MailjetAction
     ) -> None | int:
         if not subscribers:
+            return None
+
+        list_ids = [list_id for list_id in list_ids if list_id is not None]
+
+        if not list_ids:
             return None
 
         data = {

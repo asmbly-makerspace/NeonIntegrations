@@ -7,7 +7,7 @@ import os
 import helpers.neon as neon
 from helpers.api import apiCall
 
-if os.environ.get("USER") == "ec2-user":
+if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
     from aws_ssm import N_APIkey, N_APIuser
 else:
     from config import N_APIkey, N_APIuser

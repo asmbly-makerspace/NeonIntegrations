@@ -5,7 +5,7 @@ import logging
 
 from email.mime.multipart import MIMEMultipart
 
-if os.environ.get("USER") == "ec2-user":
+if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
     from aws_ssm import G_user, G_password
 else:
     from config import G_user, G_password

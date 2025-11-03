@@ -38,7 +38,7 @@ import helpers.neon as neon
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-if os.environ.get("USER") == "ec2-user":
+if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
     from aws_ssm import G_user, G_password
 else:
     from config import G_user, G_password
