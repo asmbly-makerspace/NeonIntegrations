@@ -91,6 +91,8 @@ def add_member_to_mailjet(
         )
         return
 
+    logger.info("Getting mailjet credentials from SSM")
+
     ssm_mj_creds = boto3.client("ssm").get_parameters(
         Names=[
             "/mailjet/api_key",
@@ -126,6 +128,8 @@ def add_member_to_mailjet(
         signed_waiver=signed_waiver,
     )
 
+    logger.info("Adding account %s to Mailjet", account_email.lower())
+
     mailjet.bulk_update_subscribers_in_lists(
         list_ids=[
             mailjet.new_members_list_id,
@@ -137,6 +141,7 @@ def add_member_to_mailjet(
 
 
 def handle_joins(neon_id: int) -> tuple[dict, bool, list[datetime.date]]:
+    logger.info("Getting account %s from Neon", neon_id)
     account = getMemberById(id=neon_id)
     membership_start_dates = sorted(
         [
@@ -221,7 +226,7 @@ def lambda_handler(event: dict, _: dict) -> None:
     if hour > 2 and hour < 5:
         return
 
-    logger.info("## EVENT INFO ## \n %s", event)
+    logger.info("EVENT INFO: %s", event)
 
     if not (body := event.get("body")):
         return
@@ -234,6 +239,7 @@ def lambda_handler(event: dict, _: dict) -> None:
 
     match event_trigger:
         case "createMembership":
+            logger.info("Event trigger: createMembership")
             if not (data := neon_response.get("data")):
                 logger.error("No data found in event object")
                 return
@@ -248,9 +254,13 @@ def lambda_handler(event: dict, _: dict) -> None:
                 "JOIN",
                 "REJOIN",
             }:
+                logger.info(
+                    "Getting account and membership end dates for Neon ID: %s", neon_id
+                )
                 account, should_add_member, membership_end_dates = handle_joins(neon_id)
 
                 if should_add_member:
+                    logger.info("Adding Neon ID %s to Mailjet", neon_id)
                     add_member_to_mailjet(account, membership_end_dates)
 
         case "updateMembership":
@@ -264,10 +274,15 @@ def lambda_handler(event: dict, _: dict) -> None:
                 logger.error("No membership ID found in event data")
                 return
 
+            logger.info("Getting Neon ID from membership ID: %s", membership_id)
+
             neon_id = get_neon_id_from_membership_id(membership_id)
 
     if not neon_id:
+        logger.warning("No Neon ID found")
         return
+
+    logger.info("Updating Alta Open for Neon ID: %s", neon_id)
 
     openPathUpdateSingle(neon_id)
 
