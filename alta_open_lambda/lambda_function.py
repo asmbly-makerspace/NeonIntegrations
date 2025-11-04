@@ -151,7 +151,7 @@ def handle_joins(neon_id: int) -> tuple[dict, bool, list[datetime.date]]:
     )
     membership_end_dates = sorted(
         [
-            datetime.datetime.strptime(value, "%Y-%m-%d").date()
+            datetime.datetime.strptime(value[0], "%Y-%m-%d").date()
             for value in account.get("membershipDates").values()
         ]
     )
