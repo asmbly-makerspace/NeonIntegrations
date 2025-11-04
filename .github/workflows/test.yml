@@ -12,7 +12,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install dependencies
-        run: pip install pytest pytest-mock requests
+        run: pip install pytest pytest-mock requests pytz
       - name: Run pytest
         run: pytest
 on:
