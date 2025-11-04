@@ -24,6 +24,8 @@ from aws_ssm import N_APIkey, N_APIuser
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+TZ = zoneinfo.ZoneInfo("America/Chicago")
+
 
 def find_key_bfs(d: dict, target_key: str) -> Any:
     """
@@ -115,16 +117,14 @@ def add_member_to_mailjet(
         last_name=account_last_name,
         attended_orientation=attended_orientation,
         orientation_date=(
-            datetime.datetime.strptime(facility_tour_date, "%m/%d/%Y").astimezone(
-                zoneinfo.ZoneInfo("America/Chicago")
-            )
+            datetime.datetime.strptime(facility_tour_date, "%m/%d/%Y").astimezone(TZ)
             if facility_tour_date
             else None
         ),
         active_member=active_member,
         latest_membership_end=datetime.datetime.combine(
             latest_membership_end_date, datetime.time(0, 0)
-        ).astimezone(zoneinfo.ZoneInfo("America/Chicago")),
+        ).astimezone(TZ),
         signed_waiver=signed_waiver,
     )
 
@@ -161,19 +161,13 @@ def handle_joins(neon_id: int) -> tuple[dict, bool, list[datetime.date]]:
     should_add_member = False
 
     if (
-        latest_membership_start_date
-        == datetime.datetime.now()
-        .astimezone(zoneinfo.ZoneInfo("America/Chicago"))
-        .date()
+        latest_membership_start_date == datetime.datetime.now(TZ).date()
         and len(membership_start_dates) == 1
     ):
         should_add_member = True
     elif (
         len(membership_start_dates) > 1
-        and latest_membership_start_date
-        == datetime.datetime.now()
-        .astimezone(zoneinfo.ZoneInfo("America/Chicago"))
-        .date()
+        and latest_membership_start_date == datetime.datetime.now(TZ).date()
         and latest_membership_start_date - membership_end_dates[-2]
         >= datetime.timedelta(days=365)
     ):
@@ -220,10 +214,11 @@ def lambda_handler(event: dict, _: dict) -> None:
     Main lambda handler.
     """
 
-    tz = zoneinfo.ZoneInfo("America/Chicago")
-    hour = datetime.datetime.now().astimezone(tz).hour
+    now = datetime.datetime.now(TZ)
 
-    if hour > 2 and hour < 5:
+    # Don't run between 2:30 AM and 4:59 AM (inclusive)
+    if (now.hour == 2 and now.minute >= 30) or (3 <= now.hour < 5):
+        logger.info("Skipping run between 2:30 and 5:00 AM")
         return
 
     logger.info("EVENT INFO: %s", event)
