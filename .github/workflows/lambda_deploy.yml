@@ -44,6 +44,7 @@ jobs:
       with:
         platforms: linux/arm64
         context: .
+        provenance: false
         file: ./alta_open_lambda/Dockerfile
         push: true
         tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ALTA_OPEN_LAMBDA_ECR_REPO }}:latest
