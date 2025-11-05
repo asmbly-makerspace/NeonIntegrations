@@ -18,8 +18,9 @@ permissions:
   contents: read
 
 jobs:
-  build, push, and deploy:
+  build-push-deploy:
     runs-on: ubuntu-latest
+    name: Build, push, and deploy Alta Open Lambda
 
     steps:
     - name: Checkout repository
