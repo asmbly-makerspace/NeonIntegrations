@@ -1,0 +1,57 @@
+name: Deploy Alta Open Lambda
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-2
+  ALTA_OPEN_LAMBDA_ECR_REPO: alta-open-lambda
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build, push, and deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v5
+      with:
+        role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v6
+      with:
+        platforms: linux/arm64
+        context: .
+        file: ./alta_open_lambda/Dockerfile
+        push: true
+        tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ALTA_OPEN_LAMBDA_ECR_REPO }}:latest
+
+    - name: Deploy
+      uses: aws-actions/aws-lambda-deploy@v1.1.0
+      with:
+        function-name: alta-open-lambda
+        package-type: Image
+        architectures: arm64
+        image-uri: ${{ steps.login-ecr.outputs.registry }}/${{ env.ALTA_OPEN_LAMBDA_ECR_REPO }}:latest
+        timeout: 20
