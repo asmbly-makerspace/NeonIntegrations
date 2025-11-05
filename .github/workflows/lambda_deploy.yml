@@ -51,7 +51,7 @@ jobs:
     - name: Deploy
       uses: aws-actions/aws-lambda-deploy@v1.1.0
       with:
-        function-name: alta-open-lambda
+        function-name: alta-open-update
         package-type: Image
         architectures: arm64
         image-uri: ${{ steps.login-ecr.outputs.registry }}/${{ env.ALTA_OPEN_LAMBDA_ECR_REPO }}:latest
