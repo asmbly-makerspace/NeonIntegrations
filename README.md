@@ -2,19 +2,12 @@
 
 In attempts to further simplify our administrative operations so that we can focus on making cool stuff rather than route work, we're working to integrate our member management software - NeonCRM - with all our other systems.  Completed scripts ready to set for automation are saved in the root directory.  Scripts in `/examples` are work in progress.  
 
-
-<br>
-<hr>
-
 ## How to contribute:
 
 First, thanks for collaborating! If you're looking for things to help with, check out the recent github issues. Then fork the repo, and submit a pull request.
 
 NOTE:  To run all the scripts in production mode, you will need to create a separate file `config.py` with API keys (this will be ignored by git).  Variables used are
 `D_APIkey`, `D_APIuser`, `G_password `, `G_user`, `N_APIkey`, `N_APIuser`, `O_APIkey`, `O_APIuser`, and `S_APIkey`.
-
-<br>
-<hr>
 
 ## Systems:
 
@@ -30,20 +23,16 @@ NOTE:  To run all the scripts in production mode, you will need to create a sepa
 - `POST` calls require API key, API user, and content-type in the headers
 - Neon -> Discourse to update Discourse group membership
 
-<br><br>
-
 ### OpenPath
 
 - Used for access into the space
 - [API docs](https://openpath.readme.io/docs/basics-to-start)
-<br><br>
 
 ### Skedda
 
 - Scheduling system for booking time at the space
 - Checked with CSM about API, they have integrations through Zapier, but no direct access endpoint
 - We will need to explore SSO/SAML options for user management (info [here](https://support.skedda.com/en/articles/4191038-single-sign-on-sso-via-saml-2-0))
-<br><br>
 
 <hr>
 
@@ -55,7 +44,7 @@ Here is how to update our automations from the code in this repo:
 
 ## Logging:
 
-All logs from the scripts are recorded in AWS cloudwatch. The log group for alta-open-update is named "/aws/lambda/alta-open-update", and the other scripts are prefixed with "/admin-bot/" (/admin-bot/attendance-to-testout contain the logs for attendanceToTestout.py).
+All logs from the scripts are recorded in AWS cloudwatch. The log group for alta-open-update is named `/aws/lambda/alta-open-update`, and the other scripts are prefixed with `/admin-bot/` (`/admin-bot/attendance-to-testout` contains the logs for `attendanceToTestout.py`).
 
 For systemd timers, logging is configered by redirecting stdout and stdin to a dedicated logging file for each timer, which is then tailed and uploaded by amazon cloudwatch agent. On adminbot, see the systemd configeration files and `/home/ec2-user/robz` for how to update it.
 
