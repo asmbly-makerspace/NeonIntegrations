@@ -2,8 +2,7 @@
 #      Neon API docs - https://developer.neoncrm.com/api-v2/     #
 #################################################################
 
-from curses import use_default_colors
-from os import openpty, environ
+from os import environ
 from pprint import pformat
 from base64 import b64encode
 import datetime, pytz
