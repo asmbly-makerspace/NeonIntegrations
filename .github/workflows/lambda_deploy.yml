@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   build-push-deploy:
+    if: ${{ github.repository == 'asmbly-makerspace/NeonIntegrations' }}
     runs-on: ubuntu-latest
     name: Build, push, and deploy Alta Open Lambda
 
