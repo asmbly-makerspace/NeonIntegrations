@@ -4,9 +4,27 @@ In attempts to further simplify our administrative operations so that we can foc
 
 ## How to contribute:
 
-First, thanks for collaborating! If you're looking for things to help with, check out the recent github issues. Then fork the repo, and submit a pull request.
+First, thanks for collaborating! If you're looking for things to help with, check out the recent github issues. To get started with making changes, fork the repo to your own account, clone it locally, and create a branch.
 
-NOTE:  To run all the scripts in production mode, you will need to create a separate file `config.py` with API keys (this will be ignored by git).  Variables used are
+Next, you'll need install the project dependencies. We recommend using [virutal environments](https://docs.python.org/3/library/venv.html) to avoid modifying your global system when installing project-specific dependencies. After activating an environment in your local repo, install dependencies from `requirements.txt`:
+
+```
+pip install -r requirements.txt
+```
+
+`requirements.txt` is also used to set up the environment in AWS, so if you add any new dependencies, make sure to update it as well.
+
+After that, you can run all unit tests, which should pass:
+
+```
+pytest
+```
+
+Make sure to add new unit tests for each new change, to verify the code works the way you expect it to.
+
+Once your changes are ready, push to your fork, and then send us a pull request. We will review it, and if it looks good, we'll merge and deploy it! You can also keep your fork in sync with the main repository by adding [an upstream origin](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/syncing-a-fork).
+
+NOTE: To run all the scripts in production mode, you will need to create a separate file `config.py` with API keys (this will be ignored by git). Variables used are
 `D_APIkey`, `D_APIuser`, `G_password `, `G_user`, `N_APIkey`, `N_APIuser`, `O_APIkey`, `O_APIuser`, and `S_APIkey`.
 
 ## Systems:
@@ -50,7 +68,7 @@ For systemd timers, logging is configered by redirecting stdout and stdin to a d
 
 ## Entrypoints:
 
-Here are the scripts that are currently being executed by our automation:
+Here are the scripts that are currently being executed by our automation. Note that the triggers for these automations are configered in asmbly's AWS account, not in this repo.
 
 ### alta_open_lambda
 
