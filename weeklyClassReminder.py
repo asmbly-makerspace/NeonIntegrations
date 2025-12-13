@@ -16,7 +16,6 @@
 
 from pprint import pprint
 import json
-import base64
 import datetime
 
 from email.mime.multipart import MIMEMultipart
@@ -29,7 +28,8 @@ import helpers.neon as neon
 def get_teacher_contact_info():
     """Load teacher contact information from JSON file"""
     contactInfo = "teachers.json"
-    teacherEmails = json.loads(open(contactInfo).read())
+    with open(contactInfo, "r", encoding="utf-8") as f:
+        teacherEmails = json.load(f)
     return teacherEmails
 
 
@@ -224,7 +224,6 @@ Asmbly AdminBot
             f"Your upcoming classes at Asmbly - week of {formattedToday}"
         )
         mimeMessage.attach(MIMEText(emailMsg, "plain"))
-        raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
 
         sendMIMEmessage(mimeMessage)
 
