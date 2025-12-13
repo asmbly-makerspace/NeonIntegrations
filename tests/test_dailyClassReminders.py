@@ -198,3 +198,299 @@ class TestClassReminders:
 
         assert "john@example.com" in recipients
         assert "jane@example.com" in recipients
+
+    def test_date_boundary_today_class(self, setup_mocks):
+        """Test that classes happening TODAY are included and labeled correctly"""
+        mocks = setup_mocks
+        today = datetime.date.today()
+        
+        events = [
+            MockEventBuilder()
+                .with_teacher("John Doe")
+                .with_event_name("Today's Class")
+                .with_event_id("1")
+                .with_date(today.isoformat())
+                .build()
+        ]
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        self._setup_mock_registrations(mocks)
+        
+        dailyClassReminder.main()
+        
+        # Verify email was sent
+        assert mocks['sendMIMEmessage'].call_count == 1
+        
+        # Verify "TODAY" appears in the email body
+        email_call = mocks['sendMIMEmessage'].call_args[0][0]
+        email_body = str(email_call.get_payload()[0])
+        assert "TODAY" in email_body
+
+    def test_date_boundary_tomorrow_class(self, setup_mocks):
+        """Test that classes happening TOMORROW are included and labeled correctly"""
+        mocks = setup_mocks
+        tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+        
+        events = [
+            MockEventBuilder()
+                .with_teacher("John Doe")
+                .with_event_name("Tomorrow's Class")
+                .with_event_id("1")
+                .with_date(tomorrow.isoformat())
+                .build()
+        ]
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        self._setup_mock_registrations(mocks)
+        
+        dailyClassReminder.main()
+        
+        # Verify email was sent
+        assert mocks['sendMIMEmessage'].call_count == 1
+        
+        # Verify "Tomorrow" appears in the email body
+        email_call = mocks['sendMIMEmessage'].call_args[0][0]
+        email_body = str(email_call.get_payload()[0])
+        assert "Tomorrow" in email_body
+
+    def test_date_boundary_two_days_out(self, setup_mocks):
+        """Test that classes 2 days out are included (at the boundary)"""
+        mocks = setup_mocks
+        two_days = datetime.date.today() + datetime.timedelta(days=2)
+        
+        events = [
+            MockEventBuilder()
+                .with_teacher("John Doe")
+                .with_event_name("Two Days Out")
+                .with_event_id("1")
+                .with_date(two_days.isoformat())
+                .build()
+        ]
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        self._setup_mock_registrations(mocks)
+        
+        dailyClassReminder.main()
+        
+        # Verify email was sent (should be included)
+        assert mocks['sendMIMEmessage'].call_count == 1
+
+    def test_empty_events_no_emails(self, setup_mocks):
+        """Test that no emails are sent when there are no events"""
+        mocks = setup_mocks
+        
+        mocks['postEventSearch'].return_value = {"searchResults": []}
+        
+        dailyClassReminder.main()
+        
+        # No emails should be sent
+        assert mocks['sendMIMEmessage'].call_count == 0
+
+    def test_none_teacher_sends_to_fallback_email(self, setup_mocks):
+        """Test that events with no teacher assigned send to classes@asmbly.org"""
+        mocks = setup_mocks
+        
+        events = [
+            MockEventBuilder()
+                .with_teacher(None)
+                .with_event_name("Unassigned Class")
+                .with_event_id("1")
+                .build()
+        ]
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        self._setup_mock_registrations(mocks)
+        
+        dailyClassReminder.main()
+        
+        # Should send one email
+        assert mocks['sendMIMEmessage'].call_count == 1
+        
+        # Verify it goes to classes@asmbly.org
+        email_call = mocks['sendMIMEmessage'].call_args[0][0]
+        assert email_call['To'] == "classes@asmbly.org"
+
+    def test_unknown_teacher_sends_to_fallback_email(self, setup_mocks):
+        """Test that teachers not in teachers.json send to classes@asmbly.org"""
+        mocks = setup_mocks
+        
+        events = [
+            MockEventBuilder()
+                .with_teacher("Unknown Teacher")
+                .with_event_name("Mystery Class")
+                .with_event_id("1")
+                .build()
+        ]
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        self._setup_mock_registrations(mocks)
+        
+        dailyClassReminder.main()
+        
+        # Should send one email
+        assert mocks['sendMIMEmessage'].call_count == 1
+        
+        # Verify it goes to classes@asmbly.org (KeyError handling)
+        email_call = mocks['sendMIMEmessage'].call_args[0][0]
+        assert email_call['To'] == "classes@asmbly.org"
+
+    def test_no_registrants_shows_appropriate_message(self, setup_mocks):
+        """Test that events with no registrants show appropriate message"""
+        mocks = setup_mocks
+        
+        events = self._create_mock_events({
+            "John Doe": ["Empty Class"]
+        })
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        
+        # Mock no registrations
+        mocks['getEventRegistrants'].return_value = {"eventRegistrations": []}
+        mocks['getEventRegistrantCount'].return_value = 0
+        
+        dailyClassReminder.main()
+        
+        # Verify email was sent
+        assert mocks['sendMIMEmessage'].call_count == 1
+        
+        # Verify message about no attendees
+        email_call = mocks['sendMIMEmessage'].call_args[0][0]
+        email_body = str(email_call.get_payload()[0])
+        assert "No attendees registered currently" in email_body
+
+    def test_mixed_registration_statuses(self, setup_mocks):
+        """Test handling of different registration statuses (SUCCEEDED, FAILED, etc.)"""
+        mocks = setup_mocks
+        
+        events = self._create_mock_events({
+            "John Doe": ["Mixed Status Class"]
+        })
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        
+        # Mock registrations with different statuses
+        mocks['getEventRegistrants'].return_value = {
+            "eventRegistrations": [
+                {
+                    "registrantAccountId": "123",
+                    "tickets": [{
+                        "attendees": [{
+                            "firstName": "Success",
+                            "lastName": "Student",
+                            "registrationStatus": "SUCCEEDED"
+                        }]
+                    }]
+                },
+                {
+                    "registrantAccountId": "456",
+                    "tickets": [{
+                        "attendees": [{
+                            "firstName": "Failed",
+                            "lastName": "Student",
+                            "registrationStatus": "FAILED"
+                        }]
+                    }]
+                }
+            ]
+        }
+        
+        mocks['getEventRegistrantCount'].return_value = 2
+        
+        mocks['getAccountIndividual'].return_value = {
+            "individualAccount": {
+                "primaryContact": {
+                    "email1": "student@example.com",
+                    "addresses": [{"phone1": "555-1234"}]
+                }
+            }
+        }
+        
+        dailyClassReminder.main()
+        
+        # Verify email was sent
+        assert mocks['sendMIMEmessage'].call_count == 1
+        
+        # Verify only SUCCEEDED registrants appear in email
+        email_call = mocks['sendMIMEmessage'].call_args[0][0]
+        email_body = str(email_call.get_payload()[0])
+        assert "Success Student" in email_body
+        # FAILED registrants should not appear
+        assert "Failed Student" not in email_body
+
+    def test_error_handling_continues_to_next_teacher(self, setup_mocks):
+        """Test that errors in processing one teacher don't prevent processing others"""
+        mocks = setup_mocks
+        
+        events = self._create_mock_events({
+            "John Doe": ["Class 1"],
+            "Jane Smith": ["Class 2"]
+        })
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        
+        # Make getEventRegistrants fail for first call, succeed for second
+        mocks['getEventRegistrants'].side_effect = [
+            Exception("API Error"),
+            {"eventRegistrations": []}
+        ]
+        mocks['getEventRegistrantCount'].return_value = 0
+        
+        dailyClassReminder.main()
+        
+        # Should still send one email (for Jane Smith)
+        assert mocks['sendMIMEmessage'].call_count == 1
+
+    def test_multiple_attendees_per_registration(self, setup_mocks):
+        """Test that registrations with multiple attendees are handled correctly"""
+        mocks = setup_mocks
+        
+        events = self._create_mock_events({
+            "John Doe": ["Family Class"]
+        })
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        
+        # Mock registration with multiple attendees
+        mocks['getEventRegistrants'].return_value = {
+            "eventRegistrations": [
+                {
+                    "registrantAccountId": "123",
+                    "tickets": [{
+                        "attendees": [
+                            {
+                                "firstName": "Parent",
+                                "lastName": "Smith",
+                                "registrationStatus": "SUCCEEDED"
+                            },
+                            {
+                                "firstName": "Child",
+                                "lastName": "Smith",
+                                "registrationStatus": "SUCCEEDED"
+                            }
+                        ]
+                    }]
+                }
+            ]
+        }
+        
+        mocks['getEventRegistrantCount'].return_value = 2
+        
+        mocks['getAccountIndividual'].return_value = {
+            "individualAccount": {
+                "primaryContact": {
+                    "email1": "parent@example.com",
+                    "addresses": [{"phone1": "555-1234"}]
+                }
+            }
+        }
+        
+        dailyClassReminder.main()
+        
+        # Verify email was sent
+        assert mocks['sendMIMEmessage'].call_count == 1
+        
+        # Verify both attendees appear in email
+        email_call = mocks['sendMIMEmessage'].call_args[0][0]
+        email_body = str(email_call.get_payload()[0])
+        assert "Parent Smith" in email_body
+        assert "Child Smith" in email_body
