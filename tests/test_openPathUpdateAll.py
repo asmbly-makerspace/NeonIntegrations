@@ -30,7 +30,8 @@ class TestOpenPathUpdateAll:
             acct = (MockNeonUserBuilder()
                     .with_alta_id(aid)
                     .build())
-            accts.update({acct['id']: acct})
+            # Key neon accounts by their canonical 'Account ID'
+            accts.update({acct['Account ID']: acct})
         return accts
 
     def _create_matching_alta_and_neon_accounts(self, group_lists):
