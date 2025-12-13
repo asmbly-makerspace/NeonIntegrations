@@ -28,8 +28,15 @@ import helpers.neon as neon
 def get_teacher_contact_info():
     """Load teacher contact information from JSON file"""
     contactInfo = "teachers.json"
-    with open(contactInfo, "r", encoding="utf-8") as f:
-        teacherEmails = json.load(f)
+    try:
+        with open(contactInfo, "r", encoding="utf-8") as f:
+            teacherEmails = json.load(f)
+    except FileNotFoundError:
+        print(f"ERROR: Teacher contact file '{contactInfo}' not found. Please ensure teachers.json exists in the same directory as this script.")
+        raise
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Failed to parse '{contactInfo}' as JSON: {e}")
+        raise
     return teacherEmails
 
 
@@ -218,9 +225,9 @@ Asmbly AdminBot
         print(emailMsg)
 
         mimeMessage = MIMEMultipart()
-        mimeMessage["to"] = teacherEmails[teacher]
-        mimeMessage["cc"] = "classes@asmbly.org"
-        mimeMessage["subject"] = (
+        mimeMessage["To"] = teacherEmails[teacher]
+        mimeMessage["CC"] = "classes@asmbly.org"
+        mimeMessage["Subject"] = (
             f"Your upcoming classes at Asmbly - week of {formattedToday}"
         )
         mimeMessage.attach(MIMEText(emailMsg, "plain"))

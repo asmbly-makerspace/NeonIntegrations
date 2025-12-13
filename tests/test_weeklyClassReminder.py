@@ -131,7 +131,7 @@ class TestWeeklyClassReminder:
         
         # Verify correct recipients
         email_calls = mocks['sendMIMEmessage'].call_args_list
-        recipients = [call[0][0]['to'] for call in email_calls]
+        recipients = [call[0][0]['To'] for call in email_calls]
         
         assert "john@example.com" in recipients
         assert "jane@example.com" in recipients
@@ -192,7 +192,7 @@ class TestWeeklyClassReminder:
         
         # Verify it goes to board@asmbly.org (weekly script uses different fallback)
         email_call = mocks['sendMIMEmessage'].call_args[0][0]
-        assert email_call['to'] == "board@asmbly.org"
+        assert email_call['To'] == "board@asmbly.org"
     
     def test_no_registrants_shows_appropriate_message(self, setup_mocks):
         """Test that events with no registrants show appropriate message"""
@@ -238,7 +238,7 @@ class TestWeeklyClassReminder:
         
         # Verify subject line format
         email_call = mocks['sendMIMEmessage'].call_args[0][0]
-        subject = email_call['subject']
+        subject = email_call['Subject']
         assert "week of" in subject
         assert "Your upcoming classes at Asmbly" in subject
     
@@ -259,7 +259,7 @@ class TestWeeklyClassReminder:
         # Verify email was sent with CC
         assert mocks['sendMIMEmessage'].call_count == 1
         email_call = mocks['sendMIMEmessage'].call_args[0][0]
-        assert email_call['cc'] == "classes@asmbly.org"
+        assert email_call['CC'] == "classes@asmbly.org"
     
     def test_teacher_deduplication_efficiency(self, setup_mocks):
         """Test that teacher deduplication uses set for efficiency"""
