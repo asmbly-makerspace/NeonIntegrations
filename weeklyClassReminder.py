@@ -29,7 +29,7 @@ import helpers.neon as neon
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(message)s",
     level=logging.INFO,
-    datefmt="%Y-%m-%d %H:%H:%S",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 
