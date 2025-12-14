@@ -278,3 +278,34 @@ class TestWeeklyClassReminder:
         
         # Should still only send one email
         assert mocks['sendMIMEmessage'].call_count == 1
+
+    def test_neon_api_returns_duplicate_event_ids(self, setup_mocks):
+        """Test that duplicate event IDs from Neon API are handled correctly"""
+        mocks = setup_mocks
+        
+        # Simulate Neon API returning duplicate event records with same event ID
+        # This tests the hypothesis that the API might return duplicates
+        events = [
+            MockEventBuilder().with_teacher("John Doe").with_event_name("Woodworking 101").with_event_id("12345").build(),
+            MockEventBuilder().with_teacher("John Doe").with_event_name("Woodworking 101").with_event_id("12345").build(),  # Duplicate event ID
+            MockEventBuilder().with_teacher("Jane Smith").with_event_name("Metalworking").with_event_id("12346").build(),
+        ]
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        self._setup_mock_registrations(mocks)
+        
+        # Execute the weekly reminder script
+        weeklyClassReminder.main()
+        
+        # Should send one email per teacher (2 emails total)
+        # Teacher deduplication prevents duplicate emails even with duplicate event IDs
+        assert mocks['sendMIMEmessage'].call_count == 2
+        
+        # Verify correct recipients
+        email_calls = mocks['sendMIMEmessage'].call_args_list
+        recipients = [call[0][0]['To'] for call in email_calls]
+        assert "john@example.com" in recipients
+        assert "jane@example.com" in recipients
+        
+        # The test passes if only 2 emails are sent (one per teacher), confirming teacher deduplication
+        # prevents duplicate emails even when API returns duplicate event records

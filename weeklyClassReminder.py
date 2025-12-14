@@ -17,12 +17,20 @@
 from pprint import pprint
 import json
 import datetime
+import uuid
+import logging
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from helpers.gmail import sendMIMEmessage
 
 import helpers.neon as neon
+
+logging.basicConfig(
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    level=logging.INFO,
+    datefmt="%Y-%m-%d %H:%H:%S",
+)
 
 
 def get_teacher_contact_info():
@@ -71,8 +79,12 @@ def get_output_fields():
 
 def main():
     """Main function to send weekly class reminders"""
+    invocation_id = str(uuid.uuid4())
     searchFields, today = get_search_fields()
     outputFields = get_output_fields()
+    
+    logging.info("\n\n----- Beginning weekly class reminders for %s -----\n\n", today.isoformat())
+    logging.info("Script invocation ID: %s", invocation_id)
     
     responseEvents = neon.postEventSearch(searchFields, outputFields)
     

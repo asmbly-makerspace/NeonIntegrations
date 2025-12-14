@@ -494,3 +494,37 @@ class TestClassReminders:
         email_body = str(email_call.get_payload()[0])
         assert "Parent Smith" in email_body
         assert "Child Smith" in email_body
+
+    def test_neon_api_returns_duplicate_event_ids(self, setup_mocks):
+        """Test that duplicate event IDs from Neon API are handled correctly"""
+        mocks = setup_mocks
+        
+        # Simulate Neon API returning duplicate event records with same event ID
+        # This tests the hypothesis that the API might return duplicates
+        events = [
+            MockEventBuilder().with_teacher("John Doe").with_event_name("Woodworking 101").with_event_id("12345").build(),
+            MockEventBuilder().with_teacher("John Doe").with_event_name("Woodworking 101").with_event_id("12345").build(),  # Duplicate event ID
+            MockEventBuilder().with_teacher("John Doe").with_event_name("Advanced Woodworking").with_event_id("12346").build(),
+        ]
+        
+        mocks['postEventSearch'].return_value = {"searchResults": events}
+        self._setup_mock_registrations(mocks)
+        
+        # Run the main function
+        dailyClassReminder.main()
+        
+        # Should still only send ONE email to John Doe (deduplication by teacher works)
+        assert mocks['sendMIMEmessage'].call_count == 1
+        
+        # However, getEventRegistrants might be called multiple times (once per event in the list)
+        # This is the inefficiency - we process duplicate events even though they have the same ID
+        # But it doesn't cause duplicate EMAILS because we deduplicate by teacher
+        call_count = mocks['getEventRegistrants'].call_count
+        
+        # Verify email contains the class names (may appear multiple times in email body due to duplicate processing)
+        email_call = mocks['sendMIMEmessage'].call_args[0][0]
+        email_body = str(email_call.get_payload()[0])
+        assert "Woodworking 101" in email_body
+        
+        # The test passes if only 1 email is sent, confirming teacher deduplication prevents duplicate emails
+        # even when API returns duplicate event records
