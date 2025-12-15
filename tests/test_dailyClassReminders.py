@@ -496,7 +496,13 @@ class TestClassReminders:
         assert "Child Smith" in email_body
 
     def test_neon_api_returns_duplicate_event_ids(self, setup_mocks):
-        """Test that duplicate event IDs from Neon API are handled correctly"""
+        """Test that duplicate event IDs from Neon API are handled correctly
+        
+        This test verifies:
+        1. Mock Neon API returns duplicate event records (same event ID)
+        2. Both duplicate events are processed and shown in the email (this is acceptable)
+        3. Only ONE email is sent to the teacher (no duplicate emails)
+        """
         mocks = setup_mocks
         
         # Simulate Neon API returning duplicate event records with same event ID
@@ -513,18 +519,21 @@ class TestClassReminders:
         # Run the main function
         dailyClassReminder.main()
         
-        # Should still only send ONE email to John Doe (deduplication by teacher works)
+        # CRITICAL: Should still only send ONE email to John Doe (deduplication by teacher works)
+        # This confirms that duplicate events from API don't cause duplicate EMAILS
         assert mocks['sendMIMEmessage'].call_count == 1
         
-        # However, getEventRegistrants might be called multiple times (once per event in the list)
-        # This is the inefficiency - we process duplicate events even though they have the same ID
-        # But it doesn't cause duplicate EMAILS because we deduplicate by teacher
-        call_count = mocks['getEventRegistrants'].call_count
-        
-        # Verify email contains the class names (may appear multiple times in email body due to duplicate processing)
+        # Verify email contains the class names
+        # Note: Due to duplicate event processing, "Woodworking 101" may appear twice in the email body
+        # This is acceptable - showing both events is fine, as long as we don't send duplicate emails
         email_call = mocks['sendMIMEmessage'].call_args[0][0]
         email_body = str(email_call.get_payload()[0])
         assert "Woodworking 101" in email_body
+        assert "Advanced Woodworking" in email_body
         
-        # The test passes if only 1 email is sent, confirming teacher deduplication prevents duplicate emails
+        # Both events are processed (getEventRegistrants called for each event in the list)
+        # This is inefficient but doesn't cause duplicate emails
+        assert mocks['getEventRegistrants'].call_count == 3  # Called once for each event in the list
+        
+        # Test conclusion: Teacher deduplication prevents duplicate EMAILS 
         # even when API returns duplicate event records
