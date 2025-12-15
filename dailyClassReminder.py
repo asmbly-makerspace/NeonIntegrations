@@ -17,6 +17,7 @@
 import json
 import datetime
 import logging
+import uuid
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -27,13 +28,15 @@ from helpers import neon
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(message)s",
     level=logging.INFO,
-    datefmt="%Y-%m-%d %H:%H:%S",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 
 # Get events for the next DELTA_DAYS days
 TODAY = datetime.date.today()
+INVOCATION_ID = str(uuid.uuid4())
 logging.info("\n\n----- Beginning class reminders for %s -----\n\n", TODAY.isoformat())
+logging.info("Script invocation ID: %s", INVOCATION_ID)
 DELTA_DAYS = (TODAY + datetime.timedelta(days=2)).isoformat()
 SEARCH_FIELDS = [
     {
