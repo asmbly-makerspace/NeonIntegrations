@@ -316,11 +316,14 @@ class TestWeeklyClassReminder:
         # Verify John Doe's email contains "Woodworking 101"
         # Note: Due to duplicate event processing, it may appear twice in the email body
         # This is acceptable - showing both events is fine, as long as we don't send duplicate emails
-        john_doe_email = [call[0][0] for call in email_calls if call[0][0]['To'] == "john@example.com"][0]
+        john_doe_emails = [call[0][0] for call in email_calls if call[0][0]['To'] == "john@example.com"]
+        assert len(john_doe_emails) == 1, "Should find exactly one email to John Doe"
+        john_doe_email = john_doe_emails[0]
         john_doe_body = str(john_doe_email.get_payload()[0])
         assert "Woodworking 101" in john_doe_body
         
         # Both events are processed (getEventRegistrants called for each event in the list)
+        # With 3 events in the list (2 duplicates + 1 unique), we expect 3 calls
         # This is inefficient but doesn't cause duplicate emails
         assert mocks['getEventRegistrants'].call_count == 3  # Called once for each event in the list
         
