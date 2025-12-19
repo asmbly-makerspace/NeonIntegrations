@@ -10,4 +10,5 @@ pytest==8.4.1
 pytest-mock==3.14.1
 pytz==2025.2
 requests==2.32.4
-urllib3==2.5.0
+requests-mock==1.12.1
+urllib3==2.6.0

@@ -4,7 +4,7 @@
 # named 'config'" in the pipeline.
 
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # Create a mock config module
 mock_config = MagicMock()
@@ -13,4 +13,3 @@ mock_config.N_APIuser = "fake_neon_user"
 
 # Inject it into sys.modules BEFORE importing your script
 sys.modules['config'] = mock_config
-
