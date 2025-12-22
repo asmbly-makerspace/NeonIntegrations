@@ -14,7 +14,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Run pytest
-        run: pytest
+        run: python -m pytest
 on:
   pull_request:
     branches:
