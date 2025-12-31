@@ -1,11 +1,6 @@
-from typing import Any, Dict, List
 import random
+from typing import Any, Dict, List
 
-##### Needed for importing script files (as opposed to classes)
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-##### End block
 
 class MockAltaUserBuilder():
     def __init__(self):
@@ -34,4 +29,3 @@ class MockAltaUserBuilder():
             'email': self._email,
             'groups': self._groups,
         }
-
