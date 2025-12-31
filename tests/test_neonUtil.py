@@ -2,11 +2,6 @@ import neonUtil
 from tests.neon_api_fixtures import NeonMembershipBuilder
 
 
-class TestNeonUtil:
-    def test_one(self):
-        assert 1 == 1
-
-
 def test_appendMemberships_active_regular_paid(neon_api_mock):
     acct = {'Account ID': 123}
 
@@ -40,10 +35,18 @@ def test_appendMemberships_ceramics_comped(neon_api_mock):
 
     updated = neonUtil.appendMemberships(acct)
 
-    assert updated.get('validMembership') is True
-    assert updated.get('ceramicsMembership') is True
-    assert updated.get('compedCeramics') is True
-    assert updated.get('Ceramics Expiration Date') == '2026-05-31'
+    assert updated == {
+        'Account ID': 124,
+        'autoRenewal': False,
+        'Ceramics Expiration Date': '2026-05-31',
+        'Ceramics Start Date': '2025-06-01',
+        'ceramicsMembership': True,
+        'compedCeramics': True,
+        'Membership Expiration Date': '2026-05-31',
+        'Membership Start Date': '2025-06-01',
+        'membershipDates': {'2025-06-01': ['2026-05-31', 7]},
+        'validMembership': True,
+    }
 
 
 def test_appendMemberships_expired_yesterday_auto_renew(neon_api_mock):
