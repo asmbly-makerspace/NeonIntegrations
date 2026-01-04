@@ -21,9 +21,9 @@ def neon_api_mock():
 
     Example:
         def test_something(neon_api_mock):
-            from tests.neon_api_fixtures import NeonMembershipBuilder
+            from tests.neon_api_fixtures import NeonMock
 
-            builder = NeonMembershipBuilder(account_id=123)
+            builder = NeonMock(account_id=123)
             builder.add_regular_membership('2025-01-01', '2025-12-31', fee=100.0)
 
             neon_api_mock.get(

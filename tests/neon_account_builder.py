@@ -41,7 +41,7 @@ def today_plus(days_offset):
 from tests.neon_api_fixtures import (
     build_account_response,
     build_custom_field,
-    NeonMembershipBuilder
+    NeonMock
 )
 
 
@@ -84,70 +84,30 @@ def setup_neon_account(
     Returns:
         Dict representing the account as it would be returned by neonUtil.getMemberById()
     """
-    # Build custom fields list
-    custom_fields_list = []
-    fields_dict = custom_fields or {}
-
-    # Allow passing common fields as direct arguments
-    if open_path_id is not None:
-        fields_dict['OpenPathID'] = open_path_id
-    if waiver_date is not None:
-        fields_dict['WaiverDate'] = waiver_date
-    if facility_tour_date is not None:
-        fields_dict['FacilityTourDate'] = facility_tour_date
-    if access_suspended:
-        fields_dict['AccessSuspended'] = 'Yes'
-
-    # Map common custom field names to their IDs (from neonUtil.py)
-    field_id_map = {
-        'OpenPathID': 178,
-        'DiscourseID': 85,
-        'WaiverDate': 179,
-        'FacilityTourDate': 77,
-        'OrientationDate': 77,
-        'AccessSuspended': 180,
-        'KeyCardID': 88,
-        'CsiDate': 1248,
-        'Shaper Origin': 274,
-        'Woodshop Specialty Tools': 440,
-    }
-
-    for name, value in fields_dict.items():
-        field_id = field_id_map.get(name, 999)  # Use 999 for unknown fields
-        custom_fields_list.append(build_custom_field(field_id, name, value))
-
-    # Mock GET /accounts/{id}
-    account_response = build_account_response(
-        accountId=account_id,
+    # Mock GET /accounts/{id} and /accounts/{id}/memberships
+    builder = NeonMock(
+        account_id,
         firstName=first_name,
         lastName=last_name,
         email=email,
         individualTypes=individual_types,
-        accountCustomFields=custom_fields_list
-    )
-
-    requests_mock.get(
-        f'https://api.neoncrm.com/v2/accounts/{account_id}',
-        json=account_response
-    )
-
-    # Mock GET /accounts/{id}/memberships
-    builder = NeonMembershipBuilder(account_id=account_id)
+        custom_fields=custom_fields,
+        open_path_id=open_path_id,
+        waiver_date=waiver_date,
+        facility_tour_date=facility_tour_date,
+        access_suspended=access_suspended,
+   )
     if memberships:
         for membership in memberships:
             if len(membership) == 5:
                 start, end, fee, level_id, auto_renew = membership
-                builder.add_membership(start, end, fee=fee, membershipLevelId=level_id, autoRenewal=auto_renew)
+                builder.add_membership(level_id, start, end, fee=fee, autoRenewal=auto_renew)
             elif len(membership) == 4:
                 start, end, fee, level_id = membership
-                builder.add_membership(start, end, fee=fee, membershipLevelId=level_id)
+                builder.add_membership(level_id, start, end, fee=fee)
             else:
                 raise ValueError(f"Membership tuple must have 4 or 5 elements, got {len(membership)}")
-
-    requests_mock.get(
-        f'https://api.neoncrm.com/v2/accounts/{account_id}/memberships',
-        json=builder.build()
-    )
+    builder.mock(requests_mock)
 
     # Return what the account would look like after calling getMemberById
     # (for convenience in tests that need to check the account structure)
