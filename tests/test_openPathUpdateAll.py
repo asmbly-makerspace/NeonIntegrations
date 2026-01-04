@@ -2,7 +2,7 @@ import pytest
 
 from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS
 from openPathUpdateAll import openPathUpdateAll
-from tests.neon_api_fixtures import NeonMock, today_plus
+from tests.neon_mocker import NeonMock, today_plus
 
 
 NEON_ID = 123

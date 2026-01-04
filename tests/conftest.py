@@ -16,12 +16,12 @@ def neon_api_mock():
     Provide a requests_mock adapter for mocking NeonCRM API calls.
 
     This fixture allows tests to mock HTTP responses from the NeonCRM API
-    without duplicating business logic. Use with neon_api_fixtures module
+    without duplicating business logic. Use with neon_mocker module
     to build realistic API responses.
 
     Example:
         def test_something(neon_api_mock):
-            from tests.neon_api_fixtures import NeonMock
+            from tests.neon_mocker import NeonMock
 
             builder = NeonMock(account_id=123)
             builder.add_regular_membership('2025-01-01', '2025-12-31', fee=100.0)

@@ -1,5 +1,5 @@
 import openPathUpdateSingle
-from tests.neon_api_fixtures import NeonMock, today_plus
+from tests.neon_mocker import NeonMock, today_plus
 import neonUtil
 
 
