@@ -3,7 +3,7 @@ from tests.neon_api_fixtures import NeonMock, today_plus
 import neonUtil
 
 
-NEON_ID = '123'
+NEON_ID = 123
 REGULAR = neonUtil.MEMBERSHIP_ID_REGULAR
 
 
@@ -26,8 +26,8 @@ def test_creates_user_when_has_facility_access(neon_api_mock, mocker):
     # With an existing OpenPathID we should call update_groups (not createUser)
     update_groups.assert_called_once()
     call_args = update_groups.call_args[0][0]
-    assert call_args['Account ID'] == str(NEON_ID)
-    assert call_args['OpenPathID'] == '777'
+    assert call_args['Account ID'] == NEON_ID
+    assert call_args['OpenPathID'] == 777
 
 
 def test_does_not_create_user_for_expired_or_no_access(neon_api_mock, mocker):
@@ -64,5 +64,5 @@ def test_updates_existing_user_when_openpathid_present(neon_api_mock, mocker):
     # Should call update_groups with the account returned from neonUtil.getMemberById
     update_groups.assert_called_once()
     call_args = update_groups.call_args[0][0]
-    assert call_args['Account ID'] == str(NEON_ID)
+    assert call_args['Account ID'] == NEON_ID
     assert call_args['validMembership'] is True

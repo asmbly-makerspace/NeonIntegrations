@@ -7,6 +7,8 @@ to test code that calls the NeonCRM API without duplicating business logic.
 
 API Reference: https://developer.neoncrm.com/api-v2/
 """
+
+
 import random
 import string
 from typing import List, Dict, Any, Optional
@@ -17,12 +19,6 @@ from datetime import timedelta
 def today_plus(days_offset):
     """Return a date string relative to today."""
     return str(neonUtil.today + timedelta(days=days_offset))
-
-
-def random_alphanumeric(length: int) -> str:
-    """Generate a random alphanumeric string."""
-    characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for _ in range(length))
 
 
 def build_membership_response(
@@ -53,7 +49,7 @@ def build_membership_response(
     Returns:
         Dict matching NeonCRM membership API response format
     """
-    membership = {
+    return {
         'membershipId': membershipId or random.randint(10000, 99999),
         'termStartDate': termStartDate,
         'termEndDate': termEndDate,
@@ -67,7 +63,6 @@ def build_membership_response(
             )
         }
     }
-    return membership
 
 
 def build_memberships_api_response(memberships: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -87,8 +82,8 @@ def build_memberships_api_response(memberships: List[Dict[str, Any]]) -> Dict[st
     }
 
 
-def build_account_response(
-    accountId: str,
+def build_account_api_response(
+    accountId: int,
     firstName: str = "John",
     lastName: str = "Doe",
     email: str = "john@example.com",
@@ -194,6 +189,19 @@ def build_search_result(
 
     return result
 
+# Map common custom field names to their IDs (from neonUtil.py)
+field_id_map = {
+    'OpenPathID': 178,
+    'DiscourseID': 85,
+    'WaiverDate': 179,
+    'FacilityTourDate': 77,
+    'OrientationDate': 77,
+    'AccessSuspended': 180,
+    'KeyCardID': 88,
+    'CsiDate': 1248,
+    'Shaper Origin': 274,
+    'Woodshop Specialty Tools': 440,
+}
 
 class NeonMock:
     """
@@ -208,7 +216,7 @@ class NeonMock:
 
     def __init__(
         self, 
-        account_id: str,
+        account_id: int,
         firstName: str = "John",
         lastName: str = "Doe",
         email: str = None,
@@ -226,11 +234,8 @@ class NeonMock:
         self.individualTypes = individualTypes
         self.memberships: List[Dict[str, Any]] = []
 
-        # Build custom fields list
-        custom_fields_list = []
-        fields_dict = custom_fields or {}
-
         # Allow passing common fields as direct arguments
+        fields_dict = custom_fields or {}
         if open_path_id is not None:
             fields_dict['OpenPathID'] = open_path_id
         if waiver_date is not None:
@@ -240,25 +245,10 @@ class NeonMock:
         if access_suspended:
             fields_dict['AccessSuspended'] = 'Yes'
 
-        # Map common custom field names to their IDs (from neonUtil.py)
-        field_id_map = {
-            'OpenPathID': 178,
-            'DiscourseID': 85,
-            'WaiverDate': 179,
-            'FacilityTourDate': 77,
-            'OrientationDate': 77,
-            'AccessSuspended': 180,
-            'KeyCardID': 88,
-            'CsiDate': 1248,
-            'Shaper Origin': 274,
-            'Woodshop Specialty Tools': 440,
-        }
-
-        for name, value in fields_dict.items():
-            field_id = field_id_map.get(name, 999)  # Use 999 for unknown fields
-            custom_fields_list.append(build_custom_field(field_id, name, value))
-
-        self.accountCustomFields = custom_fields_list
+        self.accountCustomFields = [
+            dict(id=field_id_map[name], name=name, value=value)
+            for name, value in fields_dict.items()
+        ]
 
     def add_membership(
         self,
@@ -269,7 +259,6 @@ class NeonMock:
         fee: float = 0.0,
         autoRenewal: bool = False
     ) -> 'NeonMock':
-        """Add a membership entry (chainable)."""
         self.memberships.append(build_membership_response(
             termStartDate=termStartDate,
             termEndDate=termEndDate,
@@ -283,7 +272,7 @@ class NeonMock:
     def mock(self, requests_mock):
         requests_mock.get(
             f'https://api.neoncrm.com/v2/accounts/{self.account_id}',
-            json=build_account_response(
+            json=build_account_api_response(
                 accountId=self.account_id,
                 firstName=self.firstName,
                 lastName=self.lastName,
