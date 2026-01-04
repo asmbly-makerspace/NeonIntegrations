@@ -3,7 +3,7 @@ from tests.neon_api_fixtures import NeonMock, today_plus
 import neonUtil
 
 
-NEON_ID = 123
+NEON_ID = '123'
 REGULAR = neonUtil.MEMBERSHIP_ID_REGULAR
 
 

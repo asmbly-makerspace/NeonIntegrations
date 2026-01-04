@@ -88,7 +88,7 @@ def build_memberships_api_response(memberships: List[Dict[str, Any]]) -> Dict[st
 
 
 def build_account_response(
-    accountId: int,
+    accountId: str,
     firstName: str = "John",
     lastName: str = "Doe",
     email: str = "john@example.com",
@@ -112,7 +112,7 @@ def build_account_response(
         Dict matching NeonCRM account GET response format
     """
     account = {
-        'accountId': str(accountId),
+        'accountId': accountId,
         'primaryContact': {
             'contactId': random.randint(10000, 99999),
             'firstName': firstName,
@@ -200,25 +200,18 @@ class NeonMock:
     Fluent builder for constructing NeonCRM membership API responses.
 
     Example usage:
-        builder = NeonMock(account_id=123)
-        builder.add_regular_membership('2025-01-01', '2025-12-31', fee=100.0)
-        builder.add_ceramics_membership('2025-01-01', '2025-12-31', fee=150.0)
-
-        # Use with requests_mock
-        mock_adapter = requests_mock.Adapter()
-        mock_adapter.register_uri(
-            'GET',
-            f'https://api.neoncrm.com/v2/accounts/123/memberships',
-            json=builder.build()
-        )
+        account = NeonMock(account_id=123)\
+            .add_regular_membership('2025-01-01', '2025-12-31', fee=100.0)\
+            .add_ceramics_membership('2025-01-01', '2025-12-31', fee=150.0)\
+            .mock(requests_mock) # mocks GET endpoints
     """
 
     def __init__(
         self, 
-        account_id: int,
+        account_id: str,
         firstName: str = "John",
         lastName: str = "Doe",
-        email: str = "john@example.com",
+        email: str = None,
         individualTypes: Optional[List[str]] = None,
         custom_fields: dict = None,
         open_path_id: int = None,
@@ -229,7 +222,7 @@ class NeonMock:
         self.account_id = account_id
         self.firstName = firstName
         self.lastName = lastName
-        self.email = email
+        self.email = email or f'{firstName}.{lastName}@example.com'
         self.individualTypes = individualTypes
         self.memberships: List[Dict[str, Any]] = []
 
