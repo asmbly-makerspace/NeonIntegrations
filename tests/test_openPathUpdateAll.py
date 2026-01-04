@@ -1,7 +1,7 @@
 import pytest
 
 from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS
-import openPathUpdateAll
+from openPathUpdateAll import openPathUpdateAll
 from mock_alta_users import MockAltaUserBuilder
 from tests.neon_account_builder import today_plus, setup_neon_account
 
@@ -52,7 +52,7 @@ class TestOpenPathUpdateAll:
         setup_mocks['getAllUsers'].return_value = alta_accounts
 
         # Run the openPathUpdateAll script with our fake accounts.
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
+        openPathUpdateAll(neon_accounts)
 
         # Verify that openPathUtil.updateGroups was called with the correct arguments
         expected_calls = [
@@ -113,7 +113,7 @@ class TestOpenPathUpdateAll:
 
         setup_mocks['getAllUsers'].return_value = alta_accounts
 
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
+        openPathUpdateAll(neon_accounts)
 
         # Verify updateGroups is called for users with existing OpenPathID
         assert setup_mocks['updateGroups'].call_count == 3
@@ -126,10 +126,6 @@ class TestOpenPathUpdateAll:
         tour = today_plus(-364)
         end = today_plus(365)
 
-        neon_accounts = {}
-        alta_accounts = {}
-
-        # User 1: Has facility access but NO OpenPathID
         facility_user = setup_neon_account(
             neon_api_mock,
             account_id=2001,
@@ -140,16 +136,10 @@ class TestOpenPathUpdateAll:
             waiver_date=start,
             facility_tour_date=tour
         )
-        neon_accounts["2001"] = facility_user
+        setup_mocks['createUser'].return_value = {**facility_user, 'OpenPathID': 2001}
+        setup_mocks['getAllUsers'].return_value = {}
 
-        # Create returned user with OpenPathID assigned by createUser
-        created_user = facility_user.copy()
-        created_user['OpenPathID'] = 2001
-        setup_mocks['createUser'].return_value = created_user
-
-        setup_mocks['getAllUsers'].return_value = alta_accounts
-
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
+        openPathUpdateAll({"2001": facility_user})
 
         # Verify createUser is called for this user
         setup_mocks['createUser'].assert_called_once()
@@ -161,21 +151,16 @@ class TestOpenPathUpdateAll:
 
     def test_bulk_update_ignores_no_membership_no_openpathid(self, neon_api_mock, mocker, setup_mocks):
         """Test that bulk update ignores users without membership and no OpenPathID"""
-        neon_accounts = {}
-        alta_accounts = {}
-
-        # User without membership and no OpenPathID - should be skipped
-        neon_accounts["3001"] = setup_neon_account(
+        neon_accounts = {"3001": setup_neon_account(
             neon_api_mock,
             account_id=3001,
             first_name="Eve",
             last_name="NoAccess",
             email="eve@example.com"
-        )
+        )}
+        setup_mocks['getAllUsers'].return_value = {}
 
-        setup_mocks['getAllUsers'].return_value = alta_accounts
-
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
+        openPathUpdateAll(neon_accounts)
 
         # Verify no OpenPath operations are called
         setup_mocks['updateGroups'].assert_not_called()
@@ -188,11 +173,7 @@ class TestOpenPathUpdateAll:
         tour = today_plus(-364)
         end = today_plus(365)
 
-        neon_accounts = {}
-        alta_accounts = {}
-
-        # User has OpenPathID and facility access but missing waiver
-        neon_accounts["4001"] = setup_neon_account(
+        neon_accounts = {"4001": setup_neon_account(
             neon_api_mock,
             account_id=4001,
             first_name="Frank",
@@ -201,14 +182,13 @@ class TestOpenPathUpdateAll:
             memberships=[(start, end, 100.0, MEMBERSHIP_ID_REGULAR, False)],
             open_path_id=4001,
             facility_tour_date=tour
-        )
-        alta_accounts[4001] = MockAltaUserBuilder().with_id(4001).with_groups(['facility_access']).build()
+        )}
+        setup_mocks['getAllUsers'].return_value = {
+            4001: MockAltaUserBuilder().with_id(4001).with_groups(['facility_access']).build()
+        }
 
-        setup_mocks['getAllUsers'].return_value = alta_accounts
+        openPathUpdateAll(neon_accounts)
 
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
-
-        # Verify updateGroups is called (they have OpenPathID)
         setup_mocks['updateGroups'].assert_called_once()
 
     def test_bulk_update_handles_multiple_accounts_in_batches(self, neon_api_mock, mocker, setup_mocks):
@@ -250,7 +230,7 @@ class TestOpenPathUpdateAll:
 
         setup_mocks['getAllUsers'].return_value = alta_accounts
 
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
+        openPathUpdateAll(neon_accounts)
 
         # All users have OpenPathID, so updateGroups should be called 20 times
         assert setup_mocks['updateGroups'].call_count == 20
@@ -307,7 +287,7 @@ class TestOpenPathUpdateAll:
 
         setup_mocks['getAllUsers'].return_value = alta_accounts
 
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
+        openPathUpdateAll(neon_accounts)
 
         # All should call updateGroups (all have OpenPathID)
         assert setup_mocks['updateGroups'].call_count == 3
@@ -317,11 +297,7 @@ class TestOpenPathUpdateAll:
         start = today_plus(-365)
         end = today_plus(365)
 
-        neon_accounts = {}
-        alta_accounts = {}
-
-        # User with membership but missing both waiver AND tour - should not get facility access
-        neon_accounts["7001"] = setup_neon_account(
+        neon_accounts = {"7001": setup_neon_account(
             neon_api_mock,
             account_id=7001,
             first_name="Jack",
@@ -329,12 +305,12 @@ class TestOpenPathUpdateAll:
             email="jack@example.com",
             memberships=[(start, end, 100.0, MEMBERSHIP_ID_REGULAR, False)],
             open_path_id=7001
-        )
-        alta_accounts[7001] = MockAltaUserBuilder().with_id(7001).build()
+        )}
+        setup_mocks['getAllUsers'].return_value = {
+            7001: MockAltaUserBuilder().with_id(7001).build()
+        }
 
-        setup_mocks['getAllUsers'].return_value = alta_accounts
-
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
+        openPathUpdateAll(neon_accounts)
 
         # Has OpenPathID so updateGroups is called, but no createUser (missing access requirements)
         setup_mocks['updateGroups'].assert_called_once()
@@ -355,7 +331,7 @@ class TestOpenPathUpdateAll:
             8001: MockAltaUserBuilder().with_id(8001).with_groups(['test_group']).build(),
         }
 
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
+        openPathUpdateAll(neon_accounts)
 
         # Should successfully find user in Alta accounts via int conversion
         setup_mocks['updateGroups'].assert_called_once()
@@ -385,7 +361,7 @@ class TestOpenPathUpdateAll:
             9001: MockAltaUserBuilder().with_id(9001).build()
         }
 
-        openPathUpdateAll.openPathUpdateAll(neon_accounts)
+        openPathUpdateAll(neon_accounts)
 
         # Should still update groups (has OpenPathID), but not create new access
         setup_mocks['updateGroups'].assert_called_once()
