@@ -28,7 +28,16 @@ Example usage:
         # Now call neonUtil.getMemberById(123) and it will use the mocked responses
         result = neonUtil.getMemberById(123)
 """
+from datetime import timedelta
+
 import neonUtil
+
+
+def today_plus(days_offset):
+    """Return a date string relative to today."""
+    return str(neonUtil.today + timedelta(days=days_offset))
+
+
 from tests.neon_api_fixtures import (
     build_account_response,
     build_custom_field,

@@ -3,7 +3,7 @@ import pytest
 import neonUtil
 import openPathUpdateAll
 from mock_alta_users import MockAltaUserBuilder
-from tests.neon_account_builder import setup_neon_account_with_membership
+from tests.neon_account_builder import today_plus, setup_neon_account_with_membership
 
 def _setup_neon_account(neon_api_mock, account_id, open_path_id=None,
                         first_name="Test", last_name="User", email=None,
@@ -98,6 +98,10 @@ class TestOpenPathUpdateAll:
 
     def test_bulk_update_with_mixed_membership_types(self, neon_api_mock, mocker, setup_mocks):
         """Test bulk update with mix of paid regular, paid ceramics, and comped users"""
+        start = today_plus(-365)
+        tour = today_plus(-364)
+        end = today_plus(365)
+
         neon_accounts = {}
         alta_accounts = {}
 
@@ -109,12 +113,12 @@ class TestOpenPathUpdateAll:
             first_name="Alice",
             last_name="Regular",
             email="alice@example.com",
-            membership_start="2024-01-01",
-            membership_end="2025-12-31",
+            membership_start=start,
+            membership_end=end,
             fee=100.0,
             membership_level_id=neonUtil.MEMBERSHIP_ID_REGULAR,
-            waiver_date="2024-01-15",
-            facility_tour_date="2024-01-16"
+            waiver_date=start,
+            facility_tour_date=tour
         )
         neon_accounts["1001"] = paid_regular
         alta_accounts[1001] = MockAltaUserBuilder().with_id(1001).with_groups(['facility_access']).build()
@@ -127,12 +131,12 @@ class TestOpenPathUpdateAll:
             first_name="Bob",
             last_name="Ceramics",
             email="bob@example.com",
-            membership_start="2024-01-01",
-            membership_end="2025-12-31",
+            membership_start=start,
+            membership_end=end,
             fee=150.0,
             membership_level_id=neonUtil.MEMBERSHIP_ID_CERAMICS,
-            waiver_date="2024-01-15",
-            facility_tour_date="2024-01-16"
+            waiver_date=start,
+            facility_tour_date=tour
         )
         neon_accounts["1002"] = paid_ceramics
         alta_accounts[1002] = MockAltaUserBuilder().with_id(1002).with_groups(['ceramics_access']).build()
@@ -145,8 +149,8 @@ class TestOpenPathUpdateAll:
             first_name="Carol",
             last_name="Comped",
             email="carol@example.com",
-            membership_start="2024-01-01",
-            membership_end="2025-12-31",
+            membership_start=start,
+            membership_end=end,
             fee=0.0,
             membership_level_id=neonUtil.MEMBERSHIP_ID_REGULAR
         )
@@ -164,6 +168,10 @@ class TestOpenPathUpdateAll:
 
     def test_bulk_update_creates_user_for_facility_access_without_openpathid(self, neon_api_mock, mocker, setup_mocks):
         """Test that bulk update creates new OpenPath user for member with facility access but no OpenPathID"""
+        start = today_plus(-365)
+        tour = today_plus(-364)
+        end = today_plus(365)
+
         neon_accounts = {}
         alta_accounts = {}
 
@@ -175,12 +183,12 @@ class TestOpenPathUpdateAll:
             first_name="Dave",
             last_name="NewFacility",
             email="dave@example.com",
-            membership_start="2024-01-01",
-            membership_end="2025-12-31",
+            membership_start=start,
+            membership_end=end,
             fee=100.0,
             membership_level_id=neonUtil.MEMBERSHIP_ID_REGULAR,
-            waiver_date="2024-01-15",
-            facility_tour_date="2024-01-16"
+            waiver_date=start,
+            facility_tour_date=tour
         )
         neon_accounts["2001"] = facility_user
 
@@ -229,6 +237,10 @@ class TestOpenPathUpdateAll:
 
     def test_bulk_update_warns_missing_waiver(self, neon_api_mock, mocker, setup_mocks):
         """Test that bulk update warns about users with OpenPathID but missing waiver"""
+        start = today_plus(-365)
+        tour = today_plus(-364)
+        end = today_plus(365)
+
         neon_accounts = {}
         alta_accounts = {}
 
@@ -240,11 +252,11 @@ class TestOpenPathUpdateAll:
             first_name="Frank",
             last_name="NoWaiver",
             email="frank@example.com",
-            membership_start="2024-01-01",
-            membership_end="2025-12-31",
+            membership_start=start,
+            membership_end=end,
             fee=100.0,
             waiver_date=None,  # Missing waiver!
-            facility_tour_date="2024-01-16"
+            facility_tour_date=tour
         )
         neon_accounts["4001"] = missing_waiver
         alta_accounts[4001] = MockAltaUserBuilder().with_id(4001).with_groups(['facility_access']).build()
@@ -258,6 +270,10 @@ class TestOpenPathUpdateAll:
 
     def test_bulk_update_handles_multiple_accounts_in_batches(self, neon_api_mock, mocker, setup_mocks):
         """Test bulk update with large batch of accounts to verify loop handling"""
+        start = today_plus(-365)
+        tour = today_plus(-364)
+        end = today_plus(365)
+
         neon_accounts = {}
         alta_accounts = {}
 
@@ -274,11 +290,11 @@ class TestOpenPathUpdateAll:
                     first_name=f"User{i}",
                     last_name=f"Batch{i}",
                     email=f"user{i}@example.com",
-                    membership_start="2024-01-01",
-                    membership_end="2025-12-31",
+                    membership_start=start,
+                    membership_end=end,
                     fee=100.0,
-                    waiver_date="2024-01-15",
-                    facility_tour_date="2024-01-16"
+                    waiver_date=start,
+                    facility_tour_date=tour
                 )
             else:
                 user = _setup_neon_account(
@@ -302,6 +318,11 @@ class TestOpenPathUpdateAll:
 
     def test_bulk_update_counts_subscription_types_accurately(self, neon_api_mock, mocker, setup_mocks):
         """Test that bulk update correctly counts paid regular vs ceramics subscriptions"""
+        start0 = today_plus(-365 * 2)
+        end0 = today_plus(-366)
+        start1 = today_plus(-365)
+        end1 = today_plus(365)
+
         neon_accounts = {}
         alta_accounts = {}
 
@@ -313,8 +334,8 @@ class TestOpenPathUpdateAll:
             first_name="Grace",
             last_name="RegularOnly",
             email="grace@example.com",
-            membership_start="2024-01-01",
-            membership_end="2025-12-31",
+            membership_start=start1,
+            membership_end=end1,
             fee=100.0,
             membership_level_id=neonUtil.MEMBERSHIP_ID_REGULAR
         )
@@ -329,8 +350,8 @@ class TestOpenPathUpdateAll:
             first_name="Helen",
             last_name="CeramicsOnly",
             email="helen@example.com",
-            membership_start="2024-01-01",
-            membership_end="2025-12-31",
+            membership_start=start1,
+            membership_end=end1,
             fee=150.0,
             membership_level_id=neonUtil.MEMBERSHIP_ID_CERAMICS
         )
@@ -346,8 +367,8 @@ class TestOpenPathUpdateAll:
             last_name="BothPaid",
             email="ivan@example.com",
             memberships=[
-                ("2024-01-01", "2024-12-31", 100.0, neonUtil.MEMBERSHIP_ID_REGULAR, False),
-                ("2025-01-01", "2025-12-31", 150.0, neonUtil.MEMBERSHIP_ID_CERAMICS, False),
+                (start0, end0, 100.0, neonUtil.MEMBERSHIP_ID_REGULAR, False),
+                (start1, end1, 150.0, neonUtil.MEMBERSHIP_ID_CERAMICS, False),
             ],
             open_path_id=6003
         )
@@ -364,6 +385,9 @@ class TestOpenPathUpdateAll:
 
     def test_bulk_update_missing_required_access_fields(self, neon_api_mock, mocker, setup_mocks):
         """Test bulk update with users missing required facility access fields"""
+        start = today_plus(-365)
+        end = today_plus(365)
+
         neon_accounts = {}
         alta_accounts = {}
 
@@ -375,8 +399,8 @@ class TestOpenPathUpdateAll:
             first_name="Jack",
             last_name="Incomplete",
             email="jack@example.com",
-            membership_start="2024-01-01",
-            membership_end="2025-12-31",
+            membership_start=start,
+            membership_end=end,
             fee=100.0,
             waiver_date=None,
             facility_tour_date=None
@@ -420,6 +444,10 @@ class TestOpenPathUpdateAll:
 
     def test_bulk_update_with_access_suspended(self, neon_api_mock, mocker, setup_mocks):
         """Test that suspended accounts don't get facility access even with waiver/tour"""
+        start = today_plus(-365)
+        tour = today_plus(-364)
+        end = today_plus(365)
+
         neon_accounts = {}
         alta_accounts = {}
 
@@ -431,11 +459,11 @@ class TestOpenPathUpdateAll:
             first_name="Liam",
             last_name="Suspended",
             email="liam@example.com",
-            membership_start="2024-01-01",
-            membership_end="2025-12-31",
+            membership_start=start,
+            membership_end=end,
             fee=100.0,
-            waiver_date="2024-01-15",
-            facility_tour_date="2024-01-16",
+            waiver_date=start,
+            facility_tour_date=tour,
             access_suspended=True
         )
         neon_accounts["9001"] = suspended_user
