@@ -15,7 +15,7 @@ def test_creates_user_when_has_facility_access(requests_mock, mocker):
 
     # Setup Neon API to return a member with facility access and existing OpenPathID
     NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour, open_path_id=777)\
-        .add_membership(REGULAR, start, end, fee=100.0, autoRenewal=False)\
+        .add_membership(REGULAR, start, end, fee=100.0)\
         .mock(requests_mock)
 
     # Patch OpenPath interactions - because the account already has an OpenPathID
@@ -54,7 +54,7 @@ def test_updates_existing_user_when_openpathid_present(requests_mock, mocker):
 
     # Setup member with valid membership, waiver, tour, and existing OpenPathID
     NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour, open_path_id=777)\
-        .add_membership(REGULAR, start, end, fee=100.0, autoRenewal=False)\
+        .add_membership(REGULAR, start, end, fee=100.0)\
         .mock(requests_mock)
 
     update_groups = mocker.patch('openPathUpdateSingle.openPathUtil.updateGroups')
