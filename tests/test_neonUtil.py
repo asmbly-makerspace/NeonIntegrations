@@ -1,210 +1,222 @@
 import neonUtil
-from tests.neon_api_fixtures import NeonMembershipBuilder
+from tests.neon_mocker import NeonMock, today_plus
 
 
-class TestNeonUtil:
-    def test_one(self):
-        assert 1 == 1
+NEON_ID = 123
+today = today_plus(0)
 
 
-def test_appendMemberships_active_regular_paid(neon_api_mock):
-    acct = {'Account ID': 123}
-
-    builder = NeonMembershipBuilder(account_id=123)
-    builder.add_regular_membership('2025-01-01', '2025-12-31', fee=50.0)
-
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/123/memberships',
-        json=builder.build()
-    )
-
-    updated = neonUtil.appendMemberships(acct)
-
-    assert updated.get('validMembership') is True
-    assert updated.get('paidRegular') is True
-    assert updated.get('Membership Expiration Date') == '2025-12-31'
-    assert '2025-01-01' in updated.get('membershipDates')
-    assert updated['membershipDates']['2025-01-01'][0] == '2025-12-31'
+REGULAR = neonUtil.MEMBERSHIP_ID_REGULAR
+CERAMICS = neonUtil.MEMBERSHIP_ID_CERAMICS
 
 
-def test_appendMemberships_ceramics_comped(neon_api_mock):
-    acct = {'Account ID': 124}
+def test_appendMemberships_active_regular_paid(requests_mock):
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(REGULAR, '2025-01-01', today, fee=50)\
+        .mock(requests_mock)
 
-    builder = NeonMembershipBuilder(account_id=124)
-    builder.add_ceramics_membership('2025-06-01', '2026-05-31', fee=0.0)
-
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/124/memberships',
-        json=builder.build()
-    )
-
-    updated = neonUtil.appendMemberships(acct)
-
-    assert updated.get('validMembership') is True
-    assert updated.get('ceramicsMembership') is True
-    assert updated.get('compedCeramics') is True
-    assert updated.get('Ceramics Expiration Date') == '2026-05-31'
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'autoRenewal': False,
+        'Ceramics Expiration Date': '1970-01-01',
+        'Ceramics Start Date': today,
+        'Membership Expiration Date': today,
+        'Membership Start Date': '2025-01-01',
+        'membershipDates': {'2025-01-01': [today, 1]},
+        'paidRegular': True,
+        'validMembership': True,
+    }
 
 
-def test_appendMemberships_expired_yesterday_auto_renew(neon_api_mock):
-    acct = {'Account ID': 125}
-    yesterday = neonUtil.yesterday.strftime('%Y-%m-%d')
+def test_appendMemberships_ceramics_comped(requests_mock):
+    start = today_plus(-6 * 30)
+    end = today_plus(6 * 30)
 
-    builder = NeonMembershipBuilder(account_id=125)
-    builder.add_regular_membership(
-        '2024-01-01',
-        yesterday,
-        fee=25.0,
-        autoRenewal=True
-    )
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(CERAMICS, start, end)\
+        .mock(requests_mock)
 
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/125/memberships',
-        json=builder.build()
-    )
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'autoRenewal': False,
+        'Ceramics Expiration Date': end,
+        'Ceramics Start Date': start,
+        'ceramicsMembership': True,
+        'compedCeramics': True,
+        'Membership Expiration Date': end,
+        'Membership Start Date': start,
+        'membershipDates': {start: [end, 7]},
+        'validMembership': True,
+    }
 
-    updated = neonUtil.appendMemberships(acct)
 
+def test_appendMemberships_expired_yesterday_auto_renew(requests_mock):
     # expired yesterday but autoRenewal True and no current membership status -> treated as valid
-    assert updated.get('Membership Expiration Date') == yesterday
-    assert updated.get('validMembership') is True
+    yesterday = today_plus(-1)
+
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(REGULAR, '2024-01-01', yesterday, autoRenewal=True)\
+        .mock(requests_mock)
+
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'autoRenewal': True,
+        'ceramicsMembership': False,
+        'Ceramics Expiration Date': '1970-01-01',
+        'Ceramics Start Date': today,
+        'Membership Expiration Date': yesterday,
+        'Membership Start Date': '2024-01-01',
+        'membershipDates': {'2024-01-01': [yesterday, 1]},
+        'validMembership': True,
+    }
 
 
-def test_appendMemberships_overlapping_and_earliest_start(neon_api_mock):
-    acct = {'Account ID': 126}
+def test_appendMemberships_overlapping_and_earliest_start(requests_mock):
+    start0 = today_plus(-90)
+    end0 = today_plus(-30)
+    start1 = today_plus(-365)
+    end1 = today_plus(365)
 
-    builder = NeonMembershipBuilder(account_id=126)
-    builder.add_regular_membership('2025-03-01', '2025-08-31', fee=20.0)
-    builder.add_regular_membership('2024-07-01', '2026-06-30', fee=20.0)
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(REGULAR, start0, end0, fee=20.0)\
+        .add_membership(REGULAR, start1, end1, fee=20.0)\
+        .mock(requests_mock)
 
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/126/memberships',
-        json=builder.build()
-    )
-
-    updated = neonUtil.appendMemberships(acct)
-
-    # earliest start should be 2024-07-01
-    assert updated.get('Membership Start Date') == '2024-07-01'
-    # latest expiration should be 2026-06-30
-    assert updated.get('Membership Expiration Date') == '2026-06-30'
-
-
-def test_appendMemberships_concurrent_paid_regular_and_ceramics(neon_api_mock):
-    acct = {'Account ID': 127}
-
-    builder = NeonMembershipBuilder(account_id=127)
-    builder.add_regular_membership('2025-01-01', '2025-12-31', fee=50.0)
-    builder.add_ceramics_membership('2025-02-01', '2025-12-31', fee=60.0)
-
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/127/memberships',
-        json=builder.build()
-    )
-
-    updated = neonUtil.appendMemberships(acct)
-
-    assert updated.get('paidRegular') is True
-    assert updated.get('paidCeramics') is True
-    assert updated.get('ceramicsMembership') is True
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'autoRenewal': False,
+        'Ceramics Expiration Date': '1970-01-01',
+        'Ceramics Start Date': today,
+        'Membership Expiration Date': end1,
+        'Membership Start Date': start1,
+        'membershipDates': {
+            start0: [end0, 1],
+            start1: [end1, 1],
+        },
+        'paidRegular': True,
+        'validMembership': True,
+    }
 
 
-def test_appendMemberships_future_start_not_active(neon_api_mock):
-    acct = {'Account ID': 128}
-    import datetime
-    future_start = (neonUtil.today + datetime.timedelta(days=10)).strftime('%Y-%m-%d')
-    future_end = (neonUtil.today + datetime.timedelta(days=40)).strftime('%Y-%m-%d')
+def test_appendMemberships_concurrent_paid_regular_and_ceramics(requests_mock):
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(REGULAR, '2025-01-01', today, fee=50.0)\
+        .add_membership(CERAMICS, '2025-02-01', today, fee=60.0)\
+        .mock(requests_mock)
 
-    builder = NeonMembershipBuilder(account_id=128)
-    builder.add_regular_membership(future_start, future_end, fee=30.0)
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'autoRenewal': False,
+        'ceramicsMembership': True,
+        'Ceramics Expiration Date': today,
+        'Ceramics Start Date': today,
+        'Membership Expiration Date': today,
+        'Membership Start Date': '2025-01-01',
+        'membershipDates': {
+            '2025-01-01': [today, 1],
+            '2025-02-01': [today, 7],
+        },
+        'paidCeramics': True,
+        'paidRegular': True,
+        'validMembership': True,
+    }
 
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/128/memberships',
-        json=builder.build()
-    )
 
-    updated = neonUtil.appendMemberships(acct)
-
+def test_appendMemberships_future_start_not_active(requests_mock):
     # Membership starts in future -> not currently valid
-    assert updated.get('validMembership') is False
+    future_start = today_plus(10)
+    future_end = today_plus(40)
+
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(REGULAR, future_start, future_end, fee=30.0)\
+        .mock(requests_mock)
+
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'autoRenewal': False,
+        'Ceramics Expiration Date': '1970-01-01',
+        'Ceramics Start Date': today,
+        'Membership Expiration Date': future_end,
+        'Membership Start Date': today,
+        'membershipDates': {future_start: [future_end, 1]},
+        'validMembership': False,
+    }
 
 
-def test_appendMemberships_non_succeeded_status_ignored(neon_api_mock):
-    acct = {'Account ID': 129}
+def test_appendMemberships_non_succeeded_status_ignored(requests_mock):
     # membership covers today but status is FAILED -> shouldn't count
-    import datetime
-    start = (neonUtil.today - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-    end = (neonUtil.today + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+    start = today_plus(-1)
+    end = today_plus(1)
 
-    builder = NeonMembershipBuilder(account_id=129)
-    builder.add_membership(start, end, status='FAILED', fee=40.0)
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(REGULAR, start, end, status='FAILED', fee=40.0)\
+        .mock(requests_mock)
 
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/129/memberships',
-        json=builder.build()
-    )
-
-    updated = neonUtil.appendMemberships(acct)
-
-    assert updated.get('validMembership') is False
-    # membershipDates dict should be empty because only SUCCEEDED statuses are recorded
-    assert updated.get('membershipDates') == {}
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'membershipDates': {},
+        'validMembership': False,
+    }
 
 
-def test_appendMemberships_comped_regular(neon_api_mock):
-    acct = {'Account ID': 130}
+def test_appendMemberships_comped_regular(requests_mock):
     # comped regular membership
-    import datetime
-    start = (neonUtil.today - datetime.timedelta(days=10)).strftime('%Y-%m-%d')
-    end = (neonUtil.today + datetime.timedelta(days=20)).strftime('%Y-%m-%d')
+    start = today_plus(-10)
+    end = today_plus(20)
 
-    builder = NeonMembershipBuilder(account_id=130)
-    builder.add_regular_membership(start, end, fee=0.0)
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(REGULAR, start, end, fee=0.0)\
+        .mock(requests_mock)
 
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/130/memberships',
-        json=builder.build()
-    )
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'autoRenewal': False,
+        'Ceramics Expiration Date': '1970-01-01',
+        'Ceramics Start Date': today,
+        'compedRegular': True,
+        'Membership Expiration Date': end,
+        'Membership Start Date': start,
+        'membershipDates': {start: [end, 1]},
+        'validMembership': True,
+    }
 
-    updated = neonUtil.appendMemberships(acct)
 
-    assert updated.get('validMembership') is True
-    assert updated.get('compedRegular') is True
-
-
-def test_appendMemberships_auto_renew_not_yesterday(neon_api_mock):
-    acct = {'Account ID': 131}
+def test_appendMemberships_auto_renew_not_yesterday(requests_mock):
     # expired two days ago with autoRenewal True -> should NOT be treated as valid
-    import datetime
-    two_days_ago = (neonUtil.yesterday - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+    two_days_ago = today_plus(-2)
 
-    builder = NeonMembershipBuilder(account_id=131)
-    builder.add_regular_membership('2024-01-01', two_days_ago, fee=25.0, autoRenewal=True)
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(REGULAR, '2024-01-01', two_days_ago, fee=25.0, autoRenewal=True)\
+        .mock(requests_mock)
 
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/131/memberships',
-        json=builder.build()
-    )
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'autoRenewal': True,
+        'Ceramics Expiration Date': '1970-01-01',
+        'Ceramics Start Date': today,
+        'Membership Expiration Date': two_days_ago,
+        'Membership Start Date': '2024-01-01',
+        'membershipDates': {'2024-01-01': [two_days_ago, 1]},
+        'validMembership': False,
+    }
 
-    updated = neonUtil.appendMemberships(acct)
 
-    assert updated.get('validMembership') is False
+def test_appendMemberships_membershipDates_mapping_multiple(requests_mock):
+    NeonMock(account_id=NEON_ID)\
+        .add_membership(REGULAR, '2025-01-01', '2025-03-31')\
+        .add_membership(CERAMICS, '2025-04-01', '2025-06-30')\
+        .mock(requests_mock)
 
-
-def test_appendMemberships_membershipDates_mapping_multiple(neon_api_mock):
-    acct = {'Account ID': 132}
-
-    builder = NeonMembershipBuilder(account_id=132)
-    builder.add_regular_membership('2025-01-01', '2025-03-31', fee=10.0)
-    builder.add_ceramics_membership('2025-04-01', '2025-06-30', fee=10.0)
-
-    neon_api_mock.get(
-        'https://api.neoncrm.com/v2/accounts/132/memberships',
-        json=builder.build()
-    )
-
-    updated = neonUtil.appendMemberships(acct)
-
-    assert '2025-01-01' in updated.get('membershipDates')
-    assert '2025-04-01' in updated.get('membershipDates')
-    assert updated['membershipDates']['2025-04-01'][1] == neonUtil.MEMBERSHIP_ID_CERAMICS
+    assert neonUtil.appendMemberships({'Account ID': NEON_ID}) == {
+        'Account ID': NEON_ID,
+        'autoRenewal': False,
+        'Ceramics Expiration Date': '2025-06-30',
+        'Ceramics Start Date': today,
+        'Membership Expiration Date': '2025-06-30',
+        'Membership Start Date': '2025-01-01',
+        'membershipDates': {
+            '2025-01-01': ['2025-03-31', 1],
+            '2025-04-01': ['2025-06-30', 7],
+        },
+        'validMembership': False,
+    }

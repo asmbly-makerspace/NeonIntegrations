@@ -7,15 +7,18 @@ to test code that calls the NeonCRM API without duplicating business logic.
 
 API Reference: https://developer.neoncrm.com/api-v2/
 """
+
+
 import random
 import string
 from typing import List, Dict, Any, Optional
+import neonUtil
+from datetime import timedelta
 
 
-def random_alphanumeric(length: int) -> str:
-    """Generate a random alphanumeric string."""
-    characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for _ in range(length))
+def today_plus(days_offset):
+    """Return a date string relative to today."""
+    return str(neonUtil.today + timedelta(days=days_offset))
 
 
 def build_membership_response(
@@ -46,7 +49,7 @@ def build_membership_response(
     Returns:
         Dict matching NeonCRM membership API response format
     """
-    membership = {
+    return {
         'membershipId': membershipId or random.randint(10000, 99999),
         'termStartDate': termStartDate,
         'termEndDate': termEndDate,
@@ -60,7 +63,6 @@ def build_membership_response(
             )
         }
     }
-    return membership
 
 
 def build_memberships_api_response(memberships: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -80,7 +82,7 @@ def build_memberships_api_response(memberships: List[Dict[str, Any]]) -> Dict[st
     }
 
 
-def build_account_response(
+def build_account_api_response(
     accountId: int,
     firstName: str = "John",
     lastName: str = "Doe",
@@ -105,7 +107,7 @@ def build_account_response(
         Dict matching NeonCRM account GET response format
     """
     account = {
-        'accountId': str(accountId),
+        'accountId': accountId,
         'primaryContact': {
             'contactId': random.randint(10000, 99999),
             'firstName': firstName,
@@ -187,39 +189,76 @@ def build_search_result(
 
     return result
 
+# Map common custom field names to their IDs (from neonUtil.py)
+field_id_map = {
+    'OpenPathID': 178,
+    'DiscourseID': 85,
+    'WaiverDate': 179,
+    'FacilityTourDate': 77,
+    'OrientationDate': 77,
+    'AccessSuspended': 180,
+    'KeyCardID': 88,
+    'CsiDate': 1248,
+    'Shaper Origin': 274,
+    'Woodshop Specialty Tools': 440,
+}
 
-class NeonMembershipBuilder:
+class NeonMock:
     """
     Fluent builder for constructing NeonCRM membership API responses.
 
     Example usage:
-        builder = NeonMembershipBuilder(account_id=123)
-        builder.add_regular_membership('2025-01-01', '2025-12-31', fee=100.0)
-        builder.add_ceramics_membership('2025-01-01', '2025-12-31', fee=150.0)
-
-        # Use with requests_mock
-        mock_adapter = requests_mock.Adapter()
-        mock_adapter.register_uri(
-            'GET',
-            f'https://api.neoncrm.com/v2/accounts/123/memberships',
-            json=builder.build()
-        )
+        account = NeonMock(account_id=123)\
+            .add_regular_membership('2025-01-01', '2025-12-31', fee=100.0)\
+            .add_ceramics_membership('2025-01-01', '2025-12-31', fee=150.0)\
+            .mock(requests_mock) # mocks Neon GET endpoints
     """
 
-    def __init__(self, account_id: int):
+    def __init__(
+        self, 
+        account_id: int,
+        firstName: str = "John",
+        lastName: str = "Doe",
+        email: str = None,
+        individualTypes: Optional[List[str]] = None,
+        custom_fields: dict = None,
+        open_path_id: int = None,
+        waiver_date: str = None,
+        facility_tour_date: str = None,
+        access_suspended: bool = False
+    ):
         self.account_id = account_id
+        self.firstName = firstName
+        self.lastName = lastName
+        self.email = email or f'{firstName}.{lastName}@example.com'
+        self.individualTypes = individualTypes
         self.memberships: List[Dict[str, Any]] = []
+
+        # Allow passing common fields as direct arguments
+        fields_dict = custom_fields or {}
+        if open_path_id is not None:
+            fields_dict['OpenPathID'] = open_path_id
+        if waiver_date is not None:
+            fields_dict['WaiverDate'] = waiver_date
+        if facility_tour_date is not None:
+            fields_dict['FacilityTourDate'] = facility_tour_date
+        if access_suspended:
+            fields_dict['AccessSuspended'] = 'Yes'
+
+        self.accountCustomFields = [
+            dict(id=field_id_map[name], name=name, value=value)
+            for name, value in fields_dict.items()
+        ]
 
     def add_membership(
         self,
+        membershipLevelId: int,
         termStartDate: str,
         termEndDate: str,
         status: str = "SUCCEEDED",
         fee: float = 0.0,
-        membershipLevelId: int = 1,
         autoRenewal: bool = False
-    ) -> 'NeonMembershipBuilder':
-        """Add a membership entry (chainable)."""
+    ) -> 'NeonMock':
         self.memberships.append(build_membership_response(
             termStartDate=termStartDate,
             termEndDate=termEndDate,
@@ -230,43 +269,23 @@ class NeonMembershipBuilder:
         ))
         return self
 
-    def add_regular_membership(
-        self,
-        termStartDate: str,
-        termEndDate: str,
-        fee: float = 100.0,
-        status: str = "SUCCEEDED",
-        autoRenewal: bool = False
-    ) -> 'NeonMembershipBuilder':
-        """Add a regular membership (level ID 1)."""
-        return self.add_membership(
-            termStartDate=termStartDate,
-            termEndDate=termEndDate,
-            status=status,
-            fee=fee,
-            membershipLevelId=1,
-            autoRenewal=autoRenewal
+    def mock(self, requests_mock):
+        requests_mock.get(
+            f'https://api.neoncrm.com/v2/accounts/{self.account_id}',
+            json=build_account_api_response(
+                accountId=self.account_id,
+                firstName=self.firstName,
+                lastName=self.lastName,
+                email=self.email,
+                individualTypes=self.individualTypes,
+                accountCustomFields=self.accountCustomFields,
+            )
         )
 
-    def add_ceramics_membership(
-        self,
-        termStartDate: str,
-        termEndDate: str,
-        fee: float = 150.0,
-        status: str = "SUCCEEDED",
-        autoRenewal: bool = False
-    ) -> 'NeonMembershipBuilder':
-        """Add a ceramics membership (level ID 7)."""
-        return self.add_membership(
-            termStartDate=termStartDate,
-            termEndDate=termEndDate,
-            status=status,
-            fee=fee,
-            membershipLevelId=7,
-            autoRenewal=autoRenewal
+        requests_mock.get(
+            f'https://api.neoncrm.com/v2/accounts/{self.account_id}/memberships',
+            json=build_memberships_api_response(self.memberships),
         )
 
-    def build(self) -> Dict[str, Any]:
-        """Build the complete API response."""
-        return build_memberships_api_response(self.memberships)
+        return neonUtil.getMemberById(self.account_id)
 
