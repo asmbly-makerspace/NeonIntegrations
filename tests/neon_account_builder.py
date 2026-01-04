@@ -6,10 +6,10 @@ requests-mock to simulate the full NeonCRM API workflow (GET account + GET membe
 
 Example usage:
     def test_something(neon_api_mock):
-        from tests.neon_account_builder import setup_neon_account_with_membership
+        from tests.neon_account_builder import setup_neon_account
 
         # Setup a complete account with membership API responses
-        account = setup_neon_account_with_membership(
+        account = setup_neon_account(
             neon_api_mock,
             account_id=123,
             first_name="John",
@@ -45,7 +45,7 @@ from tests.neon_api_fixtures import (
 )
 
 
-def setup_neon_account_with_membership(
+def setup_neon_account(
     requests_mock,
     account_id: int,
     first_name: str = "John",
@@ -151,14 +151,4 @@ def setup_neon_account_with_membership(
 
     # Return what the account would look like after calling getMemberById
     # (for convenience in tests that need to check the account structure)
-    return {
-        'Account ID': str(account_id),
-        'First Name': first_name,
-        'Last Name': last_name,
-        'Email 1': email,
-        'fullName': f"{first_name} {last_name}",
-        'OpenPathID': open_path_id,
-        'WaiverDate': waiver_date,
-        'FacilityTourDate': facility_tour_date,
-        'individualTypes': [{'name': t} for t in (individual_types or [])]
-    }
+    return neonUtil.getMemberById(account_id)

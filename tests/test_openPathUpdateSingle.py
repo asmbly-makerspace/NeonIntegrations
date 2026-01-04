@@ -1,5 +1,5 @@
 import openPathUpdateSingle
-from tests.neon_account_builder import today_plus, setup_neon_account_with_membership
+from tests.neon_account_builder import today_plus, setup_neon_account
 import neonUtil
 
 
@@ -13,7 +13,7 @@ def test_creates_user_when_has_facility_access(neon_api_mock, mocker):
     end = today_plus(365)
 
     # Setup Neon API to return a member with facility access and existing OpenPathID
-    setup_neon_account_with_membership(
+    setup_neon_account(
         neon_api_mock,
         NEON_ID,
         memberships=[(start, end, 100.0, neonUtil.MEMBERSHIP_ID_REGULAR, False)],
@@ -36,7 +36,7 @@ def test_creates_user_when_has_facility_access(neon_api_mock, mocker):
 
 def test_does_not_create_user_for_expired_or_no_access(neon_api_mock, mocker):
     # Setup account with no valid membership
-    setup_neon_account_with_membership(
+    setup_neon_account(
         neon_api_mock,
         account_id=NEON_ID,
         first_name="Expired",
@@ -62,7 +62,7 @@ def test_updates_existing_user_when_openpathid_present(neon_api_mock, mocker):
     end = today_plus(365)
 
     # Setup member with valid membership, waiver, tour, and existing OpenPathID
-    setup_neon_account_with_membership(
+    setup_neon_account(
         neon_api_mock,
         NEON_ID,
         memberships=[(start, end, 100.0, neonUtil.MEMBERSHIP_ID_REGULAR, False)],
