@@ -11,6 +11,12 @@ import random
 import string
 from typing import List, Dict, Any, Optional
 import neonUtil
+from datetime import timedelta
+
+
+def today_plus(days_offset):
+    """Return a date string relative to today."""
+    return str(neonUtil.today + timedelta(days=days_offset))
 
 
 def random_alphanumeric(length: int) -> str:

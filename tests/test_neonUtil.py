@@ -1,6 +1,5 @@
 import neonUtil
-from tests.neon_account_builder import today_plus
-from tests.neon_api_fixtures import NeonMock
+from tests.neon_api_fixtures import NeonMock, today_plus
 
 
 NEON_ID = 123

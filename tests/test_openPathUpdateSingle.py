@@ -1,9 +1,10 @@
 import openPathUpdateSingle
-from tests.neon_account_builder import today_plus, setup_neon_account
+from tests.neon_api_fixtures import NeonMock, today_plus
 import neonUtil
 
 
 NEON_ID = 123
+REGULAR = neonUtil.MEMBERSHIP_ID_REGULAR
 
 
 def test_creates_user_when_has_facility_access(neon_api_mock, mocker):
@@ -13,14 +14,9 @@ def test_creates_user_when_has_facility_access(neon_api_mock, mocker):
     end = today_plus(365)
 
     # Setup Neon API to return a member with facility access and existing OpenPathID
-    setup_neon_account(
-        neon_api_mock,
-        NEON_ID,
-        memberships=[(start, end, 100.0, neonUtil.MEMBERSHIP_ID_REGULAR, False)],
-        waiver_date=start,
-        facility_tour_date=tour,
-        open_path_id=777,
-    )
+    NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour, open_path_id=777)\
+        .add_membership(REGULAR, start, end, fee=100.0, autoRenewal=False)\
+        .mock(neon_api_mock)
 
     # Patch OpenPath interactions - because the account already has an OpenPathID
     update_groups = mocker.patch('openPathUpdateSingle.openPathUtil.updateGroups')
@@ -36,13 +32,8 @@ def test_creates_user_when_has_facility_access(neon_api_mock, mocker):
 
 def test_does_not_create_user_for_expired_or_no_access(neon_api_mock, mocker):
     # Setup account with no valid membership
-    setup_neon_account(
-        neon_api_mock,
-        account_id=NEON_ID,
-        first_name="Expired",
-        last_name="User",
-        memberships=[]  # No memberships
-    )
+    NeonMock(NEON_ID, firstName="Expired", lastName="User")\
+        .mock(neon_api_mock)
 
     create_user = mocker.patch('openPathUpdateSingle.openPathUtil.createUser')
     update_groups = mocker.patch('openPathUpdateSingle.openPathUtil.updateGroups')
@@ -62,14 +53,9 @@ def test_updates_existing_user_when_openpathid_present(neon_api_mock, mocker):
     end = today_plus(365)
 
     # Setup member with valid membership, waiver, tour, and existing OpenPathID
-    setup_neon_account(
-        neon_api_mock,
-        NEON_ID,
-        memberships=[(start, end, 100.0, neonUtil.MEMBERSHIP_ID_REGULAR, False)],
-        waiver_date=start,
-        facility_tour_date=tour,
-        open_path_id=777,
-    )
+    NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour, open_path_id=777)\
+        .add_membership(REGULAR, start, end, fee=100.0, autoRenewal=False)\
+        .mock(neon_api_mock)
 
     update_groups = mocker.patch('openPathUpdateSingle.openPathUtil.updateGroups')
 
