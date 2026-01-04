@@ -1,5 +1,6 @@
 import openPathUpdateSingle
-from tests.neon_account_builder import today_plus, build_member_with_facility_access, setup_neon_account_with_membership
+from tests.neon_account_builder import today_plus, setup_neon_account_with_membership
+import neonUtil
 
 
 NEON_ID = 123
@@ -12,15 +13,13 @@ def test_creates_user_when_has_facility_access(neon_api_mock, mocker):
     end = today_plus(365)
 
     # Setup Neon API to return a member with facility access and existing OpenPathID
-    build_member_with_facility_access(
+    setup_neon_account_with_membership(
         neon_api_mock,
-        account_id=NEON_ID,
-        membership_start=start,
-        membership_end=end,
-        fee=100.0,
+        NEON_ID,
+        memberships=[(start, end, 100.0, neonUtil.MEMBERSHIP_ID_REGULAR, False)],
         waiver_date=start,
         facility_tour_date=tour,
-        open_path_id=777
+        open_path_id=777,
     )
 
     # Patch OpenPath interactions - because the account already has an OpenPathID
@@ -63,15 +62,13 @@ def test_updates_existing_user_when_openpathid_present(neon_api_mock, mocker):
     end = today_plus(365)
 
     # Setup member with valid membership, waiver, tour, and existing OpenPathID
-    build_member_with_facility_access(
+    setup_neon_account_with_membership(
         neon_api_mock,
-        account_id=NEON_ID,
-        membership_start=start,
-        membership_end=end,
-        fee=100.0,
+        NEON_ID,
+        memberships=[(start, end, 100.0, neonUtil.MEMBERSHIP_ID_REGULAR, False)],
         waiver_date=start,
         facility_tour_date=tour,
-        open_path_id=777
+        open_path_id=777,
     )
 
     update_groups = mocker.patch('openPathUpdateSingle.openPathUtil.updateGroups')
