@@ -211,7 +211,7 @@ class NeonMock:
         account = NeonMock(account_id=123)\
             .add_regular_membership('2025-01-01', '2025-12-31', fee=100.0)\
             .add_ceramics_membership('2025-01-01', '2025-12-31', fee=150.0)\
-            .mock(requests_mock) # mocks GET endpoints
+            .mock(requests_mock) # mocks Neon GET endpoints
     """
 
     def __init__(
