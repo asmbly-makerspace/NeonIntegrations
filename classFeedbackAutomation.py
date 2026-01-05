@@ -98,18 +98,8 @@ SERVICE_ACCOUNT_FILE = "classFeedbackServiceAccountKey.json"
 # User email that the service account will impersonate
 USER_EMAIL = "admin@asmbly.org"
 
-# Build OAuth credentials
-credentials = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-
-creds = credentials.with_subject(USER_EMAIL)
-
-# Create the API services using built credential tokens
-driveService = build("drive", "v3", credentials=creds)
-formsService = build("forms", "v1", credentials=creds)
-
-
 # Check if instructor-class combo already has an active survey in the feedback folder. If not, create new survey
-def getSurveyLink(eventName):
+def getSurveyLink(eventName, driveService, formsService):
 
     # FileId of the folder where surveys will go. Find using driveService.files().get() on a test file in that folder
     # and copying the parents field
@@ -160,71 +150,81 @@ def getSurveyLink(eventName):
     return formResponseUrl
 
 
-# Import json file with survey links for each teacher-class combo
-# When surveys need to be reset (e.g. quarterly), delete this file and move all current surveys to an archive folder
-surveyLinkFile = "surveyLinks.json"
-try:
-    with open(surveyLinkFile, encoding="utf-8") as f:
-        surveyLinks = json.load(f)
-except (
-    FileNotFoundError
-):  # if survey link file has been deleted to reset links, start over with fresh dict.
-    # Dict will contain nested dict for each teacher.
-    surveyLinks = {}
+def main():
+    # Build OAuth credentials
+    credentials = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 
-dryRun = False
+    creds = credentials.with_subject(USER_EMAIL)
 
-TODAY = datetime.date.today()
-YESTERDAY = (TODAY - datetime.timedelta(days=1)).isoformat()
-# Search Neon for all active events that ended yesterday
-searchFields = [
-    {"field": "Event End Date", "operator": "EQUAL", "value": YESTERDAY},
-    {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
-]
+    # Create the API services using built credential tokens
+    driveService = build("drive", "v3", credentials=creds)
+    formsService = build("forms", "v1", credentials=creds)
 
-outputFields = ["Event Name", "Event Topic", "Event ID"]
+    # Import json file with survey links for each teacher-class combo
+    # When surveys need to be reset (e.g. quarterly), delete this file and move all current surveys to an archive folder
+    surveyLinkFile = "surveyLinks.json"
+    try:
+        with open(surveyLinkFile, encoding="utf-8") as f:
+            surveyLinks = json.load(f)
+    except (
+        FileNotFoundError
+    ):  # if survey link file has been deleted to reset links, start over with fresh dict.
+        # Dict will contain nested dict for each teacher.
+        surveyLinks = {}
+
+    dryRun = False
+
+    TODAY = datetime.date.today()
+    YESTERDAY = (TODAY - datetime.timedelta(days=1)).isoformat()
+    # Search Neon for all active events that ended yesterday
+    searchFields = [
+        {"field": "Event End Date", "operator": "EQUAL", "value": YESTERDAY},
+        {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
+    ]
+
+    outputFields = ["Event Name", "Event Topic", "Event ID"]
 
 
-responseEvents = neon.postEventSearch(searchFields, outputFields)["searchResults"]
+    responseEvents = neon.postEventSearch(searchFields, outputFields)["searchResults"]
 
-logging.info("\nBeginning survey emails for %s\n", YESTERDAY)
-for event in responseEvents:
-    eventName = event["Event Name"]
-    instructor = event["Event Topic"]
-    logging.info("%s:", eventName)
+    logging.info("\nBeginning survey emails for %s\n", YESTERDAY)
+    for event in responseEvents:
+        eventName = event["Event Name"]
+        instructor = event["Event Topic"]
+        logging.info("%s:", eventName)
 
-    # Try to find teacher-class combo survey link in the imported survey links file/surveyLinks dict. If not present,
-    # create using Drive API and update the dict with the survey response URL
-    instructorDict = surveyLinks.get(instructor)
-    if instructorDict:
-        surveyLink = instructorDict.get(eventName)
-        if not surveyLink:
-            surveyLink = getSurveyLink(eventName)
-            instructorDict.update({eventName: surveyLink})
-    elif not instructorDict:
-        surveyLink = getSurveyLink(eventName)
-        surveyLinks[instructor] = {eventName: surveyLink}
+        # Try to find teacher-class combo survey link in the imported survey links file/surveyLinks dict. If not present,
+        # create using Drive API and update the dict with the survey response URL
+        instructorDict = surveyLinks.get(instructor)
+        if instructorDict:
+            surveyLink = instructorDict.get(eventName)
+            if not surveyLink:
+                surveyLink = getSurveyLink(eventName, driveService, formsService)
+                instructorDict.update({eventName: surveyLink})
+        elif not instructorDict:
+            surveyLink = getSurveyLink(eventName, driveService, formsService)
+            surveyLinks[instructor] = {eventName: surveyLink}
 
-    # Get all registrants for the event with a Succeeded registration and populate dict with name and email
-    registrants = neon.getEventRegistrants(event["Event ID"])["eventRegistrations"]
-    eventDict = {}
-    if type(registrants) is not type(None):
-        for registrant in registrants:
-            if (
-                registrant["tickets"][0]["attendees"][0]["registrationStatus"]
-                == "SUCCEEDED"
-            ):
-                firstName = registrant["tickets"][0]["attendees"][0]["firstName"]
-                lastName = registrant["tickets"][0]["attendees"][0]["lastName"]
-                neonId = registrant["registrantAccountId"]
-                fullName = firstName + " " + lastName
-                email = neon.getAccountIndividual(neonId)["individualAccount"][
-                    "primaryContact"
-                ]["email1"]
-                eventDict[neonId] = [firstName, email]
+        # Get all registrants for the event with a Succeeded registration and populate dict with name and email
+        registrants = neon.getEventRegistrants(event["Event ID"])["eventRegistrations"]
+        eventDict = {}
+        if type(registrants) is not type(None):
+            for registrant in registrants:
+                if (
+                    registrant["tickets"][0]["attendees"][0]["registrationStatus"]
+                    == "SUCCEEDED"
+                ):
+                    firstName = registrant["tickets"][0]["attendees"][0]["firstName"]
+                    lastName = registrant["tickets"][0]["attendees"][0]["lastName"]
+                    neonId = registrant["registrantAccountId"]
+                    fullName = firstName + " " + lastName
+                    email = neon.getAccountIndividual(neonId)["individualAccount"][
+                        "primaryContact"
+                    ]["email1"]
+                    eventDict[neonId] = [firstName, email]
 
-    for k, v in eventDict.items():
-        emailMsg = f"""
+        for k, v in eventDict.items():
+            emailMsg = f"""
             <html>
                 <body>
                     <p>Hi {v[0]},</p>
@@ -239,20 +239,24 @@ for event in responseEvents:
             </html>
             """
 
-        mimeMessage = MIMEMultipart()
+            mimeMessage = MIMEMultipart()
 
-        mimeMessage["Subject"] = f"Your Feedback On {eventName} is Requested"
-        mimeMessage.attach(MIMEText(emailMsg, "html"))
-        raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
+            mimeMessage["Subject"] = f"Your Feedback On {eventName} is Requested"
+            mimeMessage.attach(MIMEText(emailMsg, "html"))
+            raw_string = base64.urlsafe_b64encode(mimeMessage.as_bytes()).decode()
 
-        if not dryRun:
-            mimeMessage["To"] = f"{v[1]}"
-        else:
-            mimeMessage["to"] = "matthew.miller@asmbly.org"
+            if not dryRun:
+                mimeMessage["To"] = f"{v[1]}"
+            else:
+                mimeMessage["to"] = "matthew.miller@asmbly.org"
 
-        sendMIMEmessage(mimeMessage)
+            sendMIMEmessage(mimeMessage)
 
 
-# Write surveyLinks dict back to surveyLinks.json to persist any created survey response URLs
-with open(surveyLinkFile, "w", encoding="utf-8") as f:
-    json.dump(surveyLinks, f)
+    # Write surveyLinks dict back to surveyLinks.json to persist any created survey response URLs
+    with open(surveyLinkFile, "w", encoding="utf-8") as f:
+        json.dump(surveyLinks, f)
+
+
+if __name__ == '__main__':
+    main()

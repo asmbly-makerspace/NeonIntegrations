@@ -73,9 +73,6 @@ OUTPUT_FIELDS = [
 ]
 
 
-RESPONSE_EVENTS = neon.postEventSearch(SEARCH_FIELDS, OUTPUT_FIELDS)["searchResults"]
-
-
 def latest_date(date_list: list[str]) -> list:
     """
     Take list of date strings, convert each to datetime, find latest and convert result
@@ -98,7 +95,7 @@ def latest_date(date_list: list[str]) -> list:
     return [_latest_date, delta_days]
 
 
-def latest_classes(classes_info: dict) -> dict:
+def latest_classes(classes_info: dict, response_events: list) -> dict:
     """
     Find the latest scheduled class and number of scheduled classes
     for each class in classes.json
@@ -107,7 +104,7 @@ def latest_classes(classes_info: dict) -> dict:
     sorted_class_dict = {}
     for item in classes_info:
         ind_class_list = [
-            event for event in RESPONSE_EVENTS if item in event["Event Name"]
+            event for event in response_events if item in event["Event Name"]
         ]
         dict_of_ind_class_list = {item: ind_class_list}
         sorted_class_dict.update(dict_of_ind_class_list)
@@ -171,10 +168,6 @@ def latest_classes(classes_info: dict) -> dict:
     return latest_dates
 
 
-CORE_CLASSES = latest_classes(CORE_CLASSES)
-OTHER_CLASSES = latest_classes(OTHER_CLASSES)
-
-
 def html_gen(class_dict: dict) -> str:
     """Generate HTML table for class dictionary"""
     html_string = ""
@@ -206,15 +199,21 @@ def html_gen(class_dict: dict) -> str:
     return [html_string, warning]
 
 
-CORE_CLASS_HTML = html_gen(CORE_CLASSES)
-OTHER_CLASS_HTML = html_gen(OTHER_CLASSES)
+def main():
+    response_events = neon.postEventSearch(SEARCH_FIELDS, OUTPUT_FIELDS)["searchResults"]
 
-##### GMAIL #####
-# # Reformat date for email subject
-FORMATTED_TODAY = TODAY.strftime("%B %d")
+    core_classes = latest_classes(CORE_CLASSES, response_events)
+    other_classes = latest_classes(OTHER_CLASSES, response_events)
 
-# Compose email
-EMAIL_MSG = f"""
+    core_class_html = html_gen(core_classes)
+    other_class_html = html_gen(other_classes)
+
+    ##### GMAIL #####
+    # # Reformat date for email subject
+    formatted_today = TODAY.strftime("%B %d")
+
+    # Compose email
+    email_msg = f"""
 <html>
     <body>
         <p>
@@ -224,7 +223,7 @@ EMAIL_MSG = f"""
             <tr>
                 <td style="text-align:center">
                     <h3>Core Classes</h3>
-                    {CORE_CLASS_HTML[1]}
+                    {core_class_html[1]}
                 </td>
             </tr>
             <tr style="width: 100%">
@@ -238,14 +237,14 @@ EMAIL_MSG = f"""
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Seats Available</th>
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Nearest Open Seat</th>
                         </tr>
-                        {CORE_CLASS_HTML[0]}
+                        {core_class_html[0]}
                     </table
                 </td>
             </tr>
             <tr>
                 <td style="text-align:center">
                     <h3>Other Classes</h3>
-                    {OTHER_CLASS_HTML[1]}
+                    {other_class_html[1]}
                 </td>
             </tr>
             <tr style="width: 100%">
@@ -259,7 +258,7 @@ EMAIL_MSG = f"""
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Seats Available</th>
                             <th style="text-align:center; padding: 5px 15px 5px 15px">Nearest Open Seat</th>
                         </tr>
-                        {OTHER_CLASS_HTML[0]}
+                        {other_class_html[0]}
                     </table
                 </td>
             </tr>
@@ -271,11 +270,14 @@ EMAIL_MSG = f"""
     </body>
 </html>
     """
-# print(EMAIL_MSG)
 
-MIME_MESSAGE = MIMEMultipart()
-MIME_MESSAGE["to"] = "classes@asmbly.org"
-MIME_MESSAGE["subject"] = f"Currently Scheduled Classes - {FORMATTED_TODAY}"
-MIME_MESSAGE.attach(MIMEText(EMAIL_MSG, "html"))
+    mime_message = MIMEMultipart()
+    mime_message["to"] = "classes@asmbly.org"
+    mime_message["subject"] = f"Currently Scheduled Classes - {formatted_today}"
+    mime_message.attach(MIMEText(email_msg, "html"))
 
-sendMIMEmessage(MIME_MESSAGE)
+    sendMIMEmessage(mime_message)
+
+
+if __name__ == '__main__':
+    main()
