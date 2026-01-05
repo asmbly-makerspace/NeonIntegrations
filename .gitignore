@@ -27,3 +27,6 @@ JupyterNotebooks/**
 
 # Ignore VScode files
 .vscode
+
+# coverage files
+.coverage
