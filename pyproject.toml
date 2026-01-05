@@ -24,3 +24,9 @@ filterwarnings = [
     # This is an upstream issue: https://github.com/httplib2/httplib2
     "ignore::DeprecationWarning:httplib2.auth",
 ]
+
+[tool.coverage.run]
+omit = ["archived/*", "examples/*", "tests/*"]
+
+[tool.coverage.report]
+omit = ["archived/*", "examples/*", "tests/*"]
