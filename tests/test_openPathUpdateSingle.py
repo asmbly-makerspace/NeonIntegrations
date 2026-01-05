@@ -77,7 +77,7 @@ def test_updates_existing_user_with_missing_groups(requests_mock, mocker):
     assert update_groups.last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
 
 
-def test_create_new_user(requests_mock, mocker):
+def test_creates_user(requests_mock, mocker):
     rm = requests_mock
 
     # Setup valid account with membership, waiver, and tour, but no existing OpenPathID
