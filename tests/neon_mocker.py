@@ -239,6 +239,7 @@ class NeonMock:
         access_suspended: bool = False
     ):
         self.account_id = account_id
+        self.open_path_id = open_path_id
         self.firstName = firstName
         self.lastName = lastName
         self.email = email or f'{firstName}.{lastName}@example.com'

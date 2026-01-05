@@ -1,9 +1,8 @@
-import pytest
 from datetime import datetime, timezone
 
 from openPathUpdateAll import openPathUpdateAll
 from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL
-from openPathUtil import GROUP_SUBSCRIBERS, O_baseURL
+from openPathUtil import GROUP_SUBSCRIBERS, GROUP_CERAMICS, O_baseURL
 
 from tests.neon_mocker import NeonMock, today_plus, assert_history
 
@@ -11,172 +10,147 @@ from tests.neon_mocker import NeonMock, today_plus, assert_history
 NEON_ID = 123
 ALTA_ID = 456
 CRED_ID = 789
-
-
 REGULAR = MEMBERSHIP_ID_REGULAR
 CERAMICS = MEMBERSHIP_ID_CERAMICS
 
 
-def build_alta_user(alta_id, groups=None):
-    return {
-        'OpenPathID': alta_id,
-        'name': "John Doe",
-        'email': "john@example.com",
-        'groups': groups,
-    }
+start = today_plus(-365)
+tour = today_plus(-364)
+end = today_plus(365)
+now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
-class TestOpenPathUpdateAll:
-
-    @pytest.fixture
-    def setup_mocks(self, mocker):
-        return {
-            'getAllUsers': mocker.patch('openPathUtil.getAllUsers'),
-            'updateGroups': mocker.patch('openPathUtil.updateGroups'),
-            'createUser': mocker.patch('openPathUtil.createUser'),
-            'createMobileCredential': mocker.patch('openPathUtil.createMobileCredential'),
-        }
+def mock_get_all_users(rm, users):
+    """Helper to mock getAllUsers endpoint with paginated response"""
+    return rm.get(
+        f'{O_baseURL}/users',
+        json={"data": users, "totalCount": len(users)},
+    )
 
 
-    def test_mixed_membership_types(self, requests_mock, mocker, setup_mocks):
-        """Test bulk update with mix of paid regular, paid ceramics, and comped users"""
-        start = today_plus(-365)
-        tour = today_plus(-364)
-        end = today_plus(365)
+def mock_empty_groups(rm, accounts):
+    # Return empty groups for all existing users
+    return mock_get_all_users(rm, [
+        {"id": act["OpenPathID"], "groups": []}
+        for act in accounts.values()
+        if "OpenPathID" in act
+    ])
 
-        accounts = [
-            # User 1: Paid regular membership with facility access
-            (
-                NeonMock(1001, "Alice", open_path_id=2001, waiver_date=start, facility_tour_date=tour)\
-                    .add_membership(REGULAR, start, end)\
-                    .mock(requests_mock),
-                build_alta_user(2001, ['facility_access']),
-            ),
 
-            # User 2: Paid ceramics membership with facility access
-            (
-                NeonMock(1002, "Bob", open_path_id=2002, waiver_date=start, facility_tour_date=tour)\
-                    .add_membership(CERAMICS, start, end)\
-                    .mock(requests_mock),
-                build_alta_user(2002, ['ceramics_access']),
-            ),
+def test_updates_existing_users_with_missing_groups(requests_mock):
+    rm = requests_mock
 
-            # User 3: Comped regular membership (no waiver/tour - no facility access)
-            (
-                NeonMock(1003, "Carol", open_path_id=3003)\
-                    .add_membership(REGULAR, start, end)\
-                    .mock(requests_mock),
-                build_alta_user(3003, []),
-            ),
-        ]
+    accounts = [
+        NeonMock(1001, open_path_id=2001, waiver_date=start, facility_tour_date=tour)\
+            .add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(1002, open_path_id=2002, waiver_date=start, facility_tour_date=tour,
+                custom_fields={'CsiDate': start})\
+            .add_membership(CERAMICS, start, end, fee=100.0),
+        NeonMock(1003, open_path_id=2003, waiver_date=start, facility_tour_date=tour,
+                custom_fields={'CsiDate': start})\
+            .add_membership(CERAMICS, start, end, fee=100.0),
+        NeonMock(1004, open_path_id=2004, waiver_date=start, facility_tour_date=tour)\
+            .add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(1005, open_path_id=2005, waiver_date=start, facility_tour_date=tour,
+                custom_fields={'CsiDate': start})\
+            .add_membership(CERAMICS, start, end, fee=100.0),
+    ]
 
-        setup_mocks['getAllUsers'].return_value = {alta['OpenPathID']: alta for _, alta in accounts}
+    get_all_users = mock_get_all_users(rm, [
+        {"id": accounts[0].open_path_id, "groups": []},
+        {"id": accounts[1].open_path_id, "groups": []},
+        {"id": accounts[2].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
+        {"id": accounts[3].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
+        {"id": accounts[4].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}, {"id": GROUP_CERAMICS}]},
+    ])
 
-        neon_accounts = {neon["Account ID"]: neon for neon, _ in accounts}
-        openPathUpdateAll(neon_accounts)
+    # Mock update endpoints for first 3 users' updates. 
+    # The other two should be skipped since they are already in sync 
+    updates = [
+        rm.put(f'{O_baseURL}/users/{act.open_path_id}/groupIds', status_code=204)
+        for act in accounts[:3]
+    ]
 
-        # Verify updateGroups is called for users with existing OpenPathID
-        assert setup_mocks['updateGroups'].call_count == 3
-        setup_mocks['createUser'].assert_not_called()
-        setup_mocks['createMobileCredential'].assert_not_called()
+    # Verify that only users with out-of-sync groups were updated
+    accounts = {act.account_id: act.mock(rm) for act in accounts}
+    assert_history(rm, lambda: openPathUpdateAll(accounts), [
+        (get_all_users._method, get_all_users._url),
+        *[(u._method, u._url) for u in updates]
+    ])
 
-    def test_skips_no_membership(self, requests_mock, mocker, setup_mocks):
-        """Test that bulk update ignores users without membership and no OpenPathID"""
-        neon_account = NeonMock(NEON_ID).mock(requests_mock)
-        setup_mocks['getAllUsers'].return_value = {}
+    # Verify correct groups were assigned
+    assert updates[0].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
+    assert updates[1].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS, GROUP_CERAMICS]}
+    assert updates[2].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS, GROUP_CERAMICS]}
 
-        openPathUpdateAll({NEON_ID: neon_account})
 
-        # Verify no OpenPath operations are called
-        setup_mocks['updateGroups'].assert_not_called()
-        setup_mocks['createUser'].assert_not_called()
-        setup_mocks['createMobileCredential'].assert_not_called()
+def test_bulk_update_mixed_accounts(requests_mock):
+    rm = requests_mock
 
-    def test_skips_no_waiver(self, requests_mock, mocker, setup_mocks):
-        """Test that bulk update warns about users with OpenPathID but missing waiver"""
-        start = today_plus(-365)
-        tour = today_plus(-364)
-        end = today_plus(365)
+    accounts = {}
+    updates = []
 
-        neon_account = NeonMock(NEON_ID, open_path_id=ALTA_ID, facility_tour_date=tour)\
-            .add_membership(REGULAR, start, end, fee=100.0)\
-            .mock(requests_mock)
-        setup_mocks['getAllUsers'].return_value = {
-            ALTA_ID: build_alta_user(ALTA_ID, ['facility_access']),
-        }
+    # Create 50 users with varying membership statuses
+    for i in range(50):
+        neon_id = 10 + i
+        alta_id = 100 + i
 
-        openPathUpdateAll({NEON_ID: neon_account})
+        # Alternate between invalid, ceramic, and regular members
+        if i % 3 < 2:
+            account = NeonMock(neon_id, open_path_id=alta_id, waiver_date=start, facility_tour_date=tour)\
+                .add_membership(CERAMICS if i % 3 == 0 else REGULAR, start, end, fee=100.0)
+            updates.append(rm.put(f'{O_baseURL}/users/{alta_id}/groupIds', status_code=204))
+        else:
+            account = NeonMock(neon_id, open_path_id=alta_id)
+        accounts[neon_id] = account.mock(rm)
 
-        setup_mocks['updateGroups'].assert_called_once()
+    get_all_users = mock_empty_groups(rm, accounts)
 
-    def test_bulk_update_accounts(self, requests_mock, mocker, setup_mocks):
-        """Test bulk update with large batch of accounts to verify loop handling"""
-        start = today_plus(-365)
-        tour = today_plus(-364)
-        end = today_plus(365)
+    # only valid accounts are updated
+    assert_history(rm, lambda: openPathUpdateAll(accounts), [
+        (get_all_users._method, get_all_users._url),
+        *[(u._method, u._url) for u in updates]
+    ])
 
-        neon_accounts = {}
-        alta_accounts = {}
 
-        # Create 20 users with varying membership statuses
-        for i in range(20):
-            neon_id = 10 + i
-            alta_id = 100 + i
+def test_skips_invalid_accounts(requests_mock):
+    rm = requests_mock
 
-            if i % 3 == 0:  # Every 3rd user gets paid membership with facility access
-                neon_accounts[neon_id] = NeonMock(neon_id, open_path_id=alta_id, waiver_date=start, facility_tour_date=tour)\
-                    .add_membership(REGULAR, start, end, fee=100.0)\
-                    .mock(requests_mock)
-            else:
-                neon_accounts[neon_id] = NeonMock(neon_id, open_path_id=alta_id).mock(requests_mock)
-            alta_accounts[alta_id] = build_alta_user(alta_id, [f'group_{i}'])
+    accounts = [
+        # accounts must have waivers+tour date+payment to be valid
+        NeonMock(NEON_ID),
+        NeonMock(NEON_ID).add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(NEON_ID).add_membership(CERAMICS, start, end, fee=100.0),
+        NeonMock(NEON_ID, waiver_date=start),
+        NeonMock(NEON_ID, facility_tour_date=tour),
+        NeonMock(NEON_ID, facility_tour_date=tour).add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(NEON_ID, waiver_date=start).add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(NEON_ID, waiver_date=start).add_membership(CERAMICS, start, end, fee=100.0),
 
-        setup_mocks['getAllUsers'].return_value = alta_accounts
+        # suspended users are ignored
+        NeonMock(NEON_ID, open_path_id=ALTA_ID, waiver_date=start, facility_tour_date=tour,
+            custom_fields={'AccessSuspended': 'Yes'})
+    ]
 
-        openPathUpdateAll(neon_accounts)
+    accounts = {act.account_id: act.mock(rm) for act in accounts}
+    get_all_users = mock_empty_groups(rm, accounts)
 
-        # All users have OpenPathID, so updateGroups should be called 20 times
-        assert setup_mocks['updateGroups'].call_count == 20
-
-    def test_handles_access_suspended(self, requests_mock, mocker, setup_mocks):
-        """Test that suspended accounts don't get facility access even with waiver/tour"""
-        start = today_plus(-365)
-        tour = today_plus(-364)
-        end = today_plus(365)
-
-        neon_account = NeonMock(NEON_ID, open_path_id=ALTA_ID, waiver_date=start,
-                 facility_tour_date=tour, custom_fields={'AccessSuspended': 'Yes'})\
-            .add_membership(REGULAR, start, end, fee=100.0)\
-            .mock(requests_mock)
-        setup_mocks['getAllUsers'].return_value = {
-            ALTA_ID: build_alta_user(ALTA_ID),
-        }
-
-        openPathUpdateAll({NEON_ID: neon_account})
-
-        # Should still update groups (has OpenPathID), but not create new access
-        setup_mocks['updateGroups'].assert_called_once()
-        setup_mocks['createUser'].assert_not_called()
+    # users are fetched, and no accounts are updated
+    assert_history(rm, lambda: openPathUpdateAll(accounts), [
+        (get_all_users._method, get_all_users._url),
+    ])
 
 
 def test_creates_user(requests_mock):
+    """Test creating a new OpenPath user for account without OpenPathID"""
     rm = requests_mock
-
-    start = today_plus(-365)
-    tour = today_plus(-364)
-    end = today_plus(365)
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
     # Setup Neon account with valid membership no OpenPathID
     account = NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour)\
         .add_membership(REGULAR, start, end, fee=100.0)
-    neon_account = account.mock(rm)
-
-    # Return no existing OpenPath users
-    get_all_users = rm.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
 
     # Mock each write in the order it should be called
-    writes = dict(
+    updates = dict(
         create_alta=rm.post(
             f'{O_baseURL}/users',
             status_code=201,
@@ -201,14 +175,17 @@ def test_creates_user(requests_mock):
         ),
     )
 
+    accounts = {NEON_ID: account.mock(rm)}
+    get_all_users = mock_empty_groups(rm, accounts)
+
     # New user --> get all users, create user, update neon, update groups, create mobile credential
-    assert_history(rm, lambda: openPathUpdateAll({NEON_ID: neon_account}), [
+    assert_history(rm, lambda: openPathUpdateAll(accounts), [
         (get_all_users._method, get_all_users._url),  # getAllUsers
-        *[(m._method, m._url) for m in writes.values()]  # writes happen in expected order
+        *[(u._method, u._url) for u in updates.values()]  # updates happen in expected order
     ])
 
     # Verify body of each write
-    assert writes['create_alta'].last_request.json() == {
+    assert updates['create_alta'].last_request.json() == {
         "identity": {
             "email": account.email,
             "firstName": account.firstName,
@@ -217,15 +194,15 @@ def test_creates_user(requests_mock):
         "externalId": NEON_ID,
         "hasRemoteUnlock": False,
     }
-    assert writes['update_neon'].last_request.json() == {
+    assert updates['update_neon'].last_request.json() == {
         "individualAccount": {
             "accountCustomFields": [
                 {"id": ACCOUNT_FIELD_OPENPATH_ID, "name": "OpenPathID", "value": str(ALTA_ID)}
             ]
         }
     }
-    assert writes['update_groups'].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
-    assert writes['credentials'].last_request.json() == {
+    assert updates['update_groups'].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
+    assert updates['credentials'].last_request.json() == {
         "mobile": {"name": "Automatic Mobile Credential"},
         "credentialTypeId": 1,
     }

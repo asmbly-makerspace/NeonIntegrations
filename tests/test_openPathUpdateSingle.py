@@ -1,6 +1,6 @@
 from openPathUpdateSingle import openPathUpdateSingle
 from tests.neon_mocker import NeonMock, today_plus, assert_history
-from neonUtil import MEMBERSHIP_ID_REGULAR, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL
+from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL
 from openPathUtil import GROUP_SUBSCRIBERS, O_baseURL
 from datetime import datetime, timezone
 
@@ -9,6 +9,7 @@ NEON_ID = 123
 ALTA_ID = 456
 CRED_ID = 789
 REGULAR = MEMBERSHIP_ID_REGULAR
+CERAMICS = MEMBERSHIP_ID_CERAMICS
 
 
 start = today_plus(-365)
@@ -21,10 +22,13 @@ def test_skips_invalid_user(requests_mock, mocker):
     # Test invalid accounts (no waiver, tour, or membership)
     invalid_accounts = [
         NeonMock(NEON_ID),
+        NeonMock(NEON_ID).add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(NEON_ID).add_membership(CERAMICS, start, end, fee=100.0),
         NeonMock(NEON_ID, waiver_date=start),
         NeonMock(NEON_ID, facility_tour_date=tour),
         NeonMock(NEON_ID, facility_tour_date=tour).add_membership(REGULAR, start, end, fee=100.0),
         NeonMock(NEON_ID, waiver_date=start).add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(NEON_ID, waiver_date=start).add_membership(CERAMICS, start, end, fee=100.0),
     ]
     for account in invalid_accounts:
         account.mock(requests_mock)
@@ -85,8 +89,8 @@ def test_creates_user(requests_mock, mocker):
         .add_membership(REGULAR, start, end, fee=100.0)
     account.mock(rm)
 
-    # Mock each write in the order it should be called
-    writes = dict(
+    # Mock each update endpoint in the order it should be called
+    updates = dict(
         create_alta=rm.post(
             f'{O_baseURL}/users',
             status_code=201, json={"data": {"id": ALTA_ID, "createdAt": now}},
@@ -113,11 +117,11 @@ def test_creates_user(requests_mock, mocker):
     assert_history(rm, lambda: openPathUpdateSingle(NEON_ID), [
         ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),              # get account
         ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'),  # get memberships
-        *[(m._method, m._url) for m in writes.values()] # writes happen in expected order
+        *[(m._method, m._url) for m in updates.values()] # updates happen in expected order
     ])
 
-    # Verify body of each write
-    assert writes['create_alta'].last_request.json() == {
+    # Verify body of each update
+    assert updates['create_alta'].last_request.json() == {
         "identity": {
             "email": account.email,
             "firstName": account.firstName,
@@ -126,17 +130,17 @@ def test_creates_user(requests_mock, mocker):
         "externalId": NEON_ID,
         "hasRemoteUnlock": False,
     }
-    assert writes['update_neon'].last_request.json() == {
+    assert updates['update_neon'].last_request.json() == {
         "individualAccount": {
             "accountCustomFields": [
                 {"id": ACCOUNT_FIELD_OPENPATH_ID, "name": "OpenPathID", "value": str(ALTA_ID)}
             ]
         }
     }
-    assert writes['update_groups'].last_request.json() == {
+    assert updates['update_groups'].last_request.json() == {
         "groupIds": [GROUP_SUBSCRIBERS],
     }
-    assert writes['credentials'].last_request.json() == {
+    assert updates['credentials'].last_request.json() == {
         "mobile": {"name": "Automatic Mobile Credential"},
         "credentialTypeId": 1,
     }
