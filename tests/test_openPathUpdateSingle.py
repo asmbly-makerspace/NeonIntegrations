@@ -1,5 +1,5 @@
 from openPathUpdateSingle import openPathUpdateSingle
-from tests.neon_mocker import NeonMock, today_plus
+from tests.neon_mocker import NeonMock, today_plus, assert_history
 from neonUtil import MEMBERSHIP_ID_REGULAR, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL
 from openPathUtil import GROUP_SUBSCRIBERS, O_baseURL
 from datetime import datetime, timezone
@@ -15,16 +15,6 @@ start = today_plus(-365)
 tour = today_plus(-364)
 end = today_plus(365)
 now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-
-
-# resets history, calls fn, then asserts each request occurred in order
-def assert_history(requests_mock, fn, expected_history):
-    requests_mock.reset_mock() # reset history
-    fn()
-    history = [(r.method, r.url) for r in requests_mock.request_history]
-    for i, expected in enumerate(expected_history):
-        assert expected == history[i]
-    assert len(history) == len(expected_history)
 
 
 def test_does_not_create_invalid_user(requests_mock, mocker):

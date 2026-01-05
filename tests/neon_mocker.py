@@ -16,6 +16,16 @@ import neonUtil
 from datetime import timedelta
 
 
+# resets history, calls fn, then asserts each request occurred in order
+def assert_history(requests_mock, fn, expected_history):
+    requests_mock.reset_mock() # reset history
+    fn()
+    history = [(r.method, r.url) for r in requests_mock.request_history]
+    for i, expected in enumerate(expected_history):
+        assert expected == history[i]
+    assert len(history) == len(expected_history)
+
+
 def today_plus(days_offset):
     """Return a date string relative to today."""
     return str(neonUtil.today + timedelta(days=days_offset))
