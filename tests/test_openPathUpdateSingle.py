@@ -28,17 +28,21 @@ def assert_history(requests_mock, fn, expected_history):
 
 
 def test_does_not_create_invalid_user(requests_mock, mocker):
-    # Setup account with invalid membership (no waiver or tour)
-    NeonMock(NEON_ID).mock(requests_mock)
-
-    requests_mock.reset_mock() # reset history
-    openPathUpdateSingle(NEON_ID)
-
-    # No valid membership --> only fetch from Neon, do nothing else
-    assert_history(requests_mock, lambda: openPathUpdateSingle(NEON_ID), [
-        ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),             # get account
-        ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'), # get memberships
-    ])
+    # Test invalid accounts (no waiver, tour, or membership)
+    invalid_accounts = [
+        NeonMock(NEON_ID),
+        NeonMock(NEON_ID, waiver_date=start),
+        NeonMock(NEON_ID, facility_tour_date=tour),
+        NeonMock(NEON_ID, facility_tour_date=tour).add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(NEON_ID, waiver_date=start).add_membership(REGULAR, start, end, fee=100.0),
+    ]
+    for account in invalid_accounts:
+        account.mock(requests_mock)
+        # No valid membership --> only fetch from Neon, do nothing else
+        assert_history(requests_mock, lambda: openPathUpdateSingle(NEON_ID), [
+            ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),             # get account
+            ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'), # get memberships
+        ])
 
 
 def test_does_not_update_existing_user(requests_mock, mocker):
@@ -48,13 +52,16 @@ def test_does_not_update_existing_user(requests_mock, mocker):
         .mock(requests_mock)
 
     # Return correct OpenPath groups
-    requests_mock.get(f'{O_baseURL}/users/{ALTA_ID}/groups', json={"data": [{"id": GROUP_SUBSCRIBERS}]})
+    get_groups = requests_mock.get(
+        f'{O_baseURL}/users/{ALTA_ID}/groups',
+        json={"data": [{"id": GROUP_SUBSCRIBERS}]},
+    )
 
     # Existing OpenPathID with valid groups --> fetch info, but do nothing
     assert_history(requests_mock, lambda: openPathUpdateSingle(NEON_ID), [
         ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),             # get account
         ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'), # get memberships
-        ('GET', f'{O_baseURL}/users/{ALTA_ID}/groups'),  # get existing groups
+        (get_groups._method, get_groups._url),  # get existing groups
     ])
 
 
@@ -65,19 +72,19 @@ def test_updates_existing_user_with_missing_groups(requests_mock, mocker):
         .mock(requests_mock)
 
     # Return empty list for groups to check whether they're updated correctly
-    requests_mock.get(f'{O_baseURL}/users/{ALTA_ID}/groups', json={"data": []})
-    update_groupids = requests_mock.put(f'{O_baseURL}/users/{ALTA_ID}/groupIds', status_code=204)
+    get_groups = requests_mock.get(f'{O_baseURL}/users/{ALTA_ID}/groups', json={"data": []})
+    update_groups = requests_mock.put(f'{O_baseURL}/users/{ALTA_ID}/groupIds', status_code=204)
 
     # Existing OpenPathID --> update groups, not create
     assert_history(requests_mock, lambda: openPathUpdateSingle(NEON_ID), [
         ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),              # get account
         ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'),  # get memberships
-        ('GET', f'{O_baseURL}/users/{ALTA_ID}/groups'),   # get existing groups
-        (update_groupids._method, update_groupids._url),  # updateGroups
+        (get_groups._method, get_groups._url),        # get existing groups
+        (update_groups._method, update_groups._url),  # updateGroups
     ])
 
     # Verify groups updated correctly
-    assert update_groupids.last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
+    assert update_groups.last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
 
 
 def test_create_new_user(requests_mock, mocker):
@@ -98,7 +105,7 @@ def test_create_new_user(requests_mock, mocker):
             f'{N_baseURL}/accounts/{NEON_ID}',
             status_code=200
         ),
-        update_groupids=rm.put(
+        update_groups=rm.put(
            f'{O_baseURL}/users/{ALTA_ID}/groupIds', 
            status_code=204
         ),
@@ -136,7 +143,7 @@ def test_create_new_user(requests_mock, mocker):
             ]
         }
     }
-    assert writes['update_groupids'].last_request.json() == {
+    assert writes['update_groups'].last_request.json() == {
         "groupIds": [GROUP_SUBSCRIBERS],
     }
     assert writes['credentials'].last_request.json() == {
