@@ -155,16 +155,25 @@ class NeonEventMock:
     """
     Mock for NeonCRM event API responses.
 
+    event_id is random by default, so tests must reference the mock's properties
+    (e.g., event.event_id) rather than hardcoding values.
+
+    When creating multiple NeonEventMock instances in a test, pass explicit distinct IDs.
+
     Example usage:
-        student = NeonMock(123, "Test", "Student", phone="555-1234")
-        event = NeonEventMock(event_id="1", event_name="Woodworking 101")\
-            .add_registrant(student)
-        search_mock, event_mocks = NeonEventMock.mock_events(requests_mock, [event])
+        student = NeonUserMock()
+        event = NeonEventMock(event_name="Woodworking 101").add_registrant(student)
+        search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
+
+    Example with multiple events:
+        event1 = NeonEventMock(1, event_name="Woodworking 101")
+        event2 = NeonEventMock(2, event_name="Advanced Woodworking")
+        search_mock, _ = NeonEventMock.mock_events(requests_mock, [event1, event2])
     """
 
     def __init__(
         self,
-        event_id: str = "12345",
+        event_id: int = None,
         event_name: str = "Test Class",
         teacher: str = "John Doe",
         date: str = None,
@@ -172,16 +181,16 @@ class NeonEventMock:
         end_time: str = "12:00:00",
         capacity: int = 10,
     ):
-        self.event_id = event_id
+        self.event_id = event_id if event_id is not None else random.randint(10000, 99999)
         self.event_name = event_name
         self.teacher = teacher
         self.date = date or str(neonUtil.today)
         self.start_time = start_time
         self.end_time = end_time
         self.capacity = capacity
-        self._registrants: List[tuple] = []  # List of (NeonMock, status, marked_attended)
+        self._registrants: List[tuple] = []  # List of (NeonUserMock, status, marked_attended)
 
-    def add_registrant(self, account: 'NeonMock', status: str = "SUCCEEDED", marked_attended: bool = False) -> 'NeonEventMock':
+    def add_registrant(self, account: 'NeonUserMock', status: str = "SUCCEEDED", marked_attended: bool = False) -> 'NeonEventMock':
         """Add a registrant to this event."""
         self._registrants.append((account, status, marked_attended))
         return self
@@ -189,7 +198,7 @@ class NeonEventMock:
     def search_result(self) -> Dict[str, Any]:
         """Return event data in the format returned by /events/search."""
         return {
-            "Event ID": self.event_id,
+            "Event ID": str(self.event_id),
             "Event Name": self.event_name,
             "Event Topic": self.teacher,
             "Event Start Date": self.date,
@@ -207,7 +216,7 @@ class NeonEventMock:
         """Mock the event's registrants endpoint and all registrant accounts.
 
         Returns a tuple of (registrants_mock, [account_mocks]).
-        Account mocks are also stored on each NeonMock instance as _account_mock.
+        Account mocks are also stored on each NeonUserMock instance as _account_mock.
         """
         event_registrations = []
         account_mocks = []
@@ -250,30 +259,34 @@ class NeonEventMock:
         return search_mock, event_mocks
 
 
-class NeonMock:
+class NeonUserMock:
     """
     Fluent builder for constructing NeonCRM account/membership API responses.
 
-    Example usage for individual accounts:
-        account = NeonMock(account_id=123)\
-            .add_membership(REGULAR, '2025-01-01', '2025-12-31', fee=100.0)\
-            .mock(requests_mock)  # mocks Neon GET endpoints
+    account_id is random by default, so tests must reference the mock's properties
+    (e.g., student.account_id) rather than hardcoding values.
 
-    Example usage for account search:
-        accounts = [
-            NeonMock(123, "John", "Doe").add_membership(REGULAR, start, end),
-            NeonMock(456, "Jane", "Smith"),
-        ]
-        search_mock, _ = NeonMock.mock_search(requests_mock, accounts)
+    When creating multiple NeonUserMock instances in a test, pass explicit distinct IDs.
+
+    Example usage:
+        student = NeonUserMock()
+        event = NeonEventMock().add_registrant(student)
+        NeonEventMock.mock_events(requests_mock, [event])
+        patch_mock = requests_mock.patch(f'{N_baseURL}/accounts/{student.account_id}')
+
+    Example with multiple accounts:
+        student1 = NeonUserMock(1)
+        student2 = NeonUserMock(2)
+        search_mock, _ = NeonUserMock.mock_search(requests_mock, [student1, student2])
     """
 
     def __init__(
         self,
-        account_id: int,
+        account_id: int = None,
         firstName: str = "John",
         lastName: str = "Doe",
         email: str = None,
-        phone: str = None,
+        phone: str = "123-4567",
         individualTypes: Optional[List[str]] = None,
         custom_fields: dict = None,
         open_path_id: int = None,
@@ -281,7 +294,7 @@ class NeonMock:
         facility_tour_date: str = None,
         access_suspended: bool = False
     ):
-        self.account_id = account_id
+        self.account_id = account_id if account_id is not None else random.randint(10000, 99999)
         self.open_path_id = open_path_id
         self.firstName = firstName
         self.lastName = lastName
@@ -314,7 +327,7 @@ class NeonMock:
         status: str = "SUCCEEDED",
         fee: float = 0.0,
         autoRenewal: bool = False
-    ) -> 'NeonMock':
+    ) -> 'NeonUserMock':
         self.memberships.append(build_membership_response(
             termStartDate=termStartDate,
             termEndDate=termEndDate,
@@ -380,7 +393,7 @@ class NeonMock:
         return neonUtil.getMemberById(self.account_id)
 
     @classmethod
-    def mock_search(cls, requests_mock, accounts: List['NeonMock']):
+    def mock_search(cls, requests_mock, accounts: List['NeonUserMock']):
         """Mock the accounts search endpoint and all account endpoints."""
         total_pages = 1 if accounts else 0
         search_mock = requests_mock.post(

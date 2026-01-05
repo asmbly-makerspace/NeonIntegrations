@@ -8,7 +8,7 @@ import pytest
 import json
 from unittest.mock import mock_open
 
-from neon_mocker import NeonMock, NeonEventMock
+from neon_mocker import NeonUserMock, NeonEventMock
 
 
 class TestClassFeedbackAutomation:
@@ -38,8 +38,8 @@ class TestClassFeedbackAutomation:
 
     def test_main_handles_existing_survey_link(self, requests_mock, mocker):
         """Test that main() reuses existing survey links from cache"""
-        student = NeonMock(456)
-        event = NeonEventMock(event_id="123").add_registrant(student)
+        student = NeonUserMock()
+        event = NeonEventMock().add_registrant(student)
         search_mock, [(registrants_mock, account_mocks)] = NeonEventMock.mock_events(
             requests_mock, [event]
         )

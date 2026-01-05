@@ -8,7 +8,7 @@ import json
 import pytest
 from unittest.mock import mock_open
 
-from neon_mocker import NeonMock, NeonEventMock
+from neon_mocker import NeonUserMock, NeonEventMock
 
 
 class TestDailyClassReminders:
@@ -31,12 +31,10 @@ class TestDailyClassReminders:
         self, requests_mock, mock_teachers_file
     ):
         """Test that a teacher with multiple events only gets one email"""
-        student = NeonMock(123, "Test", "Student", phone="555-1234")
+        student = NeonUserMock()
 
-        event1 = NeonEventMock(event_id="1", event_name="Woodworking 101")\
-            .add_registrant(student)
-        event2 = NeonEventMock(event_id="2", event_name="Advanced Woodworking")\
-            .add_registrant(student)
+        event1 = NeonEventMock(1, event_name="Woodworking 101").add_registrant(student)
+        event2 = NeonEventMock(2, event_name="Advanced Woodworking").add_registrant(student)
 
         search_mock, _ = NeonEventMock.mock_events(requests_mock, [event1, event2])
 
@@ -60,12 +58,11 @@ class TestDailyClassReminders:
         self, requests_mock, mock_teachers_file
     ):
         """Test that different teachers get separate emails"""
-        student1 = NeonMock(123, "Test", "Student1", phone="555-1234")
-        student2 = NeonMock(456, "Test", "Student2", phone="555-5678")
+        student1 = NeonUserMock(1)
+        student2 = NeonUserMock(2)
 
-        event1 = NeonEventMock(event_id="1", event_name="Woodworking 101")\
-            .add_registrant(student1)
-        event2 = NeonEventMock(event_id="2", event_name="Metalworking 101", teacher="Jane Smith")\
+        event1 = NeonEventMock(1, event_name="Woodworking 101").add_registrant(student1)
+        event2 = NeonEventMock(2, event_name="Metalworking 101", teacher="Jane Smith")\
             .add_registrant(student2)
 
         search_mock, _ = NeonEventMock.mock_events(requests_mock, [event1, event2])
@@ -90,8 +87,7 @@ class TestDailyClassReminders:
         self, requests_mock, mock_teachers_file
     ):
         """Test that events with no registrants still send reminder emails"""
-        event = NeonEventMock(event_id="1", event_name="Empty Class")
-        # No registrants added
+        event = NeonEventMock(event_name="Empty Class")
 
         search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
 
@@ -113,7 +109,7 @@ class TestDailyClassReminders:
         self, requests_mock, mock_teachers_file
     ):
         """Test that unknown teachers have emails sent to classes@asmbly.org"""
-        event = NeonEventMock(event_id="1", event_name="Mystery Class", teacher="Unknown Teacher")
+        event = NeonEventMock(event_name="Mystery Class", teacher="Unknown Teacher")
 
         search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
 
@@ -149,10 +145,8 @@ class TestDailyClassReminders:
         self, requests_mock, mock_teachers_file
     ):
         """Test that email includes registrant name, email and phone"""
-        student = NeonMock(123, "Alice", "Wonderland", phone="555-ALICE")
-
-        event = NeonEventMock(event_id="1")\
-            .add_registrant(student)
+        student = NeonUserMock()
+        event = NeonEventMock().add_registrant(student)
 
         search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
 
@@ -173,10 +167,10 @@ class TestDailyClassReminders:
         self, requests_mock, mock_teachers_file
     ):
         """Test that canceled registrants are not included in the email"""
-        good_student = NeonMock(123, "Good", "Student", phone="555-1234")
-        canceled_student = NeonMock(456, "Canceled", "Student", phone="555-5678")
+        good_student = NeonUserMock(1, "Good", "Student")
+        canceled_student = NeonUserMock(2, "Canceled", "Student")
 
-        event = NeonEventMock(event_id="1")\
+        event = NeonEventMock()\
             .add_registrant(good_student)\
             .add_registrant(canceled_student, status="CANCELED")
 

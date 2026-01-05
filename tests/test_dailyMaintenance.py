@@ -6,7 +6,7 @@ Tests the main() function by mocking only network interactions (HTTP requests).
 
 import pytest
 from openPathUtil import O_baseURL
-from neon_mocker import NeonMock
+from neon_mocker import NeonUserMock
 
 
 class TestDailyMaintenance:
@@ -22,7 +22,7 @@ class TestDailyMaintenance:
     def test_main_runs_with_no_accounts(self, requests_mock):
         """Test that main() runs successfully when there are no accounts to process"""
         # Mock neon and openpath to return empty results for existing accounts
-        neon_search_mock, _ = NeonMock.mock_search(requests_mock, [])
+        neon_search_mock, _ = NeonUserMock.mock_search(requests_mock, [])
         openpath_mock = requests_mock.get(
             f'{O_baseURL}/users',
             json={"data": [], "totalCount": 0}
@@ -38,7 +38,7 @@ class TestDailyMaintenance:
     def test_main_processes_single_account(self, requests_mock):
         """Test that main() processes a single valid account through all systems"""
         # Return 1 account from Neon and none from openpath
-        neon_search_mock, _ = NeonMock.mock_search(requests_mock, [NeonMock(123)])
+        neon_search_mock, _ = NeonUserMock.mock_search(requests_mock, [NeonUserMock()])
         openpath_mock = requests_mock.get(
             f'{O_baseURL}/users',
             json={"data": [], "totalCount": 0}

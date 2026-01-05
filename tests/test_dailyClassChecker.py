@@ -5,7 +5,7 @@ Tests the main() function by mocking only network interactions (HTTP requests an
 """
 
 import pytest
-from neon_mocker import NeonMock, NeonEventMock, today_plus
+from neon_mocker import NeonUserMock, NeonEventMock, today_plus
 
 
 class TestDailyClassChecker:
@@ -37,15 +37,10 @@ class TestDailyClassChecker:
 
     def test_main_processes_scheduled_classes(self, requests_mock):
         """Test that main() processes scheduled classes and includes them in email"""
-        future_date = today_plus(7)
-
-        student = NeonMock(456, "Test", "User")
         event = NeonEventMock(
-            event_id="123",
             event_name="Orientation with John",
-            teacher="John Doe",
-            date=future_date
-        ).add_registrant(student)
+            date=today_plus(7)
+        ).add_registrant(NeonUserMock())
 
         event_search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
 
