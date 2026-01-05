@@ -80,7 +80,7 @@ def test_updates_existing_user_with_missing_groups(requests_mock, mocker):
 def test_creates_user(requests_mock, mocker):
     rm = requests_mock
 
-    # Setup valid account with membership, waiver, and tour, but no existing OpenPathID
+    # Setup valid account with valid membership but no OpenPathID
     account = NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour)\
         .add_membership(REGULAR, start, end, fee=100.0)
     account.mock(rm)

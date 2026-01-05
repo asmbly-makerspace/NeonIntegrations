@@ -5,11 +5,12 @@ from openPathUpdateAll import openPathUpdateAll
 from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL
 from openPathUtil import GROUP_SUBSCRIBERS, O_baseURL
 
-from tests.neon_mocker import NeonMock, today_plus
+from tests.neon_mocker import NeonMock, today_plus, assert_history
 
 
 NEON_ID = 123
 ALTA_ID = 456
+CRED_ID = 789
 
 
 REGULAR = MEMBERSHIP_ID_REGULAR
@@ -280,9 +281,8 @@ class TestOpenPathUpdateAll:
 
 
 def test_creates_user(requests_mock):
-    """Test that bulk update creates new OpenPath user for new member"""
+    rm = requests_mock
 
-    cred_id = 789
     start = today_plus(-365)
     tour = today_plus(-364)
     end = today_plus(365)
@@ -291,51 +291,45 @@ def test_creates_user(requests_mock):
     # Setup Neon account with valid membership no OpenPathID
     account = NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour)\
         .add_membership(REGULAR, start, end, fee=100.0)
-    neon_account = account.mock(requests_mock)
+    neon_account = account.mock(rm)
 
     # Return no existing OpenPath users
-    requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
+    get_all_users = rm.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
 
-    # Mock write endpoints
-    create_alta = requests_mock.post(
-        f'{O_baseURL}/users',
-        status_code=201,
-        json={"data": {"id": ALTA_ID, "createdAt": now}}
-    )
-    update_neon = requests_mock.patch(
-        f'{N_baseURL}/accounts/{NEON_ID}',
-        status_code=200
-    )
-    update_groupids = requests_mock.put(
-        f'{O_baseURL}/users/{ALTA_ID}/groupIds',
-        status_code=204
-    )
-    credentials = requests_mock.post(
-        f'{O_baseURL}/users/{ALTA_ID}/credentials',
-        status_code=201,
-        json={"data": {"id": cred_id}}
-    )
-    setup_mobile = requests_mock.post(
-        f'{O_baseURL}/users/{ALTA_ID}/credentials/{cred_id}/setupMobile',
-        status_code=204
+    # Mock each write in the order it should be called
+    writes = dict(
+        create_alta=rm.post(
+            f'{O_baseURL}/users',
+            status_code=201,
+            json={"data": {"id": ALTA_ID, "createdAt": now}},
+        ),
+        update_neon=rm.patch(
+            f'{N_baseURL}/accounts/{NEON_ID}',
+            status_code=200,
+        ),
+        update_groups=rm.put(
+            f'{O_baseURL}/users/{ALTA_ID}/groupIds',
+            status_code=204,
+        ),
+        credentials=rm.post(
+            f'{O_baseURL}/users/{ALTA_ID}/credentials',
+            status_code=201,
+            json={"data": {"id": CRED_ID}},
+        ),
+        setup_mobile=rm.post(
+            f'{O_baseURL}/users/{ALTA_ID}/credentials/{CRED_ID}/setupMobile',
+            status_code=204,
+        ),
     )
 
-    requests_mock.reset_mock() # reset history
-    openPathUpdateAll({NEON_ID: neon_account})
+    # New user --> get all users, create user, update neon, update groups, create mobile credential
+    assert_history(rm, lambda: openPathUpdateAll({NEON_ID: neon_account}), [
+        (get_all_users._method, get_all_users._url),  # getAllUsers
+        *[(m._method, m._url) for m in writes.values()]  # writes happen in expected order
+    ])
 
-    # Assert request history
-    history = [(r.method, r.path) for r in requests_mock.request_history]
-    assert history == [
-        ('GET', '/orgs/5231/users'),                                    # getAllUsers
-        ('POST', '/orgs/5231/users'),                                   # createUser
-        ('PATCH', f'/v2/accounts/{NEON_ID}'),                           # updateOpenPathID
-        ('PUT', f'/orgs/5231/users/{ALTA_ID}/groupids'),                # updateGroups
-        ('POST', f'/orgs/5231/users/{ALTA_ID}/credentials'),            # createMobileCredential
-        ('POST', f'/orgs/5231/users/{ALTA_ID}/credentials/{cred_id}/setupmobile'),  # setupMobile
-    ]
-
-    # Assert body of each write
-    assert create_alta.last_request.json() == {
+    # Verify body of each write
+    assert writes['create_alta'].last_request.json() == {
         "identity": {
             "email": account.email,
             "firstName": account.firstName,
@@ -344,17 +338,15 @@ def test_creates_user(requests_mock):
         "externalId": NEON_ID,
         "hasRemoteUnlock": False,
     }
-    assert update_neon.last_request.json() == {
+    assert writes['update_neon'].last_request.json() == {
         "individualAccount": {
             "accountCustomFields": [
                 {"id": ACCOUNT_FIELD_OPENPATH_ID, "name": "OpenPathID", "value": str(ALTA_ID)}
             ]
         }
     }
-    assert update_groupids.last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
-    assert credentials.last_request.json() == {
+    assert writes['update_groups'].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
+    assert writes['credentials'].last_request.json() == {
         "mobile": {"name": "Automatic Mobile Credential"},
         "credentialTypeId": 1,
     }
-
-

@@ -20,7 +20,8 @@ from datetime import timedelta
 def assert_history(requests_mock, fn, expected_history):
     requests_mock.reset_mock() # reset history
     fn()
-    history = [(r.method, r.url) for r in requests_mock.request_history]
+    # Strip query params for comparison (use base URL only)
+    history = [(r.method, r.url.split('?')[0]) for r in requests_mock.request_history]
     for i, expected in enumerate(expected_history):
         assert expected == history[i]
     assert len(history) == len(expected_history)
