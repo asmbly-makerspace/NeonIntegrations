@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 
 from openPathUpdateAll import openPathUpdateAll
-from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL
-from openPathUtil import GROUP_SUBSCRIBERS, GROUP_CERAMICS, O_baseURL
+from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL, LEAD_TYPE
+from openPathUtil import GROUP_SUBSCRIBERS, GROUP_CERAMICS, GROUP_MANAGEMENT, O_baseURL
 
 from tests.neon_mocker import NeonMock, today_plus, assert_history
 
@@ -40,39 +40,56 @@ def mock_empty_groups(rm, accounts):
 def test_updates_existing_users_with_missing_groups(requests_mock):
     rm = requests_mock
 
-    accounts = [
-        NeonMock(1001, open_path_id=2001, waiver_date=start, facility_tour_date=tour)\
+    updated_accounts = [
+        NeonMock(NEON_ID, open_path_id=ALTA_ID, waiver_date=start, facility_tour_date=tour)\
             .add_membership(REGULAR, start, end, fee=100.0),
-        NeonMock(1002, open_path_id=2002, waiver_date=start, facility_tour_date=tour,
+        NeonMock(NEON_ID+1, open_path_id=ALTA_ID+1, waiver_date=start, facility_tour_date=tour,
                 custom_fields={'CsiDate': start})\
             .add_membership(CERAMICS, start, end, fee=100.0),
-        NeonMock(1003, open_path_id=2003, waiver_date=start, facility_tour_date=tour,
+        NeonMock(NEON_ID+2, open_path_id=ALTA_ID+2, waiver_date=start, facility_tour_date=tour,
                 custom_fields={'CsiDate': start})\
             .add_membership(CERAMICS, start, end, fee=100.0),
-        NeonMock(1004, open_path_id=2004, waiver_date=start, facility_tour_date=tour)\
+        NeonMock(NEON_ID+3, open_path_id=ALTA_ID+3, waiver_date=start, facility_tour_date=tour,\
+            individualTypes=[LEAD_TYPE]),
+        NeonMock(NEON_ID+4, open_path_id=ALTA_ID+4, waiver_date=start, facility_tour_date=tour)\
+            .add_membership(REGULAR, start, end, fee=0.0), # zero-fee
+    ]
+
+    skipped_accounts = [
+        NeonMock(NEON_ID+10, open_path_id=ALTA_ID+10, waiver_date=start, facility_tour_date=tour)\
             .add_membership(REGULAR, start, end, fee=100.0),
-        NeonMock(1005, open_path_id=2005, waiver_date=start, facility_tour_date=tour,
+        NeonMock(NEON_ID+11, open_path_id=ALTA_ID+11, waiver_date=start, facility_tour_date=tour,
                 custom_fields={'CsiDate': start})\
             .add_membership(CERAMICS, start, end, fee=100.0),
+        NeonMock(NEON_ID+12, open_path_id=ALTA_ID+12, waiver_date=start, facility_tour_date=tour)\
+            .add_membership(CERAMICS, start, end, fee=100.0), # no csi tour date
+        NeonMock(NEON_ID+13, open_path_id=ALTA_ID+13, waiver_date=start, facility_tour_date=tour)\
+            .add_membership(REGULAR, start, end, fee=0.0), # zero-fee
     ]
 
     get_all_users = mock_get_all_users(rm, [
-        {"id": accounts[0].open_path_id, "groups": []},
-        {"id": accounts[1].open_path_id, "groups": []},
-        {"id": accounts[2].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
-        {"id": accounts[3].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
-        {"id": accounts[4].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}, {"id": GROUP_CERAMICS}]},
+        {"id": updated_accounts[0].open_path_id, "groups": []},
+        {"id": updated_accounts[1].open_path_id, "groups": []},
+        {"id": updated_accounts[2].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
+        {"id": updated_accounts[3].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
+        {"id": updated_accounts[4].open_path_id, "groups": []},
+
+        {"id": skipped_accounts[0].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
+        {"id": skipped_accounts[1].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}, {"id": GROUP_CERAMICS}]},
+        # This user doesn't get update - they have SUBSCRIBERS but won't get CERAMICS (no CsiDate)
+        {"id": skipped_accounts[2].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
+        {"id": skipped_accounts[3].open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
     ])
 
     # Mock update endpoints for first 3 users' updates. 
     # The other two should be skipped since they are already in sync 
     updates = [
         rm.put(f'{O_baseURL}/users/{act.open_path_id}/groupIds', status_code=204)
-        for act in accounts[:3]
+        for act in updated_accounts
     ]
 
     # Verify that only users with out-of-sync groups were updated
-    accounts = {act.account_id: act.mock(rm) for act in accounts}
+    accounts = {act.account_id: act.mock(rm) for act in [*updated_accounts, *skipped_accounts]}
     assert_history(rm, lambda: openPathUpdateAll(accounts), [
         (get_all_users._method, get_all_users._url),
         *[(u._method, u._url) for u in updates]
@@ -82,6 +99,8 @@ def test_updates_existing_users_with_missing_groups(requests_mock):
     assert updates[0].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
     assert updates[1].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS, GROUP_CERAMICS]}
     assert updates[2].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS, GROUP_CERAMICS]}
+    assert updates[3].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS, GROUP_MANAGEMENT]}
+    assert updates[4].last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
 
 
 def test_bulk_update_mixed_accounts(requests_mock):
@@ -119,17 +138,25 @@ def test_skips_invalid_accounts(requests_mock):
     accounts = [
         # accounts must have waivers+tour date+payment to be valid
         NeonMock(NEON_ID),
-        NeonMock(NEON_ID).add_membership(REGULAR, start, end, fee=100.0),
-        NeonMock(NEON_ID).add_membership(CERAMICS, start, end, fee=100.0),
-        NeonMock(NEON_ID, waiver_date=start),
-        NeonMock(NEON_ID, facility_tour_date=tour),
-        NeonMock(NEON_ID, facility_tour_date=tour).add_membership(REGULAR, start, end, fee=100.0),
-        NeonMock(NEON_ID, waiver_date=start).add_membership(REGULAR, start, end, fee=100.0),
-        NeonMock(NEON_ID, waiver_date=start).add_membership(CERAMICS, start, end, fee=100.0),
+        NeonMock(NEON_ID+1, open_path_id=ALTA_ID),
+        NeonMock(NEON_ID+2).add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(NEON_ID+3).add_membership(CERAMICS, start, end, fee=100.0),
+        NeonMock(NEON_ID+4, waiver_date=start),
+        NeonMock(NEON_ID+5, facility_tour_date=tour),
+        NeonMock(NEON_ID+6, facility_tour_date=tour).add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(NEON_ID+7, waiver_date=start).add_membership(REGULAR, start, end, fee=100.0),
+        NeonMock(NEON_ID+8, waiver_date=start).add_membership(CERAMICS, start, end, fee=100.0),
 
         # suspended users are ignored
-        NeonMock(NEON_ID, open_path_id=ALTA_ID, waiver_date=start, facility_tour_date=tour,
-            custom_fields={'AccessSuspended': 'Yes'})
+        NeonMock(NEON_ID+9, open_path_id=ALTA_ID+1, waiver_date=start, facility_tour_date=tour,
+            custom_fields={'AccessSuspended': 'Yes'})\
+            .add_membership(REGULAR, start, end, fee=100.0),
+
+        #NeonMock(NEON_ID+10, open_path_id=ALTA_ID+2, waiver_date=start, facility_tour_date=tour)\
+        #.add_membership(REGULAR, start, end, fee=0.0),
+
+        #NeonMock(1003, open_path_id=2003, waiver_date=start, facility_tour_date=tour)\
+        #    .add_membership(REGULAR, start, end, fee=0.0),
     ]
 
     accounts = {act.account_id: act.mock(rm) for act in accounts}

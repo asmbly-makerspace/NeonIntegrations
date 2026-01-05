@@ -1,7 +1,7 @@
 from openPathUpdateSingle import openPathUpdateSingle
 from tests.neon_mocker import NeonMock, today_plus, assert_history
-from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL
-from openPathUtil import GROUP_SUBSCRIBERS, O_baseURL
+from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL, INSTRUCTOR_TYPE, ONDUTY_TYPE
+from openPathUtil import GROUP_SUBSCRIBERS, GROUP_INSTRUCTORS, GROUP_ONDUTY, O_baseURL
 from datetime import datetime, timezone
 
 
@@ -81,66 +81,78 @@ def test_updates_existing_user_with_missing_groups(requests_mock, mocker):
     assert update_groups.last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
 
 
-def test_creates_user(requests_mock, mocker):
+def test_creates_user_with_correct_group(requests_mock, mocker):
     rm = requests_mock
 
-    # Setup valid account with valid membership but no OpenPathID
-    account = NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour)\
-        .add_membership(REGULAR, start, end, fee=100.0)
-    account.mock(rm)
-
-    # Mock each update endpoint in the order it should be called
-    updates = dict(
-        create_alta=rm.post(
-            f'{O_baseURL}/users',
-            status_code=201, json={"data": {"id": ALTA_ID, "createdAt": now}},
+    accounts = [
+        (
+            NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour)\
+                .add_membership(REGULAR, start, end, fee=100.0),
+            [GROUP_SUBSCRIBERS],
         ),
-        update_neon=rm.patch(
-            f'{N_baseURL}/accounts/{NEON_ID}',
-            status_code=200
+        (
+            NeonMock(NEON_ID, individualTypes=[INSTRUCTOR_TYPE]),
+            [GROUP_INSTRUCTORS],
         ),
-        update_groups=rm.put(
-           f'{O_baseURL}/users/{ALTA_ID}/groupIds', 
-           status_code=204
-        ),
-        credentials=rm.post(
-            f'{O_baseURL}/users/{ALTA_ID}/credentials',
-            status_code=201, json={"data": {"id": CRED_ID}},
-        ),
-        setup_mobile=rm.post(
-            f'{O_baseURL}/users/{ALTA_ID}/credentials/{CRED_ID}/setupMobile',
-            status_code=204,
+        (
+            NeonMock(NEON_ID, individualTypes=[ONDUTY_TYPE]),
+            [GROUP_ONDUTY],
         )
-    )
+    ]
 
-    # New user --> create user, update groups, update neon, create mobile credential
-    assert_history(rm, lambda: openPathUpdateSingle(NEON_ID), [
-        ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),              # get account
-        ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'),  # get memberships
-        *[(m._method, m._url) for m in updates.values()] # updates happen in expected order
-    ])
+    for account, expected_groups in accounts:
+        account.mock(rm)
 
-    # Verify body of each update
-    assert updates['create_alta'].last_request.json() == {
-        "identity": {
-            "email": account.email,
-            "firstName": account.firstName,
-            "lastName": account.lastName,
-        },
-        "externalId": NEON_ID,
-        "hasRemoteUnlock": False,
-    }
-    assert updates['update_neon'].last_request.json() == {
-        "individualAccount": {
-            "accountCustomFields": [
-                {"id": ACCOUNT_FIELD_OPENPATH_ID, "name": "OpenPathID", "value": str(ALTA_ID)}
-            ]
+        updates = dict(
+            create_alta=rm.post(
+                f'{O_baseURL}/users',
+                status_code=201, json={"data": {"id": ALTA_ID, "createdAt": now}},
+            ),
+            update_neon=rm.patch(
+                f'{N_baseURL}/accounts/{NEON_ID}',
+                status_code=200
+            ),
+            update_groups=rm.put(
+                f'{O_baseURL}/users/{ALTA_ID}/groupIds',
+                status_code=204
+            ),
+            credentials=rm.post(
+                f'{O_baseURL}/users/{ALTA_ID}/credentials',
+                status_code=201, json={"data": {"id": CRED_ID}},
+            ),
+            setup_mobile=rm.post(
+                f'{O_baseURL}/users/{ALTA_ID}/credentials/{CRED_ID}/setupMobile',
+                status_code=204,
+            )
+        )
+
+        assert_history(rm, lambda: openPathUpdateSingle(NEON_ID), [
+            ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),
+            ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'),
+            *[(m._method, m._url) for m in updates.values()]
+        ])
+
+        # Verify body of each update
+        assert updates['create_alta'].last_request.json() == {
+            "identity": {
+                "email": account.email,
+                "firstName": account.firstName,
+                "lastName": account.lastName,
+            },
+            "externalId": NEON_ID,
+            "hasRemoteUnlock": False,
         }
-    }
-    assert updates['update_groups'].last_request.json() == {
-        "groupIds": [GROUP_SUBSCRIBERS],
-    }
-    assert updates['credentials'].last_request.json() == {
-        "mobile": {"name": "Automatic Mobile Credential"},
-        "credentialTypeId": 1,
-    }
+        assert updates['update_neon'].last_request.json() == {
+            "individualAccount": {
+                "accountCustomFields": [
+                    {"id": ACCOUNT_FIELD_OPENPATH_ID, "name": "OpenPathID", "value": str(ALTA_ID)}
+                ]
+            }
+        }
+        assert updates['update_groups'].last_request.json() == {
+            "groupIds": expected_groups,
+        }
+        assert updates['credentials'].last_request.json() == {
+            "mobile": {"name": "Automatic Mobile Credential"},
+            "credentialTypeId": 1,
+        }
