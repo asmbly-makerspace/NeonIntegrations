@@ -1,0 +1,58 @@
+============================================================================================================== test session starts ===============================================================================================================
+platform darwin -- Python 3.14.0, pytest-8.4.1, pluggy-1.6.0
+rootdir: /Users/robertnevels/Documents/NeonIntegrations
+configfile: pyproject.toml
+plugins: mock-3.14.1, requests-mock-1.12.1, cov-7.0.0
+collected 23 items
+
+tests/test_dailyClassReminders.py .....                                                                                                                                                                                                    [ 21%]
+tests/test_neonUtil.py ..........                                                                                                                                                                                                          [ 65%]
+tests/test_openPathUpdateAll.py ....                                                                                                                                                                                                       [ 82%]
+tests/test_openPathUpdateSingle.py ....                                                                                                                                                                                                    [100%]
+
+================================================================================================================= tests coverage =================================================================================================================
+________________________________________________________________________________________________ coverage: platform darwin, python 3.14.0-final-0 ________________________________________________________________________________________________
+
+Name                                 Stmts   Miss  Cover
+--------------------------------------------------------
+AsmblyMessageFactory.py                 12      8    33%
+LeatherClassTicketUpdate.py             16     16     0%
+attendanceToTestout.py                  68     68     0%
+aws_ssm.py                              10     10     0%
+classFeedbackAutomation.py             102    102     0%
+classTierPopulater.py                   27     27     0%
+classTimeUpdater.py                     33     33     0%
+cncFields.py                            94     94     0%
+dailyClassChecker.py                    79     79     0%
+dailyClassReminder.py                  102     17    83%
+dailyMaintenance.py                     19     19     0%
+discourseUpdateGroups.py                68     68     0%
+discourseUtil.py                        66     66     0%
+flodeskUtil.py                         220    220     0%
+giftCertSearch.py                       16     16     0%
+gmailUtil.py                            17     12    29%
+helpers/api.py                          14     12    14%
+helpers/gmail.py                        20     12    40%
+helpers/neon.py                        223    185    17%
+mailjetUtil.py                         248    248     0%
+neonDIDupdate.py                        87     87     0%
+neonDiscountCodeGen.py                  64     64     0%
+neonDumpMember.py                        9      9     0%
+neonGetAccounts.py                       7      7     0%
+neonStorageAssignmentsAPI.py           108    108     0%
+neonUtil.py                            252    100    60%
+openPathPruneUsers.py                   40     40     0%
+openPathUpdateAll.py                    90      7    92%
+openPathUpdateSingle.py                 24      4    83%
+openPathUtil.py                        238    101    58%
+tests/conftest.py                        8      0   100%
+tests/mock_events.py                    31      3    90%
+tests/neon_mocker.py                    57      8    86%
+tests/test_dailyClassReminders.py       72      0   100%
+tests/test_neonUtil.py                  50      0   100%
+tests/test_openPathUpdateAll.py         62      0   100%
+tests/test_openPathUpdateSingle.py      40      0   100%
+weeklyClassReminder.py                  74     74     0%
+--------------------------------------------------------
+TOTAL                                 2767   1924    30%
+=============================================================================================================== 23 passed in 0.16s ===============================================================================================================
