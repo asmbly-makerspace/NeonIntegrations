@@ -1,1 +1,1 @@
-python -m pytest --cov=. > coverage_report.txt
+python -m pytest --cov=. --cov-report=term-missing > coverage_report.txt
