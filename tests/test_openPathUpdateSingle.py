@@ -17,7 +17,7 @@ end = today_plus(365)
 now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
-def test_does_not_create_invalid_user(requests_mock, mocker):
+def test_skips_invalid_user(requests_mock, mocker):
     # Test invalid accounts (no waiver, tour, or membership)
     invalid_accounts = [
         NeonMock(NEON_ID),
@@ -35,7 +35,7 @@ def test_does_not_create_invalid_user(requests_mock, mocker):
         ])
 
 
-def test_does_not_update_existing_user(requests_mock, mocker):
+def test_skips_existing_user(requests_mock, mocker):
     # Setup valid account with existing OpenPathID
     NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour, open_path_id=ALTA_ID)\
         .add_membership(REGULAR, start, end, fee=100.0)\
