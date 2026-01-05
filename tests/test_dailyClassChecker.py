@@ -4,9 +4,8 @@ Unit tests for dailyClassChecker.py
 Tests the main() function by mocking only network interactions (HTTP requests and SMTP).
 """
 
-import datetime
 import pytest
-from neonUtil import N_baseURL
+from neon_mocker import NeonMock, NeonEventMock, today_plus
 
 
 class TestDailyClassChecker:
@@ -20,10 +19,7 @@ class TestDailyClassChecker:
     def test_main_sends_email_with_class_info(self, requests_mock):
         """Test that main() fetches class data and sends an email summary"""
         # Mock event search - return no events (simplest case)
-        event_search_mock = requests_mock.post(
-            f'{N_baseURL}/events/search',
-            json={"searchResults": []}
-        )
+        event_search_mock, _ = NeonEventMock.mock_events(requests_mock, [])
 
         import dailyClassChecker
         dailyClassChecker.main()
@@ -41,41 +37,17 @@ class TestDailyClassChecker:
 
     def test_main_processes_scheduled_classes(self, requests_mock):
         """Test that main() processes scheduled classes and includes them in email"""
-        future_date = (datetime.date.today() + datetime.timedelta(days=7)).isoformat()
+        future_date = today_plus(7)
 
-        # Mock event search - return one Orientation class
-        event_search_mock = requests_mock.post(
-            f'{N_baseURL}/events/search',
-            json={
-                "searchResults": [{
-                    "Event ID": "123",
-                    "Event Name": "Orientation with John",
-                    "Event Topic": "John Doe",
-                    "Event Start Date": future_date,
-                    "Event End Date": future_date,
-                    "Event Registration Attendee Count": 5,
-                    "Registrants": 5,
-                    "Event Capacity": 10,
-                }]
-            }
-        )
+        student = NeonMock(456, "Test", "User")
+        event = NeonEventMock(
+            event_id="123",
+            event_name="Orientation with John",
+            teacher="John Doe",
+            date=future_date
+        ).add_registrant(student)
 
-        # Mock registrants endpoint (called when counts don't match)
-        registrants_mock = requests_mock.get(
-            f'{N_baseURL}/events/123/eventRegistrations',
-            json={
-                "eventRegistrations": [{
-                    "registrantAccountId": 456,
-                    "tickets": [{
-                        "attendees": [{
-                            "registrationStatus": "SUCCEEDED",
-                            "firstName": "Test",
-                            "lastName": "User"
-                        }]
-                    }]
-                }]
-            }
-        )
+        event_search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
 
         import dailyClassChecker
         dailyClassChecker.main()
@@ -96,11 +68,8 @@ class TestDailyClassChecker:
 
     def test_main_handles_empty_results(self, requests_mock):
         """Test that main() handles empty search results gracefully"""
-        # Mock event search - return empty results
-        event_search_mock = requests_mock.post(
-            f'{N_baseURL}/events/search',
-            json={"searchResults": []}
-        )
+        # Mock event search - return no events
+        event_search_mock, _ = NeonEventMock.mock_events(requests_mock, [])
 
         import dailyClassChecker
         dailyClassChecker.main()

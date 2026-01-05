@@ -11,10 +11,8 @@ from tests.neon_mocker import NeonMock, NeonEventMock
 
 def test_main_processes_attended_event(requests_mock):
     """Test that main() processes an event where someone attended and updates their account"""
-    student = NeonMock(456, "Test", "User")
-
     event = NeonEventMock(event_id="123", event_name="Woodshop Safety with John")\
-        .add_registrant(student, marked_attended=True)
+        .add_registrant(NeonMock(456), marked_attended=True)
 
     search_mock, [(registrants_mock, account_mocks)] = NeonEventMock.mock_events(requests_mock, [event])
 
@@ -42,7 +40,7 @@ def test_main_processes_attended_event(requests_mock):
 
 def test_main_skips_already_marked_accounts(requests_mock):
     """Test that main() skips accounts that already have the field marked"""
-    student = NeonMock(456, "Test", "User", custom_fields={'Woodshop Safety': '01/01/2025'})
+    student = NeonMock(456, custom_fields={'Woodshop Safety': '01/01/2025'})
 
     event = NeonEventMock(event_id="123", event_name="Woodshop Safety with John")\
         .add_registrant(student, marked_attended=True)

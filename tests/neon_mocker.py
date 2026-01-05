@@ -12,6 +12,7 @@ API Reference: https://developer.neoncrm.com/api-v2/
 import random
 import string
 from typing import List, Dict, Any, Optional
+from neonUtil import N_baseURL
 import neonUtil
 from datetime import timedelta
 
@@ -135,74 +136,6 @@ def build_account_api_response(
     return {'individualAccount': account}
 
 
-def build_custom_field(fieldId: int, name: str, value: Any) -> Dict[str, Any]:
-    """
-    Build a custom field entry for NeonCRM API responses.
-
-    Args:
-        fieldId: Custom field ID
-        name: Field name (e.g., "OpenPathID", "DiscourseID")
-        value: Field value
-
-    Returns:
-        Dict matching custom field format in Neon API
-    """
-    return {
-        'id': str(fieldId),
-        'name': name,
-        'value': str(value) if value is not None else None
-    }
-
-
-def build_search_result(
-    accountId: str,
-    firstName: str = "John",
-    lastName: str = "Doe",
-    email: str = "john@example.com",
-    individualTypes: Optional[List[str]] = None,
-    membershipExpirationDate: Optional[str] = None,
-    membershipStartDate: Optional[str] = None,
-    customFields: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
-    """
-    Build a search result entry matching NeonCRM search API response.
-
-    Search results have a flatter structure than full account GET responses.
-
-    Reference: https://developer.neoncrm.com/api-v2/#/Accounts/searchIndividualAccountsUsingPOST
-
-    Args:
-        accountId: Account ID as string
-        firstName: First name
-        lastName: Last name
-        email: Primary email
-        individualTypes: List of type names (returned as pipe-separated string)
-        membershipExpirationDate: ISO date string
-        membershipStartDate: ISO date string
-        customFields: Dict of custom field names to values
-
-    Returns:
-        Dict matching a single search result entry
-    """
-    result = {
-        'Account ID': accountId,
-        'First Name': firstName,
-        'Last Name': lastName,
-        'Email 1': email,
-        'Membership Expiration Date': membershipExpirationDate,
-        'Membership Start Date': membershipStartDate,
-    }
-
-    # Individual types are returned as pipe-separated string in search results
-    if individualTypes:
-        result['Individual Type'] = ' | '.join(individualTypes)
-
-    # Add custom fields as top-level keys (matching search output format)
-    if customFields:
-        result.update(customFields)
-
-    return result
-
 # Map common custom field names to their IDs (from neonUtil.py)
 field_id_map = {
     'OpenPathID': 178,
@@ -237,6 +170,7 @@ class NeonEventMock:
         date: str = None,
         start_time: str = "10:00:00",
         end_time: str = "12:00:00",
+        capacity: int = 10,
     ):
         self.event_id = event_id
         self.event_name = event_name
@@ -244,6 +178,7 @@ class NeonEventMock:
         self.date = date or str(neonUtil.today)
         self.start_time = start_time
         self.end_time = end_time
+        self.capacity = capacity
         self._registrants: List[tuple] = []  # List of (NeonMock, status, marked_attended)
 
     def add_registrant(self, account: 'NeonMock', status: str = "SUCCEEDED", marked_attended: bool = False) -> 'NeonEventMock':
@@ -263,6 +198,7 @@ class NeonEventMock:
             "Event End Time": self.end_time,
             "Event Registration Attendee Count": len(self._registrants),
             "Registrants": len(self._registrants),
+            "Event Capacity": self.capacity,
             "Hold To Waiting List": "No",
             "Waiting List Status": "Open"
         }
@@ -291,7 +227,7 @@ class NeonEventMock:
             account_mocks.append(account._account_mock)
 
         registrants_mock = requests_mock.get(
-            f'https://api.neoncrm.com/v2/events/{self.event_id}/eventRegistrations',
+            f'{N_baseURL}/events/{self.event_id}/eventRegistrations',
             json={"eventRegistrations": event_registrations}
         )
 
@@ -305,7 +241,7 @@ class NeonEventMock:
         is a tuple of (registrants_mock, [account_mocks]).
         """
         search_mock = requests_mock.post(
-            'https://api.neoncrm.com/v2/events/search',
+            f'{N_baseURL}/events/search',
             json={"searchResults": [e.search_result() for e in events]}
         )
 
@@ -316,13 +252,19 @@ class NeonEventMock:
 
 class NeonMock:
     """
-    Fluent builder for constructing NeonCRM membership API responses.
+    Fluent builder for constructing NeonCRM account/membership API responses.
 
-    Example usage:
+    Example usage for individual accounts:
         account = NeonMock(account_id=123)\
-            .add_regular_membership('2025-01-01', '2025-12-31', fee=100.0)\
-            .add_ceramics_membership('2025-01-01', '2025-12-31', fee=150.0)\
-            .mock(requests_mock) # mocks Neon GET endpoints
+            .add_membership(REGULAR, '2025-01-01', '2025-12-31', fee=100.0)\
+            .mock(requests_mock)  # mocks Neon GET endpoints
+
+    Example usage for account search:
+        accounts = [
+            NeonMock(123, "John", "Doe").add_membership(REGULAR, start, end),
+            NeonMock(456, "Jane", "Smith"),
+        ]
+        search_mock, _ = NeonMock.mock_search(requests_mock, accounts)
     """
 
     def __init__(
@@ -383,9 +325,42 @@ class NeonMock:
         ))
         return self
 
+    def search_result(self) -> Dict[str, Any]:
+        """Return account data in the format returned by /accounts/search."""
+        # Get membership dates from the memberships list
+        membership_exp = None
+        membership_start = None
+        for m in self.memberships:
+            if m.get('status') == 'SUCCEEDED':
+                end = m.get('termEndDate')
+                start = m.get('termStartDate')
+                if end and (membership_exp is None or end > membership_exp):
+                    membership_exp = end
+                if start and (membership_start is None or start < membership_start):
+                    membership_start = start
+
+        result = {
+            'Account ID': str(self.account_id),
+            'First Name': self.firstName,
+            'Last Name': self.lastName,
+            'Email 1': self.email,
+            'Membership Expiration Date': membership_exp,
+            'Membership Start Date': membership_start,
+        }
+
+        # Individual types are returned as pipe-separated string in search results
+        if self.individualTypes:
+            result['Individual Type'] = ' | '.join(self.individualTypes)
+
+        # Add custom fields as top-level keys (matching search output format)
+        for field in self.accountCustomFields:
+            result[field['name']] = field['value']
+
+        return result
+
     def mock(self, requests_mock):
         self._account_mock = requests_mock.get(
-            f'https://api.neoncrm.com/v2/accounts/{self.account_id}',
+            f'{N_baseURL}/accounts/{self.account_id}',
             json=build_account_api_response(
                 accountId=self.account_id,
                 firstName=self.firstName,
@@ -398,9 +373,23 @@ class NeonMock:
         )
 
         requests_mock.get(
-            f'https://api.neoncrm.com/v2/accounts/{self.account_id}/memberships',
+            f'{N_baseURL}/accounts/{self.account_id}/memberships',
             json=build_memberships_api_response(self.memberships),
         )
 
         return neonUtil.getMemberById(self.account_id)
+
+    @classmethod
+    def mock_search(cls, requests_mock, accounts: List['NeonMock']):
+        """Mock the accounts search endpoint and all account endpoints."""
+        total_pages = 1 if accounts else 0
+        search_mock = requests_mock.post(
+            f'{N_baseURL}/accounts/search',
+            json={
+                "searchResults": [a.search_result() for a in accounts],
+                "pagination": {"totalPages": total_pages, "currentPage": 0}
+            }
+        )
+        account_results = [a.mock(requests_mock) for a in accounts]
+        return search_mock, account_results
 

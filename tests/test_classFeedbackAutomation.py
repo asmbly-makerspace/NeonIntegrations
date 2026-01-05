@@ -38,22 +38,19 @@ class TestClassFeedbackAutomation:
 
     def test_main_handles_existing_survey_link(self, requests_mock, mocker):
         """Test that main() reuses existing survey links from cache"""
-        # Override builtins.open to return existing survey links
-        existing_links = {
-            "John Doe": {
-                "Woodshop Safety with John": "https://forms.google.com/existing_survey"
-            }
-        }
-        mocker.patch('builtins.open', mock_open(read_data=json.dumps(existing_links)))
-
-        student = NeonMock(456, "Test", "Student")
-
-        event = NeonEventMock(event_id="123", event_name="Woodshop Safety with John")\
-            .add_registrant(student)
-
+        student = NeonMock(456)
+        event = NeonEventMock(event_id="123").add_registrant(student)
         search_mock, [(registrants_mock, account_mocks)] = NeonEventMock.mock_events(
             requests_mock, [event]
         )
+
+        # Override builtins.open to return existing survey links
+        existing_links = {
+            event.teacher: {
+                event.event_name: "https://forms.google.com/existing_survey"
+            }
+        }
+        mocker.patch('builtins.open', mock_open(read_data=json.dumps(existing_links)))
 
         import classFeedbackAutomation
         classFeedbackAutomation.main()
