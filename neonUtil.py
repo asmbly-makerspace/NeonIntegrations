@@ -66,7 +66,7 @@ def updateOpenPathID(account: dict):
     data = {
         "individualAccount": {
             "accountCustomFields": [
-                {"id": ACCOUNT_FIELD_OPENPATH_ID, "name": "OpenPathID", "value": str(OpId)}
+                {"id": str(ACCOUNT_FIELD_OPENPATH_ID), "name": "OpenPathID", "value": str(OpId)}
             ]
         }
     }

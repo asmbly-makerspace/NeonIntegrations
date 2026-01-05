@@ -224,7 +224,7 @@ def test_creates_user(requests_mock):
     assert updates['update_neon'].last_request.json() == {
         "individualAccount": {
             "accountCustomFields": [
-                {"id": ACCOUNT_FIELD_OPENPATH_ID, "name": "OpenPathID", "value": str(ALTA_ID)}
+                {"id": str(ACCOUNT_FIELD_OPENPATH_ID), "name": "OpenPathID", "value": str(ALTA_ID)}
             ]
         }
     }

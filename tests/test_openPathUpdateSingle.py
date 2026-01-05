@@ -145,7 +145,7 @@ def test_creates_user_with_correct_group(requests_mock, mocker):
         assert updates['update_neon'].last_request.json() == {
             "individualAccount": {
                 "accountCustomFields": [
-                    {"id": ACCOUNT_FIELD_OPENPATH_ID, "name": "OpenPathID", "value": str(ALTA_ID)}
+                    {"id": str(ACCOUNT_FIELD_OPENPATH_ID), "name": "OpenPathID", "value": str(ALTA_ID)}
                 ]
             }
         }
