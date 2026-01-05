@@ -16,6 +16,17 @@ import neonUtil
 from datetime import timedelta
 
 
+# resets history, calls fn, then asserts each request occurred in order
+def assert_history(requests_mock, fn, expected_history):
+    requests_mock.reset_mock() # reset history
+    fn()
+    # Strip query params for comparison (use base URL only)
+    history = [(r.method, r.url.split('?')[0]) for r in requests_mock.request_history]
+    for i, expected in enumerate(expected_history):
+        assert expected == history[i]
+    assert len(history) == len(expected_history)
+
+
 def today_plus(days_offset):
     """Return a date string relative to today."""
     return str(neonUtil.today + timedelta(days=days_offset))
@@ -228,6 +239,7 @@ class NeonMock:
         access_suspended: bool = False
     ):
         self.account_id = account_id
+        self.open_path_id = open_path_id
         self.firstName = firstName
         self.lastName = lastName
         self.email = email or f'{firstName}.{lastName}@example.com'

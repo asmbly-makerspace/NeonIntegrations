@@ -48,6 +48,8 @@ ONDUTY_TYPE_CERAMICS = "Ceramics Volunteer"
 MEMBERSHIP_ID_REGULAR = 1
 MEMBERSHIP_ID_CERAMICS = 7
 
+ACCOUNT_FIELD_OPENPATH_ID = 178
+
 ####################################################################
 # Update the OpenPathID stored in Neon for an account
 ####################################################################
@@ -64,7 +66,7 @@ def updateOpenPathID(account: dict):
     data = {
         "individualAccount": {
             "accountCustomFields": [
-                {"id": "178", "name": "OpenPathID", "value": str(OpId)}
+                {"id": str(ACCOUNT_FIELD_OPENPATH_ID), "name": "OpenPathID", "value": str(OpId)}
             ]
         }
     }
@@ -333,7 +335,7 @@ def getNeonAccounts(searchFields, neonAccountDict={}):
                 85,
                 77,
                 179,
-                178,
+                ACCOUNT_FIELD_OPENPATH_ID,
                 88,
                 180,
                 182,
