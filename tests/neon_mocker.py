@@ -98,6 +98,7 @@ def build_account_api_response(
     firstName: str = "John",
     lastName: str = "Doe",
     email: str = "john@example.com",
+    phone: Optional[str] = None,
     individualTypes: Optional[List[str]] = None,
     accountCustomFields: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
@@ -111,12 +112,14 @@ def build_account_api_response(
         firstName: First name
         lastName: Last name
         email: Primary email address
+        phone: Primary phone number
         individualTypes: List of account type names (e.g., ["Paid Staff", "Instructor"])
         accountCustomFields: List of custom field dicts
 
     Returns:
         Dict matching NeonCRM account GET response format
     """
+    addresses = [{'phone1': phone}] if phone else []
     account = {
         'accountId': accountId,
         'primaryContact': {
@@ -124,7 +127,7 @@ def build_account_api_response(
             'firstName': firstName,
             'lastName': lastName,
             'email1': email,
-            'addresses': []
+            'addresses': addresses
         },
         'individualTypes': [{'id': i, 'name': name} for i, name in enumerate(individualTypes or [], start=1)],
         'accountCustomFields': accountCustomFields or []
@@ -226,11 +229,12 @@ class NeonMock:
     """
 
     def __init__(
-        self, 
+        self,
         account_id: int,
         firstName: str = "John",
         lastName: str = "Doe",
         email: str = None,
+        phone: str = None,
         individualTypes: Optional[List[str]] = None,
         custom_fields: dict = None,
         open_path_id: int = None,
@@ -243,6 +247,7 @@ class NeonMock:
         self.firstName = firstName
         self.lastName = lastName
         self.email = email or f'{firstName}.{lastName}@example.com'
+        self.phone = phone
         self.individualTypes = individualTypes
         self.memberships: List[Dict[str, Any]] = []
 
@@ -289,6 +294,7 @@ class NeonMock:
                 firstName=self.firstName,
                 lastName=self.lastName,
                 email=self.email,
+                phone=self.phone,
                 individualTypes=self.individualTypes,
                 accountCustomFields=self.accountCustomFields,
             )

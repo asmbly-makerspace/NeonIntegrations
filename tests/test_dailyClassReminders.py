@@ -1,195 +1,275 @@
-from typing import Dict, List
-from unittest.mock import patch
+"""
+Unit tests for dailyClassReminder.py
 
+Tests the main() function by mocking only network interactions (HTTP requests and SMTP).
+"""
+
+import json
 import pytest
+from unittest.mock import mock_open
 
-import dailyClassReminder
+from neonUtil import N_baseURL
 from mock_events import MockEventBuilder
+from neon_mocker import NeonMock
 
 
-def _create_mock_events(teacher_events: Dict[str, List[str]]) -> List[Dict]:
-    """
-    Create mock events for testing
-    teacher_events: Dict mapping teacher names to list of event names
-    """
-    events = []
-    event_id = 1
+class TestDailyClassReminders:
+    """Test suite for dailyClassReminder.main()"""
 
-    for teacher, event_names in teacher_events.items():
-        for event_name in event_names:
-            event = (MockEventBuilder()
-                     .with_teacher(teacher)
-                     .with_event_name(event_name)
-                     .with_event_id(str(event_id))
-                     .build())
-            events.append(event)
-            event_id += 1
-
-    return events
-
-
-def _setup_mock_registrations(mocks):
-    """Setup mock registration data"""
-    mocks['getEventRegistrants'].return_value = {
-        "eventRegistrations": [
-            {
-                "registrantAccountId": "123",
-                "tickets": [{
-                    "attendees": [{
-                        "firstName": "Test",
-                        "lastName": "Student",
-                        "registrationStatus": "SUCCEEDED"
-                    }]
-                }]
-            }
-        ]
-    }
-
-    mocks['getEventRegistrantCount'].return_value = 1
-
-    mocks['getAccountIndividual'].return_value = {
-        "individualAccount": {
-            "primaryContact": {
-                "email1": "student@example.com",
-                "addresses": [{"phone1": "555-1234"}]
-            }
-        }
-    }
-
-
-class TestClassReminders:
+    @pytest.fixture(autouse=True)
+    def setup_smtp(self, mock_smtp):
+        """Setup SMTP mock for all tests in this class."""
+        self.mock_smtp = mock_smtp
 
     @pytest.fixture
-    def setup_mocks(self, mocker):
-        """Setup all the mocks needed for testing"""
+    def mock_teachers_file(self, mocker):
+        """Mock the teachers.json file."""
+        mocker.patch('builtins.open', mock_open(read_data=json.dumps({
+            "John Doe": "john@example.com",
+            "Jane Smith": "jane@example.com"
+        })))
+
+    def _mock_registrant_response(self, requests_mock, event_id, registrants):
+        """Helper to mock event registrant API response."""
+        requests_mock.get(
+            f'{N_baseURL}/events/{event_id}/eventRegistrations',
+            json={"eventRegistrations": registrants}
+        )
+
+    def _create_registrant(self, account: NeonMock, status="SUCCEEDED"):
+        """Helper to create a registrant data structure from a NeonMock."""
         return {
-            'postEventSearch': mocker.patch('helpers.neon.postEventSearch'),
-            'getEventRegistrants': mocker.patch('helpers.neon.getEventRegistrants'),
-            'getEventRegistrantCount': mocker.patch('helpers.neon.getEventRegistrantCount'),
-            'getAccountIndividual': mocker.patch('helpers.neon.getAccountIndividual'),
-            # I think this is because we call the method directly in dailyClassReminder.
-            # That is, we call `sendMIMEmessage` rather than `gmail.sendMIMEmessage`.
-            'sendMIMEmessage': mocker.patch('dailyClassReminder.sendMIMEmessage'),
-            'open': mocker.patch('builtins.open', mocker.mock_open(
-                read_data='{"John Doe": "john@example.com", "Jane Smith": "jane@example.com"}'
-            ))
+            "registrantAccountId": account.account_id,
+            "tickets": [{
+                "attendees": [{
+                    "firstName": account.firstName,
+                    "lastName": account.lastName,
+                    "registrationStatus": status
+                }]
+            }]
         }
 
-    def test_no_duplicate_emails_single_teacher_multiple_events(self, setup_mocks):
+    def test_no_duplicate_emails_single_teacher_multiple_events(
+        self, requests_mock, mock_teachers_file
+    ):
         """Test that a teacher with multiple events only gets one email"""
-        mocks = setup_mocks
-
         # Create events: John Doe teaching 2 different classes
-        events = _create_mock_events({
-            "John Doe": ["Woodworking 101", "Advanced Woodworking"]
-        })
+        events = [
+            MockEventBuilder()
+                .with_teacher("John Doe")
+                .with_event_name("Woodworking 101")
+                .with_event_id("1")
+                .build(),
+            MockEventBuilder()
+                .with_teacher("John Doe")
+                .with_event_name("Advanced Woodworking")
+                .with_event_id("2")
+                .build()
+        ]
 
-        mocks['postEventSearch'].return_value = {"searchResults": events}
-        _setup_mock_registrations(mocks)
+        requests_mock.post(
+            f'{N_baseURL}/events/search',
+            json={"searchResults": events}
+        )
 
-        # Run the main function
+        student = NeonMock(123, "Test", "Student", phone="555-1234")
+        registrant = self._create_registrant(student)
+        self._mock_registrant_response(requests_mock, "1", [registrant])
+        self._mock_registrant_response(requests_mock, "2", [registrant])
+        student.mock(requests_mock)
+
+        import dailyClassReminder
         dailyClassReminder.main()
 
         # Verify sendMIMEmessage was called exactly once for John Doe
-        assert mocks['sendMIMEmessage'].call_count == 1
+        assert self.mock_smtp.send_message.call_count == 1
 
         # Verify the email contains both events
-        email_call = mocks['sendMIMEmessage'].call_args[0][0]
-        email_body = str(email_call.get_payload()[0])
+        email_message = self.mock_smtp.send_message.call_args[0][0]
+        email_body = email_message.as_string()
 
         assert "Woodworking 101" in email_body
         assert "Advanced Woodworking" in email_body
 
-    def test_duplicate_teacher_names_cause_single_email(self, setup_mocks):
-        """Test that duplicate teacher names in search results don't cause duplicate emails"""
-        mocks = setup_mocks
-
-        # Create duplicate events with same teacher name (simulating the bug condition)
+    def test_multiple_teachers_get_separate_emails(
+        self, requests_mock, mock_teachers_file
+    ):
+        """Test that different teachers get separate emails"""
         events = [
-            MockEventBuilder().with_teacher("John Doe").with_event_name("Class A").with_event_id("1").build(),
-            MockEventBuilder().with_teacher("John Doe").with_event_name("Class A").with_event_id("1").build(),
-            # Exact duplicate
-            MockEventBuilder().with_teacher("John Doe").with_event_name("Class B").with_event_id("2").build(),
+            MockEventBuilder()
+                .with_teacher("John Doe")
+                .with_event_name("Woodworking 101")
+                .with_event_id("1")
+                .build(),
+            MockEventBuilder()
+                .with_teacher("Jane Smith")
+                .with_event_name("Metalworking 101")
+                .with_event_id("2")
+                .build()
         ]
 
-        mocks['postEventSearch'].return_value = {"searchResults": events}
-        _setup_mock_registrations(mocks)
+        requests_mock.post(
+            f'{N_baseURL}/events/search',
+            json={"searchResults": events}
+        )
 
-        # Run the main function
-        dailyClassReminder.main()
+        student1 = NeonMock(123, "Test", "Student1", phone="555-1234")
+        student2 = NeonMock(456, "Test", "Student2", phone="555-5678")
+        self._mock_registrant_response(requests_mock, "1", [self._create_registrant(student1)])
+        self._mock_registrant_response(requests_mock, "2", [self._create_registrant(student2)])
+        student1.mock(requests_mock)
+        student2.mock(requests_mock)
 
-        # Should still only send one email despite duplicate events
-        assert mocks['sendMIMEmessage'].call_count == 1
-
-    def test_multiple_teachers_get_separate_emails(self, setup_mocks):
-        """Test that different teachers get separate emails"""
-        mocks = setup_mocks
-
-        events = _create_mock_events({
-            "John Doe": ["Woodworking 101"],
-            "Jane Smith": ["Metalworking 101"]
-        })
-
-        mocks['postEventSearch'].return_value = {"searchResults": events}
-        _setup_mock_registrations(mocks)
-
-        # Run the main function
+        import dailyClassReminder
         dailyClassReminder.main()
 
         # Should send two emails, one for each teacher
-        assert mocks['sendMIMEmessage'].call_count == 2
+        assert self.mock_smtp.send_message.call_count == 2
 
         # Verify correct recipients
-        email_calls = mocks['sendMIMEmessage'].call_args_list
-        recipients = [call[0][0]['To'] for call in email_calls]
+        email_calls = self.mock_smtp.send_message.call_args_list
+        recipients = [call[0][0]["To"] for call in email_calls]
 
         assert "john@example.com" in recipients
         assert "jane@example.com" in recipients
 
-    @patch('dailyClassReminder.logging')
-    def test_logging_shows_duplicate_detection(self, mock_logging, setup_mocks):
-        """Test that logging helps identify duplicate issues"""
-        mocks = setup_mocks
+    def test_event_with_no_registrants(
+        self, requests_mock, mock_teachers_file
+    ):
+        """Test that events with no registrants still send reminder emails"""
+        events = [
+            MockEventBuilder()
+                .with_teacher("John Doe")
+                .with_event_name("Empty Class")
+                .with_event_id("1")
+                .build()
+        ]
 
-        events = _create_mock_events({
-            "John Doe": ["Class A", "Class B"]
-        })
+        requests_mock.post(
+            f'{N_baseURL}/events/search',
+            json={"searchResults": events}
+        )
 
-        mocks['postEventSearch'].return_value = {"searchResults": events}
-        _setup_mock_registrations(mocks)
+        # No registrants for this event
+        self._mock_registrant_response(requests_mock, "1", [])
 
-        # Run the main function
+        import dailyClassReminder
         dailyClassReminder.main()
 
-        # Check that logging was called with information about multiple events
-        log_calls = mock_logging.info.call_args_list
+        # Should still send email to teacher
+        assert self.mock_smtp.send_message.call_count == 1
 
-        # Should log that John Doe has 2 events
-        event_count_logged = any([
-            'John Doe' in args and 2 in args
-            for args, _ in log_calls
+        email_message = self.mock_smtp.send_message.call_args[0][0]
+        email_body = email_message.as_string()
+
+        assert "No attendees registered" in email_body
+
+    def test_unknown_teacher_sends_to_classes_email(
+        self, requests_mock, mock_teachers_file
+    ):
+        """Test that unknown teachers have emails sent to classes@asmbly.org"""
+        events = [
+            MockEventBuilder()
+                .with_teacher("Unknown Teacher")
+                .with_event_name("Mystery Class")
+                .with_event_id("1")
+                .build()
+        ]
+
+        requests_mock.post(
+            f'{N_baseURL}/events/search',
+            json={"searchResults": events}
+        )
+
+        self._mock_registrant_response(requests_mock, "1", [])
+
+        import dailyClassReminder
+        dailyClassReminder.main()
+
+        # Should still send email
+        assert self.mock_smtp.send_message.call_count == 1
+
+        email_message = self.mock_smtp.send_message.call_args[0][0]
+        assert email_message["To"] == "classes@asmbly.org"
+        assert "Failed Class Reminder" in email_message["Subject"]
+
+    def test_no_events_sends_no_emails(
+        self, requests_mock, mock_teachers_file
+    ):
+        """Test that no events means no emails are sent"""
+        requests_mock.post(
+            f'{N_baseURL}/events/search',
+            json={"searchResults": []}
+        )
+
+        import dailyClassReminder
+        dailyClassReminder.main()
+
+        # No emails should be sent
+        self.mock_smtp.send_message.assert_not_called()
+
+    def test_email_includes_registrant_details(
+        self, requests_mock, mock_teachers_file
+    ):
+        """Test that email includes registrant name, email and phone"""
+        events = [
+            MockEventBuilder()
+                .with_teacher("John Doe")
+                .with_event_name("Test Class")
+                .with_event_id("1")
+                .build()
+        ]
+
+        requests_mock.post(
+            f'{N_baseURL}/events/search',
+            json={"searchResults": events}
+        )
+
+        student = NeonMock(123, "Alice", "Wonderland", phone="555-ALICE")
+        self._mock_registrant_response(requests_mock, "1", [self._create_registrant(student)])
+        student.mock(requests_mock)
+
+        import dailyClassReminder
+        dailyClassReminder.main()
+
+        email_message = self.mock_smtp.send_message.call_args[0][0]
+        email_body = email_message.as_string()
+
+        assert f"{student.firstName} {student.lastName}" in email_body
+        assert student.email in email_body
+        assert student.phone in email_body
+
+    def test_canceled_registrants_not_included(
+        self, requests_mock, mock_teachers_file
+    ):
+        """Test that canceled registrants are not included in the email"""
+        events = [
+            MockEventBuilder()
+                .with_teacher("John Doe")
+                .with_event_name("Test Class")
+                .with_event_id("1")
+                .build()
+        ]
+
+        requests_mock.post(
+            f'{N_baseURL}/events/search',
+            json={"searchResults": events}
+        )
+
+        good_student = NeonMock(123, "Good", "Student", phone="555-1234")
+        canceled_student = NeonMock(456, "Canceled", "Student", phone="555-5678")
+        self._mock_registrant_response(requests_mock, "1", [
+            self._create_registrant(good_student),
+            self._create_registrant(canceled_student, status="CANCELED")
         ])
+        good_student.mock(requests_mock)
+        canceled_student.mock(requests_mock)
 
-        assert event_count_logged, "Should log the number of events per teacher"
-
-    def test_multiple_teachers_with_same_class(self, setup_mocks):
-        """Test that multiple teachers teaching the same class get separate emails"""
-        mocks = setup_mocks
-        events = _create_mock_events({
-            "John Doe": ["Woodworking 101"],
-            "Jane Smith": ["Woodworking 101"],
-        })
-        mocks['postEventSearch'].return_value = {"searchResults": events}
-        _setup_mock_registrations(mocks)
-
+        import dailyClassReminder
         dailyClassReminder.main()
 
-        # Should send one email per teacher
-        assert mocks['sendMIMEmessage'].call_count == 2
+        email_message = self.mock_smtp.send_message.call_args[0][0]
+        email_body = email_message.as_string()
 
-        # Verify correct recipients
-        email_calls = mocks['sendMIMEmessage'].call_args_list
-        recipients = [call[0][0]['To'] for call in email_calls]
-
-        assert "john@example.com" in recipients
-        assert "jane@example.com" in recipients
+        assert f"{good_student.firstName} {good_student.lastName}" in email_body
+        assert f"{canceled_student.firstName} {canceled_student.lastName}" not in email_body

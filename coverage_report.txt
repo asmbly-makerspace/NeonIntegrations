@@ -1,21 +1,21 @@
-================================================= test session starts ==================================================
+================================================== test session starts ==================================================
 platform darwin -- Python 3.14.0, pytest-8.4.1, pluggy-1.6.0
 rootdir: /Users/robertnevels/Documents/NeonIntegrations
 configfile: pyproject.toml
 plugins: mock-3.14.1, requests-mock-1.12.1, cov-7.0.0
-collected 33 items
+collected 35 items
 
-tests/test_attendanceToTestout.py ...                                                                            [  9%]
-tests/test_classFeedbackAutomation.py ..                                                                         [ 15%]
-tests/test_dailyClassChecker.py ...                                                                              [ 24%]
-tests/test_dailyClassReminders.py .....                                                                          [ 39%]
-tests/test_dailyMaintenance.py ..                                                                                [ 45%]
-tests/test_neonUtil.py ..........                                                                                [ 75%]
-tests/test_openPathUpdateAll.py ....                                                                             [ 87%]
-tests/test_openPathUpdateSingle.py ....                                                                          [100%]
+tests/test_attendanceToTestout.py ...                                                                             [  8%]
+tests/test_classFeedbackAutomation.py ..                                                                          [ 14%]
+tests/test_dailyClassChecker.py ...                                                                               [ 22%]
+tests/test_dailyClassReminders.py .......                                                                         [ 42%]
+tests/test_dailyMaintenance.py ..                                                                                 [ 48%]
+tests/test_neonUtil.py ..........                                                                                 [ 77%]
+tests/test_openPathUpdateAll.py ....                                                                              [ 88%]
+tests/test_openPathUpdateSingle.py ....                                                                           [100%]
 
-==================================================== tests coverage ====================================================
-___________________________________ coverage: platform darwin, python 3.14.0-final-0 ___________________________________
+==================================================== tests coverage =====================================================
+___________________________________ coverage: platform darwin, python 3.14.0-final-0 ____________________________________
 
 Name                                    Stmts   Miss  Cover
 -----------------------------------------------------------
@@ -28,7 +28,7 @@ classTierPopulater.py                      27     27     0%
 classTimeUpdater.py                        33     33     0%
 cncFields.py                               94     94     0%
 dailyClassChecker.py                       82      7    91%
-dailyClassReminder.py                     102     17    83%
+dailyClassReminder.py                     102     13    87%
 dailyMaintenance.py                        22      2    91%
 discourseUpdateGroups.py                   68     29    57%
 discourseUtil.py                           66     21    68%
@@ -37,7 +37,7 @@ giftCertSearch.py                          16     16     0%
 gmailUtil.py                               17     12    29%
 helpers/api.py                             14      4    71%
 helpers/gmail.py                           20      4    80%
-helpers/neon.py                           223    164    26%
+helpers/neon.py                           223    156    30%
 mailjetUtil.py                            248    114    54%
 neonDIDupdate.py                           87     87     0%
 neonDiscountCodeGen.py                     64     64     0%
@@ -51,16 +51,16 @@ openPathUpdateSingle.py                    24      4    83%
 openPathUtil.py                           238    101    58%
 tests/conftest.py                          54      1    98%
 tests/mock_events.py                       31      3    90%
-tests/neon_mocker.py                       57      8    86%
+tests/neon_mocker.py                       59      8    86%
 tests/test_attendanceToTestout.py          34      0   100%
 tests/test_classFeedbackAutomation.py      29      0   100%
 tests/test_dailyClassChecker.py            36      0   100%
-tests/test_dailyClassReminders.py          72      0   100%
+tests/test_dailyClassReminders.py         100      0   100%
 tests/test_dailyMaintenance.py             27      0   100%
 tests/test_neonUtil.py                     50      0   100%
 tests/test_openPathUpdateAll.py            62      0   100%
 tests/test_openPathUpdateSingle.py         40      0   100%
 weeklyClassReminder.py                     74     74     0%
 -----------------------------------------------------------
-TOTAL                                    2951   1395    53%
-================================================== 33 passed in 0.31s ==================================================
+TOTAL                                    2981   1383    54%
+================================================== 35 passed in 0.40s ===================================================
