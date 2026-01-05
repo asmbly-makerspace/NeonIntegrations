@@ -50,17 +50,16 @@ openPathUpdateAll.py                       90      7    92%
 openPathUpdateSingle.py                    24      4    83%
 openPathUtil.py                           238    101    58%
 tests/conftest.py                          54      1    98%
-tests/mock_events.py                       31      3    90%
-tests/neon_mocker.py                       59      8    86%
+tests/neon_mocker.py                       87      8    91%
 tests/test_attendanceToTestout.py          34      0   100%
 tests/test_classFeedbackAutomation.py      29      0   100%
 tests/test_dailyClassChecker.py            36      0   100%
-tests/test_dailyClassReminders.py         100      0   100%
+tests/test_dailyClassReminders.py          88      0   100%
 tests/test_dailyMaintenance.py             27      0   100%
 tests/test_neonUtil.py                     50      0   100%
 tests/test_openPathUpdateAll.py            62      0   100%
 tests/test_openPathUpdateSingle.py         40      0   100%
 weeklyClassReminder.py                     74     74     0%
 -----------------------------------------------------------
-TOTAL                                    2981   1383    54%
-================================================== 35 passed in 0.40s ===================================================
+TOTAL                                    2966   1380    53%
+================================================== 35 passed in 0.39s ===================================================

@@ -215,7 +215,104 @@ field_id_map = {
     'CsiDate': 1248,
     'Shaper Origin': 274,
     'Woodshop Specialty Tools': 440,
+    'Woodshop Safety': 84,
 }
+
+class NeonEventMock:
+    """
+    Mock for NeonCRM event API responses.
+
+    Example usage:
+        student = NeonMock(123, "Test", "Student", phone="555-1234")
+        event = NeonEventMock(event_id="1", event_name="Woodworking 101")\
+            .add_registrant(student)
+        search_mock, event_mocks = NeonEventMock.mock_events(requests_mock, [event])
+    """
+
+    def __init__(
+        self,
+        event_id: str = "12345",
+        event_name: str = "Test Class",
+        teacher: str = "John Doe",
+        date: str = None,
+        start_time: str = "10:00:00",
+        end_time: str = "12:00:00",
+    ):
+        self.event_id = event_id
+        self.event_name = event_name
+        self.teacher = teacher
+        self.date = date or str(neonUtil.today)
+        self.start_time = start_time
+        self.end_time = end_time
+        self._registrants: List[tuple] = []  # List of (NeonMock, status, marked_attended)
+
+    def add_registrant(self, account: 'NeonMock', status: str = "SUCCEEDED", marked_attended: bool = False) -> 'NeonEventMock':
+        """Add a registrant to this event."""
+        self._registrants.append((account, status, marked_attended))
+        return self
+
+    def search_result(self) -> Dict[str, Any]:
+        """Return event data in the format returned by /events/search."""
+        return {
+            "Event ID": self.event_id,
+            "Event Name": self.event_name,
+            "Event Topic": self.teacher,
+            "Event Start Date": self.date,
+            "Event Start Time": self.start_time,
+            "Event End Date": self.date,
+            "Event End Time": self.end_time,
+            "Event Registration Attendee Count": len(self._registrants),
+            "Registrants": len(self._registrants),
+            "Hold To Waiting List": "No",
+            "Waiting List Status": "Open"
+        }
+
+    def mock(self, requests_mock):
+        """Mock the event's registrants endpoint and all registrant accounts.
+
+        Returns a tuple of (registrants_mock, [account_mocks]).
+        Account mocks are also stored on each NeonMock instance as _account_mock.
+        """
+        event_registrations = []
+        account_mocks = []
+        for account, status, marked_attended in self._registrants:
+            event_registrations.append({
+                "registrantAccountId": account.account_id,
+                "tickets": [{
+                    "attendees": [{
+                        "firstName": account.firstName,
+                        "lastName": account.lastName,
+                        "registrationStatus": status,
+                        "markedAttended": marked_attended
+                    }]
+                }]
+            })
+            account.mock(requests_mock)
+            account_mocks.append(account._account_mock)
+
+        registrants_mock = requests_mock.get(
+            f'https://api.neoncrm.com/v2/events/{self.event_id}/eventRegistrations',
+            json={"eventRegistrations": event_registrations}
+        )
+
+        return registrants_mock, account_mocks
+
+    @classmethod
+    def mock_events(cls, requests_mock, events: List['NeonEventMock']):
+        """Mock the events search endpoint and all event registrant endpoints.
+
+        Returns a tuple of (search_mock, [event_mocks]) where each event_mock
+        is a tuple of (registrants_mock, [account_mocks]).
+        """
+        search_mock = requests_mock.post(
+            'https://api.neoncrm.com/v2/events/search',
+            json={"searchResults": [e.search_result() for e in events]}
+        )
+
+        event_mocks = [e.mock(requests_mock) for e in events]
+
+        return search_mock, event_mocks
+
 
 class NeonMock:
     """
@@ -263,7 +360,7 @@ class NeonMock:
             fields_dict['AccessSuspended'] = 'Yes'
 
         self.accountCustomFields = [
-            dict(id=field_id_map[name], name=name, value=value)
+            dict(id=str(field_id_map[name]), name=name, value=value)
             for name, value in fields_dict.items()
         ]
 
@@ -287,7 +384,7 @@ class NeonMock:
         return self
 
     def mock(self, requests_mock):
-        requests_mock.get(
+        self._account_mock = requests_mock.get(
             f'https://api.neoncrm.com/v2/accounts/{self.account_id}',
             json=build_account_api_response(
                 accountId=self.account_id,
