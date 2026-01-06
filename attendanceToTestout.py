@@ -116,42 +116,47 @@ def toolTestingUpdate(className: str, neonId: int, inputDate: str):
         logging.debug("Account ID %s already has %s marked", neonId, shortName)
 
 
-searchFields = [
-    {"field": "Event End Date", "operator": "GREATER_AND_EQUAL", "value": DELTA_DAYS},
-    {
-        "field": "Event End Date",
-        "operator": "LESS_AND_EQUAL",
-        "value": TODAY.isoformat(),
-    },
-    {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
-]
+def main():
+    searchFields = [
+        {"field": "Event End Date", "operator": "GREATER_AND_EQUAL", "value": DELTA_DAYS},
+        {
+            "field": "Event End Date",
+            "operator": "LESS_AND_EQUAL",
+            "value": TODAY.isoformat(),
+        },
+        {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
+    ]
 
-outputFields = ["Event Name", "Event ID", "Event End Date"]
+    outputFields = ["Event Name", "Event ID", "Event End Date"]
 
-logging.info("Starting Tool Testing update for %s:", TODAY.isoformat())
+    logging.info("Starting Tool Testing update for %s:", TODAY.isoformat())
 
-try:
-    eventSearch = neon.postEventSearch(searchFields, outputFields)
-    if responseEvents := eventSearch["searchResults"]:
-        for event in responseEvents:
-            eventName = event["Event Name"]
-            eventId = event["Event ID"]
-            eventDate = event["Event End Date"]
-            registrants = neon.getEventRegistrants(eventId)["eventRegistrations"]
-            if type(registrants) is not type(None):
-                for registrant in registrants:
-                    attended = registrant["tickets"][0]["attendees"][0][
-                        "markedAttended"
-                    ]
-                    if attended == True:
-                        toolTestingUpdate(
-                            eventName, registrant["registrantAccountId"], eventDate
-                        )
-    else:
-        logging.info("Event Search contained no results")
-except TypeError:
-    pass
-except:
-    logging.error("Event Search Failed")
-    if traceback.format_exc():
-        logging.error(traceback.format_exc())
+    try:
+        eventSearch = neon.postEventSearch(searchFields, outputFields)
+        if responseEvents := eventSearch["searchResults"]:
+            for event in responseEvents:
+                eventName = event["Event Name"]
+                eventId = event["Event ID"]
+                eventDate = event["Event End Date"]
+                registrants = neon.getEventRegistrants(eventId)["eventRegistrations"]
+                if type(registrants) is not type(None):
+                    for registrant in registrants:
+                        attended = registrant["tickets"][0]["attendees"][0][
+                            "markedAttended"
+                        ]
+                        if attended == True:
+                            toolTestingUpdate(
+                                eventName, registrant["registrantAccountId"], eventDate
+                            )
+        else:
+            logging.info("Event Search contained no results")
+    except TypeError:
+        pass
+    except:
+        logging.error("Event Search Failed")
+        if traceback.format_exc():
+            logging.error(traceback.format_exc())
+
+
+if __name__ == '__main__':
+    main()

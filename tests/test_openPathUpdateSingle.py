@@ -1,11 +1,10 @@
 from openPathUpdateSingle import openPathUpdateSingle
-from tests.neon_mocker import NeonMock, today_plus, assert_history
+from tests.neon_mocker import NeonUserMock, today_plus, assert_history
 from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL, INSTRUCTOR_TYPE, ONDUTY_TYPE
 from openPathUtil import GROUP_SUBSCRIBERS, GROUP_INSTRUCTORS, GROUP_ONDUTY, O_baseURL
 from datetime import datetime, timezone
 
 
-NEON_ID = 123
 ALTA_ID = 456
 CRED_ID = 789
 REGULAR = MEMBERSHIP_ID_REGULAR
@@ -21,29 +20,29 @@ now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 def test_skips_invalid_user(requests_mock, mocker):
     # Test invalid accounts (no waiver, tour, or membership)
     invalid_accounts = [
-        NeonMock(NEON_ID),
-        NeonMock(NEON_ID).add_membership(REGULAR, start, end, fee=100.0),
-        NeonMock(NEON_ID).add_membership(CERAMICS, start, end, fee=100.0),
-        NeonMock(NEON_ID, waiver_date=start),
-        NeonMock(NEON_ID, facility_tour_date=tour),
-        NeonMock(NEON_ID, facility_tour_date=tour).add_membership(REGULAR, start, end, fee=100.0),
-        NeonMock(NEON_ID, waiver_date=start).add_membership(REGULAR, start, end, fee=100.0),
-        NeonMock(NEON_ID, waiver_date=start).add_membership(CERAMICS, start, end, fee=100.0),
+        NeonUserMock(),
+        NeonUserMock().add_membership(REGULAR, start, end, fee=100.0),
+        NeonUserMock().add_membership(CERAMICS, start, end, fee=100.0),
+        NeonUserMock(waiver_date=start),
+        NeonUserMock(facility_tour_date=tour),
+        NeonUserMock(facility_tour_date=tour).add_membership(REGULAR, start, end, fee=100.0),
+        NeonUserMock(waiver_date=start).add_membership(REGULAR, start, end, fee=100.0),
+        NeonUserMock(waiver_date=start).add_membership(CERAMICS, start, end, fee=100.0),
     ]
     for account in invalid_accounts:
         account.mock(requests_mock)
         # No valid membership --> only fetch from Neon, do nothing else
-        assert_history(requests_mock, lambda: openPathUpdateSingle(NEON_ID), [
-            ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),             # get account
-            ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'), # get memberships
+        assert_history(requests_mock, lambda: openPathUpdateSingle(account.account_id), [
+            ('GET', f'{N_baseURL}/accounts/{account.account_id}'),
+            ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
         ])
 
 
 def test_skips_existing_user(requests_mock, mocker):
     # Setup valid account with existing OpenPathID
-    NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour, open_path_id=ALTA_ID)\
-        .add_membership(REGULAR, start, end, fee=100.0)\
-        .mock(requests_mock)
+    account = NeonUserMock(waiver_date=start, facility_tour_date=tour, open_path_id=ALTA_ID)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+    account.mock(requests_mock)
 
     # Return correct OpenPath groups
     get_groups = requests_mock.get(
@@ -52,29 +51,29 @@ def test_skips_existing_user(requests_mock, mocker):
     )
 
     # Existing OpenPathID with valid groups --> fetch info, but do nothing
-    assert_history(requests_mock, lambda: openPathUpdateSingle(NEON_ID), [
-        ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),             # get account
-        ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'), # get memberships
-        (get_groups._method, get_groups._url),  # get existing groups
+    assert_history(requests_mock, lambda: openPathUpdateSingle(account.account_id), [
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}'),
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
+        (get_groups._method, get_groups._url),
     ])
 
 
 def test_updates_existing_user_with_missing_groups(requests_mock, mocker):
     # Setup valid account with existing OpenPathID
-    NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour, open_path_id=ALTA_ID)\
-        .add_membership(REGULAR, start, end, fee=100.0)\
-        .mock(requests_mock)
+    account = NeonUserMock(waiver_date=start, facility_tour_date=tour, open_path_id=ALTA_ID)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+    account.mock(requests_mock)
 
     # Return empty list for groups to check whether they're updated correctly
     get_groups = requests_mock.get(f'{O_baseURL}/users/{ALTA_ID}/groups', json={"data": []})
     update_groups = requests_mock.put(f'{O_baseURL}/users/{ALTA_ID}/groupIds', status_code=204)
 
     # Existing OpenPathID --> update groups, not create
-    assert_history(requests_mock, lambda: openPathUpdateSingle(NEON_ID), [
-        ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),              # get account
-        ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'),  # get memberships
-        (get_groups._method, get_groups._url),        # get existing groups
-        (update_groups._method, update_groups._url),  # updateGroups
+    assert_history(requests_mock, lambda: openPathUpdateSingle(account.account_id), [
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}'),
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
+        (get_groups._method, get_groups._url),
+        (update_groups._method, update_groups._url),
     ])
 
     # Verify groups updated correctly
@@ -86,16 +85,16 @@ def test_creates_user_with_correct_group(requests_mock, mocker):
 
     accounts = [
         (
-            NeonMock(NEON_ID, waiver_date=start, facility_tour_date=tour)\
+            NeonUserMock(waiver_date=start, facility_tour_date=tour)\
                 .add_membership(REGULAR, start, end, fee=100.0),
             [GROUP_SUBSCRIBERS],
         ),
         (
-            NeonMock(NEON_ID, individualTypes=[INSTRUCTOR_TYPE]),
+            NeonUserMock(individualTypes=[INSTRUCTOR_TYPE]),
             [GROUP_INSTRUCTORS],
         ),
         (
-            NeonMock(NEON_ID, individualTypes=[ONDUTY_TYPE]),
+            NeonUserMock(individualTypes=[ONDUTY_TYPE]),
             [GROUP_ONDUTY],
         )
     ]
@@ -109,7 +108,7 @@ def test_creates_user_with_correct_group(requests_mock, mocker):
                 status_code=201, json={"data": {"id": ALTA_ID, "createdAt": now}},
             ),
             update_neon=rm.patch(
-                f'{N_baseURL}/accounts/{NEON_ID}',
+                f'{N_baseURL}/accounts/{account.account_id}',
                 status_code=200
             ),
             update_groups=rm.put(
@@ -126,9 +125,9 @@ def test_creates_user_with_correct_group(requests_mock, mocker):
             )
         )
 
-        assert_history(rm, lambda: openPathUpdateSingle(NEON_ID), [
-            ('GET', f'{N_baseURL}/accounts/{NEON_ID}'),
-            ('GET', f'{N_baseURL}/accounts/{NEON_ID}/memberships'),
+        assert_history(rm, lambda: openPathUpdateSingle(account.account_id), [
+            ('GET', f'{N_baseURL}/accounts/{account.account_id}'),
+            ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
             *[(m._method, m._url) for m in updates.values()]
         ])
 
@@ -139,7 +138,7 @@ def test_creates_user_with_correct_group(requests_mock, mocker):
                 "firstName": account.firstName,
                 "lastName": account.lastName,
             },
-            "externalId": NEON_ID,
+            "externalId": account.account_id,
             "hasRemoteUnlock": False,
         }
         assert updates['update_neon'].last_request.json() == {

@@ -17,3 +17,16 @@ dev = [
     "types-boto3>=1.40.64",
     "types-requests>=2.32.4.20250913",
 ]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # httplib2 uses deprecated pyparsing API (camelCase instead of snake_case)
+    # This is an upstream issue: https://github.com/httplib2/httplib2
+    "ignore::DeprecationWarning:httplib2.auth",
+]
+
+[tool.coverage.run]
+omit = ["archived/*", "examples/*", "tests/*"]
+
+[tool.coverage.report]
+omit = ["archived/*", "examples/*", "tests/*"]

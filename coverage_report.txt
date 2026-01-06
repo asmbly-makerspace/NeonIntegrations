@@ -1,0 +1,42 @@
+================================================== test session starts ==================================================
+platform darwin -- Python 3.14.0, pytest-8.4.1, pluggy-1.6.0
+rootdir: /Users/robertnevels/Documents/NeonIntegrations
+configfile: pyproject.toml
+plugins: mock-3.14.1, requests-mock-1.12.1, cov-7.0.0
+collected 35 items
+
+tests/test_attendanceToTestout.py ...                                                                             [  8%]
+tests/test_classFeedbackAutomation.py ..                                                                          [ 14%]
+tests/test_dailyClassChecker.py ...                                                                               [ 22%]
+tests/test_dailyClassReminders.py .......                                                                         [ 42%]
+tests/test_dailyMaintenance.py ..                                                                                 [ 48%]
+tests/test_neonUtil.py ..........                                                                                 [ 77%]
+tests/test_openPathUpdateAll.py ....                                                                              [ 88%]
+tests/test_openPathUpdateSingle.py ....                                                                           [100%]
+
+==================================================== tests coverage =====================================================
+___________________________________ coverage: platform darwin, python 3.14.0-final-0 ____________________________________
+
+Name                         Stmts   Miss  Cover   Missing
+----------------------------------------------------------
+AsmblyMessageFactory.py         12      8    33%   15-27, 30-40
+attendanceToTestout.py          71     12    83%   11, 100-108, 116, 153-158, 162
+aws_ssm.py                      10     10     0%   1-27
+classFeedbackAutomation.py     105     30    71%   42, 76-84, 106-150, 169-173, 202-206, 251, 262
+dailyClassChecker.py            82      7    91%   123-126, 143, 177, 183, 185, 283
+dailyClassReminder.py          102     13    87%   88-89, 91-92, 154, 168, 189-192, 241-244, 248
+dailyMaintenance.py             22      2    91%   41, 52
+discourseUpdateGroups.py        68     29    57%   26-34, 43-50, 68, 71-84, 108-121, 124
+discourseUtil.py                66     21    68%   13, 46-47, 69, 80-89, 103-112, 124
+gmailUtil.py                    17     12    29%   5, 14-29
+helpers/api.py                  14      4    71%   12, 15-18
+helpers/gmail.py                20      4    80%   9, 19, 32-33
+helpers/neon.py                223    156    30%   7, 31-41, 46-54, 59-61, 66-71, 76-84, 89-97, 158-166, 171-179, 184-196, 201-209, 214-222, 227-239, 243-286, 290-298, 302-310, 314-332, 336-344, 348-356, 362-370, 374-382, 386-394, 398-406, 410-430
+mailjetUtil.py                 248    114    54%   95-98, 166-169, 173, 177-179, 234-240, 252-269, 274-293, 300-358, 361-372, 375, 388-423, 429-449, 456-487, 500-518, 532-567, 661-662, 668
+neonUtil.py                    252     42    83%   13, 61, 76-77, 81, 88-106, 122, 228, 236, 251, 261-271, 295-299, 353, 464-476, 494, 517, 527, 601-610
+openPathUpdateAll.py            90      7    92%   66, 151-152, 159-171, 174
+openPathUpdateSingle.py         24      4    83%   37-40, 43
+openPathUtil.py                238    101    58%   18, 48, 87, 103-109, 116-122, 133-141, 149, 155, 165-172, 179-182, 192-201, 212-230, 252, 263-267, 275, 277, 279, 281, 292-293, 311-317, 342-343, 347, 356-380, 408-413, 422-443, 455, 466-467, 482-483, 486, 493-494, 509, 518-534
+----------------------------------------------------------
+TOTAL                         1664    576    65%
+================================================== 35 passed in 0.35s ===================================================
