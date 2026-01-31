@@ -315,7 +315,7 @@ def getAccountSearchFields():
     return responseSearchFields
 
 
-# Get possible output fields for POST to /events/search
+# Get possible output fields for POST to /accounts/search
 def getAccountOutputFields():
     httpVerb = "GET"
     resourcePath = "/accounts/search/outputFields"
@@ -328,7 +328,7 @@ def getAccountOutputFields():
     return responseOutputFields
 
 
-# Post search query to get back orders (only gets 200 events, pagination not currently supported)
+# Post search query to get back orders (only gets 200 accounts, pagination not currently supported)
 def postAccountSearch(searchFields, outputFields):
     httpVerb = "POST"
     resourcePath = "/accounts/search"
