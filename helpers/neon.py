@@ -21,9 +21,9 @@ N_headers = {
 }
 
 
-###########################
-#####   NEON EVENTS   #####
-###########################
+############################################################################################
+#####   NEON EVENTS   ######################################################################
+############################################################################################
 
 
 # Get list of custom fields for events
@@ -140,105 +140,6 @@ def getEventRegistrantCount(registrantList):
     return count
 
 
-# Get individual accounts by account ID
-def getAccountIndividual(acctId):
-    httpVerb = "GET"
-    resourcePath = f"/accounts/{acctId}"
-    queryParams = ""
-    data = ""
-
-    url = N_baseURL + resourcePath + queryParams
-    responseAccount = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseAccount
-
-
-# Get possible search fields for POST to /orders/search
-def getOrderSearchFields():
-    httpVerb = "GET"
-    resourcePath = "/orders/search/searchFields"
-    queryParams = ""
-    data = ""
-
-    url = N_baseURL + resourcePath + queryParams
-    responseSearchFields = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseSearchFields
-
-
-# Get possible output fields for POST to /events/search
-def getOrderOutputFields():
-    httpVerb = "GET"
-    resourcePath = "/orders/search/outputFields"
-    queryParams = ""
-    data = ""
-
-    url = N_baseURL + resourcePath + queryParams
-    responseOutputFields = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseOutputFields
-
-
-# Post search query to get back orders (only gets 200 events, pagination not currently supported)
-def postOrderSearch(searchFields, outputFields):
-    httpVerb = "POST"
-    resourcePath = "/orders/search"
-    queryParams = ""
-    data = {
-        "searchFields": searchFields,
-        "outputFields": outputFields,
-        "pagination": {"currentPage": 0, "pageSize": 200},
-    }
-
-    url = N_baseURL + resourcePath + queryParams
-    responseEvents = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseEvents
-
-
-# Get possible search fields for POST to /accounts/search
-def getAccountSearchFields():
-    httpVerb = "GET"
-    resourcePath = "/accounts/search/searchFields"
-    queryParams = ""
-    data = ""
-
-    url = N_baseURL + resourcePath + queryParams
-    responseSearchFields = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseSearchFields
-
-
-# Get possible output fields for POST to /events/search
-def getAccountOutputFields():
-    httpVerb = "GET"
-    resourcePath = "/accounts/search/outputFields"
-    queryParams = ""
-    data = ""
-
-    url = N_baseURL + resourcePath + queryParams
-    responseOutputFields = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseOutputFields
-
-
-# Post search query to get back orders (only gets 200 events, pagination not currently supported)
-def postAccountSearch(searchFields, outputFields):
-    httpVerb = "POST"
-    resourcePath = "/accounts/search"
-    queryParams = ""
-    data = {
-        "searchFields": searchFields,
-        "outputFields": outputFields,
-        "pagination": {"currentPage": 0, "pageSize": 200},
-    }
-
-    url = N_baseURL + resourcePath + queryParams
-    responseEvents = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseEvents
-
-
 def postEventRegistration(accountID, eventID, accountFirstName, accountLastName):
     httpVerb = "POST"
     resourcePath = "/eventRegistrations"
@@ -279,18 +180,6 @@ def postEventRegistration(accountID, eventID, accountFirstName, accountLastName)
             }
         ],
     }
-
-    url = N_baseURL + resourcePath + queryParams
-    responseEvents = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseEvents
-
-
-def getAccountEventRegistrations(neonId):
-    httpVerb = "GET"
-    resourcePath = f"/accounts/{neonId}/eventRegistrations"
-    queryParams = "?sortColumn=registrationDateTime&sortDirection=DESC"
-    data = ""
 
     url = N_baseURL + resourcePath + queryParams
     responseEvents = apiCall(httpVerb, url, data, N_headers).json()
@@ -394,6 +283,80 @@ def eventNamePatch(classId: str, newName: str):
     return response
 
 
+
+############################################################################################
+#####   NEON ACCOUNTS   ####################################################################
+############################################################################################
+
+
+# Get individual accounts by account ID
+def getAccountIndividual(acctId):
+    httpVerb = "GET"
+    resourcePath = f"/accounts/{acctId}"
+    queryParams = ""
+    data = ""
+
+    url = N_baseURL + resourcePath + queryParams
+    responseAccount = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseAccount
+
+
+# Get possible search fields for POST to /accounts/search
+def getAccountSearchFields():
+    httpVerb = "GET"
+    resourcePath = "/accounts/search/searchFields"
+    queryParams = ""
+    data = ""
+
+    url = N_baseURL + resourcePath + queryParams
+    responseSearchFields = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseSearchFields
+
+
+# Get possible output fields for POST to /events/search
+def getAccountOutputFields():
+    httpVerb = "GET"
+    resourcePath = "/accounts/search/outputFields"
+    queryParams = ""
+    data = ""
+
+    url = N_baseURL + resourcePath + queryParams
+    responseOutputFields = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseOutputFields
+
+
+# Post search query to get back orders (only gets 200 events, pagination not currently supported)
+def postAccountSearch(searchFields, outputFields):
+    httpVerb = "POST"
+    resourcePath = "/accounts/search"
+    queryParams = ""
+    data = {
+        "searchFields": searchFields,
+        "outputFields": outputFields,
+        "pagination": {"currentPage": 0, "pageSize": 200},
+    }
+
+    url = N_baseURL + resourcePath + queryParams
+    responseAccounts = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseAccounts
+
+
+def getAccountEventRegistrations(neonId):
+    httpVerb = "GET"
+    resourcePath = f"/accounts/{neonId}/eventRegistrations"
+    queryParams = "?sortColumn=registrationDateTime&sortDirection=DESC"
+    data = ""
+
+    url = N_baseURL + resourcePath + queryParams
+    responseAcctEvents = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseAcctEvents
+
+
 def account_patch(neon_id: int, new_info: dict) -> requests.Response:
     httpVerb = "PATCH"
     resourcePath = f"/accounts/{neon_id}"
@@ -428,3 +391,52 @@ def get_acct_by_email(email: str) -> list:
         search_results = []
 
     return search_results
+
+
+
+############################################################################################
+#####   NEON ORDERS   ######################################################################
+############################################################################################
+
+
+# Get possible search fields for POST to /orders/search
+def getOrderSearchFields():
+    httpVerb = "GET"
+    resourcePath = "/orders/search/searchFields"
+    queryParams = ""
+    data = ""
+
+    url = N_baseURL + resourcePath + queryParams
+    responseSearchFields = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseSearchFields
+
+
+# Get possible output fields for POST to /events/search
+def getOrderOutputFields():
+    httpVerb = "GET"
+    resourcePath = "/orders/search/outputFields"
+    queryParams = ""
+    data = ""
+
+    url = N_baseURL + resourcePath + queryParams
+    responseOutputFields = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseOutputFields
+
+
+# Post search query to get back orders (only gets 200 events, pagination not currently supported)
+def postOrderSearch(searchFields, outputFields):
+    httpVerb = "POST"
+    resourcePath = "/orders/search"
+    queryParams = ""
+    data = {
+        "searchFields": searchFields,
+        "outputFields": outputFields,
+        "pagination": {"currentPage": 0, "pageSize": 200},
+    }
+
+    url = N_baseURL + resourcePath + queryParams
+    responseOrders = apiCall(httpVerb, url, data, N_headers).json()
+
+    return responseOrders
