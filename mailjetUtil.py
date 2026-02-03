@@ -14,6 +14,7 @@ import boto3
 
 from pydantic import BaseModel, Field, model_validator, field_serializer
 from mailjet_rest import Client  # type: ignore
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result
 from neonUtil import getNeonAccounts
 
 
@@ -357,8 +358,17 @@ class MJService:
 
         return job_id
 
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_result(lambda x: x == "Processing"),
+    )
     def get_job_status(self, job_id: int) -> str | None:
         response = self.client.contact_managemanycontacts.get(id=job_id)
+
+        if response.status_code == 404:
+            logging.info("Job %s not yet available, retrying...", job_id)
+            return "Processing"
 
         if response.status_code != 200:
             logging.error(
@@ -530,30 +540,30 @@ def update_mj_all_contacts_list(
         return None
 
     accounts: list[Subscriber] = []
-    for account in neon_account_dict:
+    for account_id in neon_account_dict:
 
         account = Subscriber(
-            email_=neon_account_dict[account].get("Email 1").lower(),
-            id_=neon_account_dict[account].get("MailjetContactID"),
-            first_name=neon_account_dict[account].get("First Name"),
-            last_name=neon_account_dict[account].get("Last Name"),
-            attended_orientation=neon_account_dict[account].get("FacilityTourDate")
+            email_=neon_account_dict[account_id].get("Email 1").lower(),
+            id_=neon_account_dict[account_id].get("MailjetContactID"),
+            first_name=neon_account_dict[account_id].get("First Name"),
+            last_name=neon_account_dict[account_id].get("Last Name"),
+            attended_orientation=neon_account_dict[account_id].get("FacilityTourDate")
             is not None,
             orientation_date=(
                 datetime.datetime.strptime(
-                    neon_account_dict[account].get("FacilityTourDate"), "%m/%d/%Y"
+                    neon_account_dict[account_id].get("FacilityTourDate"), "%m/%d/%Y"
                 ).astimezone(ZoneInfo("America/Chicago"))
-                if neon_account_dict[account].get("FacilityTourDate")
+                if neon_account_dict[account_id].get("FacilityTourDate")
                 else None
             ),
-            active_member=neon_account_dict[account].get(
+            active_member=neon_account_dict[account_id].get(
                 "Account Current Membership Status"
             )
             == "Active",
-            latest_membership_end=neon_account_dict[account].get(
+            latest_membership_end=neon_account_dict[account_id].get(
                 "Membership Expiration Date"
             ),
-            signed_waiver=neon_account_dict[account].get("WaiverDate") is not None,
+            signed_waiver=neon_account_dict[account_id].get("WaiverDate") is not None,
         )
 
         accounts.append(account)
