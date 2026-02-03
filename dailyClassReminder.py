@@ -17,6 +17,7 @@
 import json
 import datetime
 import logging
+from collections import defaultdict
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -78,27 +79,28 @@ ALREADY_SENT = []
 def main():
     TEACHER_EMAILS = get_teacher_contact_info()
     RESPONSE_EVENTS = get_response_events(SEARCH_FIELDS, OUTPUT_FIELDS)
+    CLASSES = defaultdict(list)
+    for item in RESPONSE_EVENTS["searchResults"]:
+        teacher = item["Event Topic"] or "Unassigned"
+        CLASSES[teacher].append(item)
 
-    # Remove duplicates in the list of teachers
-    TEACHERS = {item.get("Event Topic") for item in RESPONSE_EVENTS["searchResults"]}
-
-    for teacher in TEACHERS:
+    for teacher, events in CLASSES.items():
         try:
-            if not teacher:
-                logging.info("WARNING:  No teacher assigned!")
+            # Handle events with no teacher assigned
+            if not teacher or teacher == "Unassigned":
+                teacher_display = "Unassigned Teacher"
+                class_names = ', '.join([event['Event Name'] for event in events])
+                logging.info("WARNING: No teacher assigned for classes: %s", class_names)
                 TEACHER_EMAILS[teacher] = "classes@asmbly.org"
+            else:
+                teacher_display = teacher
+
             if teacher in ALREADY_SENT:
-                logging.info("Already emailed %s", teacher)
+                logging.info("Already emailed %s", teacher_display)
                 continue
 
             # Find all events for each teacher
-            events = list(
-                filter(
-                    lambda x, teach=teacher: x["Event Topic"] == teach,
-                    RESPONSE_EVENTS["searchResults"],
-                )
-            )
-            logging.info("\n\n_____\n\nEmailing %s about %s event(s)...", teacher, len(events))
+            logging.info("\n\n_____\n\nEmailing %s about %s event(s)...", teacher_display, len(events))
             sorted_events = sorted(
                 events, key=lambda x: datetime.datetime.fromisoformat(x["Event Start Date"])
             )

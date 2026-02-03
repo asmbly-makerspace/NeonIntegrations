@@ -156,6 +156,7 @@ class TestDailyClassReminders:
         # Verify event search API was called
         assert search_mock.called
 
+        assert self.mock_smtp.send_message.call_count == 1
         email_message = self.mock_smtp.send_message.call_args[0][0]
         email_body = email_message.as_string()
 
@@ -187,3 +188,27 @@ class TestDailyClassReminders:
 
         assert f"{good_student.firstName} {good_student.lastName}" in email_body
         assert f"{canceled_student.firstName} {canceled_student.lastName}" not in email_body
+
+    def test_none_teacher_sends_to_classes_email(
+        self, requests_mock, mock_teachers_file
+    ):
+        """Test that events with None as teacher are handled properly"""
+        student = NeonUserMock()
+        event = NeonEventMock(event_name="Orphaned Class", teacher=None).add_registrant(student)
+
+        search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
+
+        import dailyClassReminder
+        dailyClassReminder.main()
+
+        # Verify event search API was called
+        assert search_mock.called
+
+        # Should still send email
+        assert self.mock_smtp.send_message.call_count == 1
+
+        # Email should go to classes@asmbly.org
+        email_message = self.mock_smtp.send_message.call_args[0][0]
+        assert email_message["To"] == "classes@asmbly.org"
+
+
