@@ -10,7 +10,6 @@ API Reference: https://developer.neoncrm.com/api-v2/
 
 
 import random
-import string
 from typing import List, Dict, Any, Optional
 from neonUtil import N_baseURL
 import neonUtil
@@ -188,11 +187,20 @@ class NeonEventMock:
         self.start_time = start_time
         self.end_time = end_time
         self.capacity = capacity
-        self._registrants: List[tuple] = []  # List of (NeonUserMock, status, marked_attended)
+        self._registrants: List[tuple] = []  # List of (NeonUserMock, status, marked_attended, attendees)
 
-    def add_registrant(self, account: 'NeonUserMock', status: str = "SUCCEEDED", marked_attended: bool = False) -> 'NeonEventMock':
-        """Add a registrant to this event."""
-        self._registrants.append((account, status, marked_attended))
+    def add_registrant(
+        self,
+        account: 'NeonUserMock',
+        status: str = "SUCCEEDED",
+        marked_attended: bool = False,
+        attendees: Optional[List[dict]] = None,
+    ) -> 'NeonEventMock':
+        """Add a registrant to this event.
+
+        attendees can be a list of dicts with attendee fields to model multiple attendees.
+        """
+        self._registrants.append((account, status, marked_attended, attendees))
         return self
 
     def search_result(self) -> Dict[str, Any]:
@@ -220,16 +228,19 @@ class NeonEventMock:
         """
         event_registrations = []
         account_mocks = []
-        for account, status, marked_attended in self._registrants:
+        for account, status, marked_attended, attendees in self._registrants:
+            if attendees is None:
+                attendees = [{
+                    "firstName": account.firstName,
+                    "lastName": account.lastName,
+                    "email": account.email,
+                    "registrationStatus": status,
+                    "markedAttended": marked_attended
+                }]
             event_registrations.append({
                 "registrantAccountId": account.account_id,
                 "tickets": [{
-                    "attendees": [{
-                        "firstName": account.firstName,
-                        "lastName": account.lastName,
-                        "registrationStatus": status,
-                        "markedAttended": marked_attended
-                    }]
+                    "attendees": attendees
                 }]
             })
             account.mock(requests_mock)

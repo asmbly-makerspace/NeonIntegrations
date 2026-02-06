@@ -3,6 +3,7 @@ import datetime
 import logging
 import traceback
 import os
+from typing import Optional
 
 import helpers.neon as neon
 from helpers.api import apiCall
@@ -53,6 +54,29 @@ EVENT_FIELDS = {
     "Orientation": "182",
     "CSI": "1248" # Ceramics Safety and Information
 }
+
+
+def _get_attendee_email(attendee: dict) -> Optional[str]:
+    for key in ("email", "email1", "emailAddress"):
+        if attendee.get(key):
+            return attendee.get(key)
+    return None
+
+
+def _get_neon_id_by_email(email: str) -> Optional[int]:
+    if not email:
+        return None
+    results = neon.get_acct_by_email(email)
+    if not results:
+        logging.warning("No Neon account found for attendee email %s", email)
+        return None
+    if len(results) > 1:
+        logging.warning("Multiple Neon accounts found for attendee email %s; using first match", email)
+    try:
+        return int(results[0].get("Account ID"))
+    except (TypeError, ValueError):
+        logging.warning("Invalid Neon account ID for attendee email %s", email)
+        return None
 
 
 def toolTestingUpdate(className: str, neonId: int, inputDate: str):
@@ -141,13 +165,18 @@ def main():
                 registrants = neon.getEventRegistrants(eventId)["eventRegistrations"]
                 if type(registrants) is not type(None):
                     for registrant in registrants:
-                        attended = registrant["tickets"][0]["attendees"][0][
-                            "markedAttended"
-                        ]
-                        if attended == True:
-                            toolTestingUpdate(
-                                eventName, registrant["registrantAccountId"], eventDate
-                            )
+                        for ticket in registrant.get("tickets", []):
+                            for attendee in ticket.get("attendees", []):
+                                if attendee.get("markedAttended") == True:
+                                    attendee_email = _get_attendee_email(attendee)
+                                    neon_id = _get_neon_id_by_email(attendee_email)
+                                    if neon_id:
+                                        toolTestingUpdate(eventName, neon_id, eventDate)
+                                    else:
+                                        logging.info(
+                                            "Skipping attendee without valid Neon account for email %s",
+                                            attendee_email,
+                                        )
         else:
             logging.info("Event Search contained no results")
     except TypeError:
