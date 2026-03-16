@@ -1,7 +1,6 @@
 import base64
 import datetime
 import logging
-import traceback
 import os
 
 import helpers.neon as neon
@@ -110,9 +109,9 @@ def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str)
                 shortName,
             )
 
-    except:
-        logging.error(
-            "UPDATE FAILED FOR UNKNOWN REASON!  \n\tAccount ID %s \n\tClass '%s'",
+    except Exception:
+        logging.exception(
+            "Update failed for Account ID %s, Class '%s'",
             neonId,
             shortName,
         )
@@ -138,38 +137,41 @@ def main():
 
     try:
         eventSearch = neon.postEventSearch(searchFields, outputFields)
-        if responseEvents := eventSearch["searchResults"]:
-            for event in responseEvents:
-                eventName = event["Event Name"]
-                eventId = event["Event ID"]
-                eventDate = event["Event End Date"]
-                fieldId, shortName = getFieldForEvent(eventName)
-                if not fieldId:
-                    logging.info("%s does not have a corresponding custom field", eventName)
-                    continue
-                registrants = neon.getEventRegistrants(eventId)["eventRegistrations"]
-                if registrants is None:
-                    logging.info("No registrants found for event %s (%s)", eventName, eventId)
-                    continue
-                attendees = [
-                    r for r in registrants
-                    if r["tickets"][0]["attendees"][0]["markedAttended"] == True
-                ]
-                if not attendees:
-                    logging.info("No attendees marked for event %s (%s)", eventName, eventId)
-                    continue
-                for attendee in attendees:
-                    toolTestingUpdate(
-                        fieldId, shortName, attendee["registrantAccountId"], eventDate
-                    )
-        else:
-            logging.info("Event Search contained no results")
-    except TypeError:
-        pass
-    except:
-        logging.error("Event Search Failed")
-        if traceback.format_exc():
-            logging.error(traceback.format_exc())
+        responseEvents = eventSearch["searchResults"]
+    except Exception:
+        logging.exception("Event search failed")
+        return
+
+    if not responseEvents:
+        logging.info("Event Search contained no results")
+        return
+
+    for event in responseEvents:
+        eventName = event["Event Name"]
+        eventId = event["Event ID"]
+        eventDate = event["Event End Date"]
+        fieldId, shortName = getFieldForEvent(eventName)
+        if not fieldId:
+            logging.info("%s does not have a corresponding custom field", eventName)
+            continue
+        try:
+            registrants = neon.getEventRegistrants(eventId)["eventRegistrations"]
+            if registrants is None:
+                logging.info("No registrants found for event %s (%s)", eventName, eventId)
+                continue
+            attendees = [
+                r for r in registrants
+                if r["tickets"][0]["attendees"][0]["markedAttended"] == True
+            ]
+            if not attendees:
+                logging.info("No attendees marked for event %s (%s)", eventName, eventId)
+                continue
+            for attendee in attendees:
+                toolTestingUpdate(
+                    fieldId, shortName, attendee["registrantAccountId"], eventDate
+                )
+        except Exception:
+            logging.exception("Failed processing event %s (%s)", eventName, eventId)
 
 
 if __name__ == '__main__':
