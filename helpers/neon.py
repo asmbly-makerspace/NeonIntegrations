@@ -1,6 +1,8 @@
 import base64
 import datetime
 import os
+from typing import Any
+
 import requests
 
 if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
@@ -109,9 +111,7 @@ def postEventSearch(searchFields, outputFields, page=0):
     }
 
     url = N_baseURL + resourcePath + queryParams
-    responseEvents = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseEvents
+    return neonSearch(url, data, httpVerb)
 
 
 # Get registrations for a single event by event ID
@@ -189,11 +189,8 @@ def postOrderSearch(searchFields, outputFields):
         "outputFields": outputFields,
         "pagination": {"currentPage": 0, "pageSize": 200},
     }
-
     url = N_baseURL + resourcePath + queryParams
-    responseEvents = apiCall(httpVerb, url, data, N_headers).json()
-
-    return responseEvents
+    return neonSearch(url, data, httpVerb)
 
 
 # Get possible search fields for POST to /accounts/search
@@ -234,8 +231,21 @@ def postAccountSearch(searchFields, outputFields):
     }
 
     url = N_baseURL + resourcePath + queryParams
-    responseEvents = apiCall(httpVerb, url, data, N_headers).json()
+    return neonSearch(url, data, httpVerb)
 
+
+def neonSearch(url: str, data: dict[str, Any], httpVerb: str) -> Any:
+    response = apiCall(httpVerb, url, data, N_headers)
+    response.raise_for_status()
+
+    responseEvents = response.json()
+
+    # Validate response structure
+    if not isinstance(responseEvents, dict) or "searchResults" not in responseEvents:
+        raise ValueError(
+            f"POST {url} returned unexpected response type {type(responseEvents).__name__}. "
+            f"Expected dict with 'searchResults' key, got: {responseEvents}"
+        )
     return responseEvents
 
 
