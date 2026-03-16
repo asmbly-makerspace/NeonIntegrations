@@ -42,7 +42,7 @@ def test_main_processes_attended_event(requests_mock):
 def test_main_skips_already_marked_accounts(requests_mock):
     """Test that main() skips accounts that already have the field marked"""
     student = NeonUserMock(custom_fields={'Woodshop Safety': '01/01/2025'})
-    event = NeonEventMock().add_registrant(student, marked_attended=True)
+    event = NeonEventMock(event_name="Woodshop Safety").add_registrant(student, marked_attended=True)
 
     search_mock, [(registrants_mock, account_mocks)] = NeonEventMock.mock_events(requests_mock, [event])
 
@@ -73,3 +73,56 @@ def test_main_handles_empty_search_results(requests_mock):
 
     # Verify event search was called
     assert search_mock.called, "Event search API should be called"
+
+
+def test_main_skips_event_with_no_matching_field(requests_mock):
+    student = NeonUserMock()
+    event = NeonEventMock(event_name="Basket Weaving")\
+        .add_registrant(student, marked_attended=True)
+
+    search_mock, [(registrants_mock, _)] = NeonEventMock.mock_events(requests_mock, [event])
+
+    import attendanceToTestout
+    attendanceToTestout.main()
+
+    assert search_mock.called, "Event search API should be called"
+    assert not registrants_mock.called, "Event registrants API should not be called for unmapped events"
+
+
+def test_main_handles_no_registrants(requests_mock):
+    event = NeonEventMock(event_name="Woodshop Safety")
+
+    search_mock = requests_mock.post(
+        f'{N_baseURL}/events/search',
+        json={"searchResults": [event.search_result()]}
+    )
+    registrants_mock = requests_mock.get(
+        f'{N_baseURL}/events/{event.event_id}/eventRegistrations',
+        json={"eventRegistrations": None}
+    )
+
+    import attendanceToTestout
+    attendanceToTestout.main()
+
+    assert search_mock.called, "Event search API should be called"
+    assert registrants_mock.called, "Event registrants API should be called"
+
+
+def test_main_skips_event_with_no_attended_registrants(requests_mock):
+    student = NeonUserMock()
+    event = NeonEventMock(event_name="Woodshop Safety")\
+        .add_registrant(student, marked_attended=False)
+
+    search_mock, [(registrants_mock, _)] = NeonEventMock.mock_events(requests_mock, [event])
+
+    patch_mock = requests_mock.patch(
+        f'{N_baseURL}/accounts/{student.account_id}',
+        status_code=200
+    )
+
+    import attendanceToTestout
+    attendanceToTestout.main()
+
+    assert search_mock.called, "Event search API should be called"
+    assert registrants_mock.called, "Event registrants API should be called"
+    assert not patch_mock.called, "PATCH should not be called when no one attended"
