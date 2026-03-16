@@ -21,13 +21,16 @@ N_headers = {
     "Authorization": f"Basic {N_signature}",
 }
 
-TODAY = datetime.date.today()
-DELTA_DAYS = (TODAY - datetime.timedelta(days=7)).isoformat()
+def _get_today():
+    return datetime.date.today()
+
+def _get_delta_days():
+    return (_get_today() - datetime.timedelta(days=7)).isoformat()
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(message)s",
     level=logging.INFO,
-    datefmt="%Y-%m-%d %H:%H:%S",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 EVENT_FIELDS = {
@@ -117,19 +120,22 @@ def toolTestingUpdate(className: str, neonId: int, inputDate: str):
 
 
 def main():
+    today = _get_today()
+    delta_days = _get_delta_days()
+
     searchFields = [
-        {"field": "Event End Date", "operator": "GREATER_AND_EQUAL", "value": DELTA_DAYS},
+        {"field": "Event End Date", "operator": "GREATER_AND_EQUAL", "value": delta_days},
         {
             "field": "Event End Date",
             "operator": "LESS_AND_EQUAL",
-            "value": TODAY.isoformat(),
+            "value": today.isoformat(),
         },
         {"field": "Event Archived", "operator": "EQUAL", "value": "No"},
     ]
 
     outputFields = ["Event Name", "Event ID", "Event End Date"]
 
-    logging.info("Starting Tool Testing update for %s:", TODAY.isoformat())
+    logging.info("Starting Tool Testing update for %s:", today.isoformat())
 
     try:
         eventSearch = neon.postEventSearch(searchFields, outputFields)
