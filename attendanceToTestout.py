@@ -58,15 +58,17 @@ EVENT_FIELDS = {
 }
 
 
-def toolTestingUpdate(className: str, neonId: int, inputDate: str):
+def getFieldForEvent(className: str):
+    for name, id in EVENT_FIELDS.items():
+        if name in className:
+            return id, name
+    return None, None
+
+
+def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str):
     date = datetime.datetime.strftime(
         datetime.datetime.strptime(inputDate, "%Y-%m-%d"), "%m/%d/%Y"
     )
-    fieldId = None
-    for name, id in EVENT_FIELDS.items():
-        if name in className:
-            fieldId = id
-            shortName = name
 
     acctCustFields = neon.getAccountIndividual(neonId)["individualAccount"][
         "accountCustomFields"
@@ -75,7 +77,7 @@ def toolTestingUpdate(className: str, neonId: int, inputDate: str):
     customIdList = []
     for field in acctCustFields:
         customIdList.append(field["id"])
-    if fieldId and fieldId not in customIdList:
+    if fieldId not in customIdList:
         try:
             ##### NEON #####
             # Update part of an account
@@ -113,8 +115,6 @@ def toolTestingUpdate(className: str, neonId: int, inputDate: str):
                 neonId,
                 shortName,
             )
-    elif not fieldId:
-        logging.info("%s does not have a corresponding custom field", className)
     else:
         logging.debug("Account ID %s already has %s marked", neonId, shortName)
 
@@ -144,6 +144,10 @@ def main():
                 eventName = event["Event Name"]
                 eventId = event["Event ID"]
                 eventDate = event["Event End Date"]
+                fieldId, shortName = getFieldForEvent(eventName)
+                if not fieldId:
+                    logging.info("%s does not have a corresponding custom field", eventName)
+                    continue
                 registrants = neon.getEventRegistrants(eventId)["eventRegistrations"]
                 if type(registrants) is not type(None):
                     for registrant in registrants:
@@ -152,7 +156,7 @@ def main():
                         ]
                         if attended == True:
                             toolTestingUpdate(
-                                eventName, registrant["registrantAccountId"], eventDate
+                                fieldId, shortName, registrant["registrantAccountId"], eventDate
                             )
         else:
             logging.info("Event Search contained no results")
