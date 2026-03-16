@@ -148,15 +148,20 @@ def main():
                     logging.info("%s does not have a corresponding custom field", eventName)
                     continue
                 registrants = neon.getEventRegistrants(eventId)["eventRegistrations"]
-                if type(registrants) is not type(None):
-                    for registrant in registrants:
-                        attended = registrant["tickets"][0]["attendees"][0][
-                            "markedAttended"
-                        ]
-                        if attended == True:
-                            toolTestingUpdate(
-                                fieldId, shortName, registrant["registrantAccountId"], eventDate
-                            )
+                if registrants is None:
+                    logging.info("No registrants found for event %s (%s)", eventName, eventId)
+                    continue
+                attendees = [
+                    r for r in registrants
+                    if r["tickets"][0]["attendees"][0]["markedAttended"] == True
+                ]
+                if not attendees:
+                    logging.info("No attendees marked for event %s (%s)", eventName, eventId)
+                    continue
+                for attendee in attendees:
+                    toolTestingUpdate(
+                        fieldId, shortName, attendee["registrantAccountId"], eventDate
+                    )
         else:
             logging.info("Event Search contained no results")
     except TypeError:
