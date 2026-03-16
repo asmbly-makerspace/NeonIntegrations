@@ -74,49 +74,48 @@ def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str)
         "accountCustomFields"
     ]
 
-    customIdList = []
-    for field in acctCustFields:
-        customIdList.append(field["id"])
-    if fieldId not in customIdList:
-        try:
-            ##### NEON #####
-            # Update part of an account
-            # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
-            httpVerb = "PATCH"
-            resourcePath = f"/accounts/{neonId}"
-            queryParams = ""
-            data = {
-                "individualAccount": {
-                    "accountCustomFields": [{"id": fieldId, "value": date}]
-                }
+    customIdList = [field["id"] for field in acctCustFields]
+    if fieldId in customIdList:
+        logging.info("Account ID %s already has %s marked", neonId, shortName)
+        return
+
+    try:
+        ##### NEON #####
+        # Update part of an account
+        # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
+        httpVerb = "PATCH"
+        resourcePath = f"/accounts/{neonId}"
+        queryParams = ""
+        data = {
+            "individualAccount": {
+                "accountCustomFields": [{"id": fieldId, "value": date}]
             }
+        }
 
-            url = N_baseURL + resourcePath + queryParams
+        url = N_baseURL + resourcePath + queryParams
 
-            patch = apiCall(httpVerb, url, data, N_headers)
-            if patch.status_code == 200:
-                logging.info(
-                    "%s SUCCESS!  \n\tAccount ID %s \n\tClass '%s'",
-                    patch.status_code,
-                    neonId,
-                    shortName,
-                )
-            else:
-                logging.error(
-                    "%s FAILED!  \n\tAccount ID %s \n\tClass '%s'",
-                    patch.status_code,
-                    neonId,
-                    shortName,
-                )
-
-        except:
-            logging.error(
-                "UPDATE FAILED FOR UNKNOWN REASON!  \n\tAccount ID %s \n\tClass '%s'",
+        patch = apiCall(httpVerb, url, data, N_headers)
+        if patch.status_code == 200:
+            logging.info(
+                "%s SUCCESS!  \n\tAccount ID %s \n\tClass '%s'",
+                patch.status_code,
                 neonId,
                 shortName,
             )
-    else:
-        logging.debug("Account ID %s already has %s marked", neonId, shortName)
+        else:
+            logging.error(
+                "%s FAILED!  \n\tAccount ID %s \n\tClass '%s'",
+                patch.status_code,
+                neonId,
+                shortName,
+            )
+
+    except:
+        logging.error(
+            "UPDATE FAILED FOR UNKNOWN REASON!  \n\tAccount ID %s \n\tClass '%s'",
+            neonId,
+            shortName,
+        )
 
 
 def main():
