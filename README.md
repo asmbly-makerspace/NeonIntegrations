@@ -58,7 +58,16 @@ NOTE: To run all the scripts in production mode, you will need to create a separ
 
 Here is how to update our automations from the code in this repo:
 - `alta_open_lambda`: Pushing to the `main` branch on github will automatically trigger github actions that will deploy the AWS lambda. See the `.github` folder for the action definitions.
-- The other scripts are run from systemd timers on an ec2 instance named AdminBot2025. They can be redeployed by connecting to the instance and running `git pull origin main` in the `/home/ec2-user/NeonIntegrations` directory. Ideally github actions should update them automatically too, but that's not working at the moment.
+- The other scripts are run from systemd timers on an ec2 instance named AdminBot2025. They can be redeployed by connecting to the instance, going into the `/home/ec2-user/NeonIntegrations` directory, pulling the main branch, and installing any new dependencies:
+
+```
+cd /home/ec2-user/NeonIntegrations
+git pull origin main
+pip3.12 install -r requirements.txt
+```
+
+(Ideally github actions should update them automatically too, but that's not working at the moment.)
+
 
 ## Logging:
 
