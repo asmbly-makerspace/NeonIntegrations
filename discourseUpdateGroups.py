@@ -16,6 +16,9 @@ logging.basicConfig(
 def updateMakers(neonAccounts: dict):
     # retrieve all members of makers group
     makers = discourseUtil.getGroupMembers(discourseUtil.GROUP_MAKERS)
+    if makers is None:
+        # Failed to fetch group membership, so avoid updating
+        return
 
     #Step 1: find all Neon accounts that are paid up, have a DiscourseID, and aren't in Makers
     addMakers = set()
