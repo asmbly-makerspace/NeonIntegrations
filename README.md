@@ -12,7 +12,7 @@ Next, you'll need install the project dependencies. We recommend using [virutal 
 pip install -r requirements.txt
 ```
 
-`requirements.txt` is also used to set up the environment in AWS, so if you add any new dependencies, make sure to update it as well.
+`requirements.txt` and `pyproject.toml` are both used to set up the environment in AWS, so if you add any new dependencies, make sure to update both of them.
 
 After that, you can run all unit tests, which should pass:
 
