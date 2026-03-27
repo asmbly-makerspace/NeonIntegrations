@@ -44,7 +44,7 @@ GROUP_IDS = {
 def getGroupMembers(groupName: str):
     if GROUP_IDS.get(groupName) is None:
         logging.error(f""""{groupName}" is not a known Discourse group""")
-        return {}
+        return None
 
     members = {}
     limit = 50
@@ -62,6 +62,9 @@ def getGroupMembers(groupName: str):
         print(f"""fetching from {url}""")
         response = requests.get(url, headers=D_headers)
         offset += limit
+        if response.status_code != 200:
+            logging.error(f"Failed to fetch group {groupName}: HTTP {response.status_code}")
+            return None
         logging.debug(pformat(response.json().get("meta")))
         total = int(response.json().get("meta")["total"])
         for member in response.json().get("members"):
@@ -124,6 +127,10 @@ def setGroupMembers(newMembersList: list, groupName: str):
         logging.error(f""""{groupName}" is not a known Discourse group""")
 
     currentMembersDict = getGroupMembers(groupName)
+    if currentMembersDict is None:
+        # Failed to fetch group membership, so avoid updating
+        return
+
     currentMembersList = currentMembersDict.keys()
 
     addMembersList = newMembersList - currentMembersList
