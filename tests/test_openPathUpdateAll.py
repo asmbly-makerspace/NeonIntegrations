@@ -241,3 +241,23 @@ def test_reconciles_missing_openpath_id(requests_mock):
         }
     }
     assert update_groups.last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
+
+
+def test_handles_failed_user_creation(requests_mock):
+    """When OpenPath returns 400 for user creation, skip group and credential setup."""
+    rm = requests_mock
+
+    account = NeonUserMock(waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+
+    get_all_users = mock_get_all_users(rm, [])
+    create_alta = rm.post(f'{O_baseURL}/users', status_code=400, json={
+        "message": "This user is already active in this organization."
+    })
+
+    accounts = {str(account.account_id): account.mock(rm)}
+
+    assert_history(rm, lambda: openPathUpdateAll(accounts), [
+        (get_all_users._method, get_all_users._url),
+        (create_alta._method, create_alta._url),
+    ])

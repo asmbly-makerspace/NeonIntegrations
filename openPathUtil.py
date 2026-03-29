@@ -528,9 +528,9 @@ def updateOpenPathByNeonId(neonId):
            neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE_CERAMICS)):
         logging.info(f'Creating account for Neon user {neonId}')
         account = createUser(account)
-        if account.get("OpenPathID"):
-            updateGroups(
-                account, openPathGroups=[]
-            )  # pass empty groups list to skip the http get
-            createMobileCredential(account)
-    logging.info(f'Successfully updated Alta groups for Neon user {neonID}')
+        if not account.get("OpenPathID"):
+            logging.error(f'Failed to create Alta user for Neon user {neonId}')
+            return
+        updateGroups(account, openPathGroups=[]) # pass empty groups list to skip the http get
+        createMobileCredential(account)
+    logging.info(f'Successfully updated Alta groups for Neon user {neonId}')

@@ -23,6 +23,9 @@ def openPathUpdateSingle(neonID):
            neonUtil.accountIsType(account, neonUtil.INSTRUCTOR_TYPE) or
            neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE)):
         account = openPathUtil.createUser(account)
+        if not account.get("OpenPathID"):
+            logging.error(f'Failed to create Alta user for Neon user {neonID}')
+            return
         openPathUtil.updateGroups(account, openPathGroups=[]) #pass empty groups list to skip the http get
         openPathUtil.createMobileCredential(account)
     elif account.get("validMembership"):
