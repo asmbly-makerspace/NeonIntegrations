@@ -32,7 +32,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     for opUser in opUsers.values():
         externalId = opUser.get("externalId")
         if externalId:
-            opUsersByExternalId[str(externalId)] = opUser
+            opUsersByExternalId[externalId] = opUser
 
     subscriberCount = 0
     ceramicsCount = 0
@@ -49,71 +49,69 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     paidRegulars = 0
     paidCeramics = 0
 
-    for account in neonAccounts:
-        if not neonAccounts[account].get("OpenPathID"):
-            neonId = neonAccounts[account].get("Account ID")
-            if neonId and str(neonId) in opUsersByExternalId:
-                opUser = opUsersByExternalId[str(neonId)]
-                logging.info(
-                    "Reconciling OpenPathID %s for Neon account %s (%s)",
-                    opUser.get("id"),
-                    neonId,
-                    neonAccounts[account].get("Email 1"),
-                )
-                neonAccounts[account]["OpenPathID"] = opUser.get("id")
-                neonUtil.updateOpenPathID(neonAccounts[account])
+    for accountId, account in neonAccounts.items():
+        if not account.get("OpenPathID") and accountId in opUsersByExternalId:
+            opUser = opUsersByExternalId[accountId]
+            logging.info(
+                "Reconciling OpenPathID %s for Neon account %s (%s)",
+                opUser.get("id"),
+                accountId,
+                account.get("Email 1"),
+            )
+            account["OpenPathID"] = opUser.get("id")
+            neonUtil.updateOpenPathID(account)
 
-        if not neonAccounts[account].get("paidRegular") and not neonAccounts[account].get("paidCeramics") and not neonUtil.accountIsType(neonAccounts[account], neonUtil.STAFF_TYPE):
+        if not account.get("paidRegular") and not account.get("paidCeramics") and not neonUtil.accountIsType(account, neonUtil.STAFF_TYPE):
             #Accounts that are neither paid nor staff might still have access
-            if neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE):
-                compedLeaders.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
-            elif neonAccounts[account].get("compedRegular") or neonAccounts[account].get("compedCeramics"):
-                compedSubscribers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
+            if neonUtil.accountIsType(account, neonUtil.LEAD_TYPE):
+                compedLeaders.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
+            elif account.get("compedRegular") or account.get("compedCeramics"):
+                compedSubscribers.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
 
-        if neonAccounts[account].get("validMembership"):
+        if account.get("validMembership"):
             subscriberCount += 1
-            if neonAccounts[account].get("ceramicsMembership"):
+            if account.get("ceramicsMembership"):
                 ceramicsCount += 1
 
             #accounts with concurrent paid regular and ceramics memberships are most likely
             #upgrades that should be only counted as ceramics members
-            if neonAccounts[account].get("paidCeramics"):
+            if account.get("paidCeramics"):
                 paidCeramics += 1
-            elif neonAccounts[account].get("paidRegular"):
+            elif account.get("paidRegular"):
                 paidRegulars += 1
 
-        if neonAccounts[account].get("paidRegular") and neonAccounts[account].get("paidCeramics"):
-            logging.info(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) has concurrent paid memberships.''')
+        if account.get("paidRegular") and account.get("paidCeramics"):
+            logging.info(f'''{account.get("fullName")} ({account.get("Email 1")}) has concurrent paid memberships.''')
 
-        if neonUtil.subscriberHasFacilityAccess(neonAccounts[account]):
+        if neonUtil.subscriberHasFacilityAccess(account):
             facilityUserCount += 1
 
-        if neonUtil.subscriberHasCeramicsAccess(neonAccounts[account]):
+        if neonUtil.subscriberHasCeramicsAccess(account):
             ceramicsFacilityCount += 1
 
-        if neonAccounts[account].get("OpenPathID"):
-            openPathUtil.updateGroups(neonAccounts[account], 
-                                        openPathGroups=opUsers.get(int(neonAccounts[account].get("OpenPathID"))).get("groups"))
+        if account.get("OpenPathID"):
+            openPathUtil.updateGroups(account,
+                                        openPathGroups=opUsers.get(int(account.get("OpenPathID"))).get("groups"))
             #note that this isn't necessarily 100% accurate, because we have Neon users with provisioned OpenPath IDs and no access groups
             #assuming that typical users who gained and lost openPath access have a signed waiver
-            if not neonAccounts[account].get("WaiverDate"):
-                warningUsers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
-        elif neonUtil.accountHasFacilityAccess(neonAccounts[account]):
-            neonAccounts[account] = openPathUtil.createUser(neonAccounts[account])
-            if neonAccounts[account].get("OpenPathID"):
-                openPathUtil.updateGroups(neonAccounts[account],
+            if not account.get("WaiverDate"):
+                warningUsers.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
+        elif neonUtil.accountHasFacilityAccess(account):
+            openPathUtil.createUser(account)
+            if account.get("OpenPathID"):
+                openPathUtil.updateGroups(account,
                                             openPathGroups=[]) #pass empty groups list to skip the http get
-                openPathUtil.createMobileCredential(neonAccounts[account])
-        elif neonAccounts[account].get("validMembership"):
-            startDate = neonAccounts[account].get("Membership Start Date")
-            if not neonAccounts[account].get("WaiverDate"):
-                missingWaiverSubscribers[account] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
-            if not neonAccounts[account].get("FacilityTourDate"):
-                missingTourSubscribers[account] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {startDate}'''
+                openPathUtil.createMobileCredential(account)
+        elif account.get("validMembership"):
+            startDate = account.get("Membership Start Date")
+            if not account.get("WaiverDate"):
+                missingWaiverSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {startDate}'''
+            if not account.get("FacilityTourDate"):
+                missingTourSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {startDate}'''
 
         #an account might be missing CSI but still have regular facility access stuff handled
-        if neonAccounts[account].get("ceramicsMembership") and not neonAccounts[account].get("CsiDate"):
-            missingCsiSubscribers[account] = f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")}) - since {neonAccounts[account].get("Ceramics Start Date")}'''
+        if account.get("ceramicsMembership") and not account.get("CsiDate"):
+            missingCsiSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {account.get("Ceramics Start Date")}'''
 
     list_separator = '\n            '
     compedSubscriberString = ""
