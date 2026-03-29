@@ -28,42 +28,62 @@ filenameMem = 'neonMembersAR2024'
 # pprint(neon.getAccountSearchFields())
 # exit(0)
 
+# # General search fields with custom values for level, term, and enrollment counts
+# def generateSF(levelValue, termValue, allTimeCount, yearCount):
+#     return [
+#         {
+#             'field':'Membership Level',
+#             'operator':'EQUAL',
+#             'value':str(levelValue)
+#         },
+#         {
+#             'field':'Membership Term',
+#             'operator':'IN_RANGE',
+#             'valueList': termValue
+#         },
+#         {
+#             'field':'All Time Membership Enrollment Count',
+#             'operator':'GREATER_THAN',
+#             'value':str(allTimeCount)
+#         },
+#         {
+#             'field':'2024 Calendar Year Membership Enrollment Count',
+#             'operator':'GREATER_THAN',
+#             'value':str(yearCount)
+#         }
+#     ]
+
+
 # General search fields with custom values for level, term, and enrollment counts
-def generateSF(levelValue, termValue, allTimeCount, yearCount):
+def generateSF(allTimeCount):
     return [
-        {
-            'field':'Membership Level',
-            'operator':'EQUAL',
-            'value':str(levelValue)
-        },
-        {
-            'field':'Membership Term',
-            'operator':'IN_RANGE',
-            'valueList': termValue
-        },
         {
             'field':'All Time Membership Enrollment Count',
             'operator':'GREATER_THAN',
             'value':str(allTimeCount)
         },
         {
-            'field':'2024 Calendar Year Membership Enrollment Count',
-            'operator':'GREATER_THAN',
-            'value':str(yearCount)
+            'field':'Account Current Membership Status',
+            'operator':'EQUAL',
+            'value':'Active'
         }
     ]
 
 
 # Search fields for monthly members with more than 11 enrollments ever and over 10 in 2024 (long term members)
-sfm = generateSF('Regular Membership',
-                 ['Monthly Membership (Join, $95.00, 1 Month)',
-                  'Monthly Membership (Renew, $95.00, 1 Month)'],
-                 11, 10)
-# Search fields for annual members with more than 0 enrollments ever and more than 0 in 2024 (long term members)
-sfa = generateSF('Regular Membership',
-                 ['Annual Membership (Join, $950.00, 1 Year)',
-                  'Annual Membership (Renew, $950.00, 1 Year)'],
-                 0, 0)
+sflt = generateSF(12)
+
+
+# # Search fields for monthly members with more than 11 enrollments ever and over 10 in 2024 (long term members)
+# sfm = generateSF('Regular Membership',
+#                  ['Monthly Membership (Join, $95.00, 1 Month)',
+#                   'Monthly Membership (Renew, $95.00, 1 Month)'],
+#                  11, 10)
+# # Search fields for annual members with more than 0 enrollments ever and more than 0 in 2024 (long term members)
+# sfa = generateSF('Regular Membership',
+#                  ['Annual Membership (Join, $950.00, 1 Year)',
+#                   'Annual Membership (Renew, $950.00, 1 Year)'],
+#                  0, 0)
 
 outputFields = [
     'Account ID',
@@ -79,12 +99,18 @@ outputFields = [
     'Individual Type',
     'Account Current Membership Status',
 ]
-# Run searches for monthly and annual longterm members
-longMem24M = neon.postAccountSearch(sfm, outputFields)
-longMem24A = neon.postAccountSearch(sfa, outputFields)
 
-print(f"Longterm monthly members: {longMem24M['pagination']['totalResults']}")
-print(f"Longterm annual members:  {longMem24A['pagination']['totalResults']}")
+# Run searches for monthly and annual longterm members
+longMem = neon.postAccountSearch(sflt, outputFields)
+print(f"Longterm members: {longMem['pagination']['totalResults']}")
+pprint(longMem)
+
+# # Run searches for monthly and annual longterm members
+# longMem24M = neon.postAccountSearch(sfm, outputFields)
+# longMem24A = neon.postAccountSearch(sfa, outputFields)
+
+# print(f"Longterm monthly members: {longMem24M['pagination']['totalResults']}")
+# print(f"Longterm annual members:  {longMem24A['pagination']['totalResults']}")
 
 
 # Combine the actual search result lists from each API response
@@ -95,7 +121,8 @@ def _extract_search_results(resp):
         return resp
     return []
 
-parts = (_extract_search_results(r) for r in (longMem24M, longMem24A))
+parts = (_extract_search_results(r) for r in (longMem))
+# parts = (_extract_search_results(r) for r in (longMem24M, longMem24A))
 longMembers2024 = []
 for p in parts:
     longMembers2024.extend(p)
@@ -156,7 +183,7 @@ print("deduped_ordered_count:", len(deduped_ordered))
 import csv
 from pathlib import Path
 
-outdir = Path('./private/AnnualReport24')
+outdir = Path('./private/LongTermMembers_NOW')
 outdir.mkdir(parents=True, exist_ok=True)
 csv_path = outdir / f'{filenameMem}.csv'
 
