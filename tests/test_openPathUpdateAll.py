@@ -210,3 +210,34 @@ def test_creates_user(requests_mock):
         "mobile": {"name": "Automatic Mobile Credential"},
         "credentialTypeId": 1,
     }
+
+
+def test_reconciles_missing_openpath_id(requests_mock):
+    """Account missing OpenPathID is reconciled via externalId and updated normally."""
+    rm = requests_mock
+
+    account = NeonUserMock(waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+
+    get_all_users = mock_get_all_users(rm, [
+        {"id": ALTA_ID, "externalId": str(account.account_id), "groups": []},
+    ])
+    update_neon = rm.patch(f'{N_baseURL}/accounts/{account.account_id}', status_code=200)
+    update_groups = rm.put(f'{O_baseURL}/users/{ALTA_ID}/groupIds', status_code=204)
+
+    accounts = {str(account.account_id): account.mock(rm)}
+
+    assert_history(rm, lambda: openPathUpdateAll(accounts), [
+        (get_all_users._method, get_all_users._url),
+        (update_neon._method, update_neon._url),
+        (update_groups._method, update_groups._url),
+    ])
+
+    assert update_neon.last_request.json() == {
+        "individualAccount": {
+            "accountCustomFields": [
+                {"id": str(ACCOUNT_FIELD_OPENPATH_ID), "name": "OpenPathID", "value": str(ALTA_ID)}
+            ]
+        }
+    }
+    assert update_groups.last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
