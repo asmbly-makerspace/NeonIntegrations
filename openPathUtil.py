@@ -510,27 +510,3 @@ def createMobileCredential(neonAccount):
         raise ValueError(
             f"Post {url} returned status code {response.status_code}; expected 204"
         )
-
-
-#################################################################################
-# Given a single Neon ID, perform necessary OpenPath updates
-#################################################################################
-def updateOpenPathByNeonId(neonId):
-    logging.info("Updating Neon ID %s", neonId)
-    account = neonUtil.getMemberById(neonId)
-    # logging.debug(account)
-    if account.get("OpenPathID"):
-        updateGroups(account, email=True)
-    #instructors and on-duty volunteers might need OP credentials without having facility access
-    elif ( neonUtil.accountHasFacilityAccess(account) or 
-           neonUtil.accountIsType(account, neonUtil.INSTRUCTOR_TYPE) or
-           neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE) or
-           neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE_CERAMICS)):
-        logging.info(f'Creating account for Neon user {neonId}')
-        account = createUser(account)
-        if not account.get("OpenPathID"):
-            logging.error(f'Failed to create Alta user for Neon user {neonId}')
-            return
-        updateGroups(account, openPathGroups=[]) # pass empty groups list to skip the http get
-        createMobileCredential(account)
-    logging.info(f'Successfully updated Alta groups for Neon user {neonId}')
