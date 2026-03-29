@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-########### Asmbly NeonCRM & Discourse API Integrations ############
-#      Neon API docs - https://developer.neoncrm.com/api-v2/     #
-#################################################################
-#################################################################
-#  This helper script is a work in progress...                  #
-#################################################################
+################# Asmbly NeonCRM API Integrations ##################
+#       Neon API docs - https://developer.neoncrm.com/api-v2/      #
+####################################################################
+####################################################################
+#  This helper script is a work in progress...                     #
+####################################################################
 
 from pprint import pprint
 import requests

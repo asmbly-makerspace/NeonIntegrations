@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-########### Asmbly NeonCRM & Discourse API Integrations ############
+################# Asmbly NeonCRM API Integrations ##################
 #       Neon API docs - https://developer.neoncrm.com/api-v2/      #
 ####################################################################
 ####################################################################
