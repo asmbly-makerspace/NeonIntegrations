@@ -411,7 +411,7 @@ def createUser(neonAccount):
                 pformat(data),
                 response.text,
             )
-            return neonAccount
+            return False
 
         # openPath times are in UTC
         opUser = response.json().get("data")
@@ -455,7 +455,7 @@ def createUser(neonAccount):
     else:
         logging.warning("DryRun in openPathUtil.createUser()")
 
-    return neonAccount
+    return True
 
 
 #################################################################################

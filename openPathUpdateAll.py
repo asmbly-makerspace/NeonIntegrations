@@ -97,8 +97,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
             if not account.get("WaiverDate"):
                 warningUsers.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
         elif neonUtil.accountHasFacilityAccess(account):
-            openPathUtil.createUser(account)
-            if account.get("OpenPathID"):
+            if openPathUtil.createUser(account):
                 openPathUtil.updateGroups(account,
                                             openPathGroups=[]) #pass empty groups list to skip the http get
                 openPathUtil.createMobileCredential(account)
