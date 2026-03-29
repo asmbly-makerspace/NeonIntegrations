@@ -27,6 +27,13 @@ def getWarningText(warningUsers):
 def openPathUpdateAll(neonAccounts, mailSummary = False):
     opUsers = openPathUtil.getAllUsers()
 
+    # Build externalId->opUser lookup to reconcile Neon accounts missing their OpenPathID
+    opUsersByExternalId = {}
+    for opUser in opUsers.values():
+        externalId = opUser.get("externalId")
+        if externalId:
+            opUsersByExternalId[str(externalId)] = opUser
+
     subscriberCount = 0
     ceramicsCount = 0
     facilityUserCount = 0
@@ -43,6 +50,19 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     paidCeramics = 0
 
     for account in neonAccounts:
+        if not neonAccounts[account].get("OpenPathID"):
+            neonId = neonAccounts[account].get("Account ID")
+            if neonId and str(neonId) in opUsersByExternalId:
+                opUser = opUsersByExternalId[str(neonId)]
+                logging.info(
+                    "Reconciling OpenPathID %s for Neon account %s (%s)",
+                    opUser.get("id"),
+                    neonId,
+                    neonAccounts[account].get("Email 1"),
+                )
+                neonAccounts[account]["OpenPathID"] = opUser.get("id")
+                neonUtil.updateOpenPathID(neonAccounts[account])
+
         if not neonAccounts[account].get("paidRegular") and not neonAccounts[account].get("paidCeramics") and not neonUtil.accountIsType(neonAccounts[account], neonUtil.STAFF_TYPE):
             #Accounts that are neither paid nor staff might still have access
             if neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE):
@@ -80,9 +100,10 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
                 warningUsers.append(f'''{neonAccounts[account].get("fullName")} ({neonAccounts[account].get("Email 1")})''')
         elif neonUtil.accountHasFacilityAccess(neonAccounts[account]):
             neonAccounts[account] = openPathUtil.createUser(neonAccounts[account])
-            openPathUtil.updateGroups(neonAccounts[account],
-                                        openPathGroups=[]) #pass empty groups list to skip the http get
-            openPathUtil.createMobileCredential(neonAccounts[account])
+            if neonAccounts[account].get("OpenPathID"):
+                openPathUtil.updateGroups(neonAccounts[account],
+                                            openPathGroups=[]) #pass empty groups list to skip the http get
+                openPathUtil.createMobileCredential(neonAccounts[account])
         elif neonAccounts[account].get("validMembership"):
             startDate = neonAccounts[account].get("Membership Start Date")
             if not neonAccounts[account].get("WaiverDate"):

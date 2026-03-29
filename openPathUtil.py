@@ -406,9 +406,10 @@ def createUser(neonAccount):
         response = requests.post(url, json=data, headers=O_headers)
         if response.status_code != 201:
             logging.error(
-                "Status %s (expected 201) creating OpenPath User %s",
+                "Status %s (expected 201) creating OpenPath User %s\nResponse: %s",
                 response.status_code,
                 pformat(data),
+                response.text,
             )
             return neonAccount
 
@@ -527,8 +528,9 @@ def updateOpenPathByNeonId(neonId):
            neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE_CERAMICS)):
         logging.info(f'Creating account for Neon user {neonId}')
         account = createUser(account)
-        updateGroups(
-            account, openPathGroups=[]
-        )  # pass empty groups list to skip the http get
-        createMobileCredential(account)
+        if account.get("OpenPathID"):
+            updateGroups(
+                account, openPathGroups=[]
+            )  # pass empty groups list to skip the http get
+            createMobileCredential(account)
     logging.info(f'Successfully updated Alta groups for Neon user {neonID}')
