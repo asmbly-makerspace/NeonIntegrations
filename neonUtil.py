@@ -7,6 +7,7 @@ import logging
 import base64
 import datetime, pytz
 import requests
+from concurrent.futures import ThreadPoolExecutor
 import os
 
 if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
@@ -436,15 +437,9 @@ def getRealAccounts():
     progress = 0
     counter = 0
 
-    logging.info(f"Updating Membership Info {int(progress)}% complete")
+    accounts_to_fetch = []
     for account in neonAccountDict:
-        counter += 1
         accountCount += 1
-
-        if counter > loops_per_ping:
-            counter = 0
-            progress += progress_per_ping
-            logging.info(f"Updating Membership Info {int(progress)}% complete")
 
         # copy primary contact info to match search results format
         neonAccountDict[account][
@@ -470,9 +465,16 @@ def getRealAccounts():
             neonAccountDict[account]["validMembership"] = False
             continue
 
-        neonAccountDict[account] = appendMemberships(neonAccountDict[account])
+        accounts_to_fetch.append(neonAccountDict[account])
 
-        if neonAccountDict[account].get("validMembership"):
+    # Fetch memberships concurrently (10 workers benchmarked as safe for Neon's rate limits)
+    logging.info("Fetching membership details for %s accounts", len(accounts_to_fetch))
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = list(executor.map(appendMemberships, accounts_to_fetch))
+
+    for account in results:
+        neonAccountDict[account["Account ID"]] = account
+        if account.get("validMembership"):
             activeSubscriptions += 1
 
     logging.info(
