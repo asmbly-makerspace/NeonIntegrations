@@ -22,9 +22,9 @@ def openPathUpdateSingle(neonID):
     elif ( neonUtil.accountHasFacilityAccess(account) or 
            neonUtil.accountIsType(account, neonUtil.INSTRUCTOR_TYPE) or
            neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE)):
-        account = openPathUtil.createUser(account)
-        openPathUtil.updateGroups(account, openPathGroups=[]) #pass empty groups list to skip the http get
-        openPathUtil.createMobileCredential(account)
+        if openPathUtil.createUser(account):
+            openPathUtil.updateGroups(account, openPathGroups=[]) #pass empty groups list to skip the http get
+            openPathUtil.createMobileCredential(account)
     elif account.get("validMembership"):
         if not account.get("WaiverDate"):
             logging.info(f'''{account.get("fullName")} ({account.get("Email 1")} is missing the Waiver''')

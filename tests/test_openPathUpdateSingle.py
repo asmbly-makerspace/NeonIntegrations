@@ -155,3 +155,22 @@ def test_creates_user_with_correct_group(requests_mock, mocker):
             "mobile": {"name": "Automatic Mobile Credential"},
             "credentialTypeId": 1,
         }
+
+
+def test_handles_failed_user_creation(requests_mock):
+    """When OpenPath returns 400 for user creation, log error and don't proceed."""
+    rm = requests_mock
+
+    account = NeonUserMock(waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+    account.mock(rm)
+
+    create_alta = rm.post(f'{O_baseURL}/users', status_code=400, json={
+        "message": "This user is already active in this organization."
+    })
+
+    assert_history(rm, lambda: openPathUpdateSingle(account.account_id), [
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}'),
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
+        (create_alta._method, create_alta._url),
+    ])

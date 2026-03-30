@@ -406,11 +406,12 @@ def createUser(neonAccount):
         response = requests.post(url, json=data, headers=O_headers)
         if response.status_code != 201:
             logging.error(
-                "Status %s (expected 201) creating OpenPath User %s",
+                "Status %s (expected 201) creating OpenPath User %s\nResponse: %s",
                 response.status_code,
                 pformat(data),
+                response.text,
             )
-            return neonAccount
+            return False
 
         # openPath times are in UTC
         opUser = response.json().get("data")
@@ -454,7 +455,7 @@ def createUser(neonAccount):
     else:
         logging.warning("DryRun in openPathUtil.createUser()")
 
-    return neonAccount
+    return True
 
 
 #################################################################################
@@ -509,26 +510,3 @@ def createMobileCredential(neonAccount):
         raise ValueError(
             f"Post {url} returned status code {response.status_code}; expected 204"
         )
-
-
-#################################################################################
-# Given a single Neon ID, perform necessary OpenPath updates
-#################################################################################
-def updateOpenPathByNeonId(neonId):
-    logging.info("Updating Neon ID %s", neonId)
-    account = neonUtil.getMemberById(neonId)
-    # logging.debug(account)
-    if account.get("OpenPathID"):
-        updateGroups(account, email=True)
-    #instructors and on-duty volunteers might need OP credentials without having facility access
-    elif ( neonUtil.accountHasFacilityAccess(account) or 
-           neonUtil.accountIsType(account, neonUtil.INSTRUCTOR_TYPE) or
-           neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE) or
-           neonUtil.accountIsType(account, neonUtil.ONDUTY_TYPE_CERAMICS)):
-        logging.info(f'Creating account for Neon user {neonId}')
-        account = createUser(account)
-        updateGroups(
-            account, openPathGroups=[]
-        )  # pass empty groups list to skip the http get
-        createMobileCredential(account)
-    logging.info(f'Successfully updated Alta groups for Neon user {neonID}')
