@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from tenacity import wait_none
 
 # Import after conftest has set up mocks
 from mailjetUtil import (
@@ -9,6 +10,15 @@ from mailjetUtil import (
     Subscriber,
     MailjetAction,
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_wait():
+    """Disable tenacity retry wait times so tests run instantly."""
+    original_wait = MJService.get_job_status.retry.wait
+    MJService.get_job_status.retry.wait = wait_none()
+    yield
+    MJService.get_job_status.retry.wait = original_wait
 
 
 @pytest.fixture
