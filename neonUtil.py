@@ -120,7 +120,7 @@ def appendMemberships(account: dict, detailed=False):
     response = requests.get(url, headers=N_headers)
 
     if response.status_code != 200:
-        raise ValueError(f"Get {url} returned status code {response.status_code}")
+        raise ValueError(f"Get {url} returned status code {response.status_code}: {response.text}")
 
     # logging.debug(pformat(response.json()))
 
@@ -351,7 +351,7 @@ def getNeonAccounts(searchFields, neonAccountDict={}):
         response = requests.post(url, json=data, headers=N_headers)
 
         if response.status_code != 200:
-            raise ValueError(f"Post {url} returned status code {response.status_code}")
+            raise ValueError(f"Post {url} returned status code {response.status_code}: {response.text}")
 
         logging.info("Fetching Accounts: %s", response.json().get("pagination"))
         # re-shuffle the data into a format that's a little easier to work with
@@ -467,9 +467,9 @@ def getRealAccounts():
 
         accounts_to_fetch.append(neonAccountDict[account])
 
-    # Fetch memberships concurrently (10 workers benchmarked as safe for Neon's rate limits)
+    # Fetch memberships concurrently (5 workers to stay within Neon's rate limits)
     logging.info("Fetching membership details for %s accounts", len(accounts_to_fetch))
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=5) as executor:
         results = list(executor.map(appendMemberships, accounts_to_fetch))
 
     for account in results:
