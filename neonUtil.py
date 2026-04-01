@@ -8,6 +8,8 @@ import base64
 import datetime, pytz
 import requests
 from concurrent.futures import ThreadPoolExecutor
+import threading
+import time
 import os
 
 if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
@@ -105,6 +107,23 @@ def updateDID(account: dict):
     response = requests.patch(url, json=data, headers=N_headers)
     if response.status_code != 200:
         raise ValueError(f"Patch {url} returned status code {response.status_code}")
+
+
+class RateLimiter:
+    """Allows up to `per_second` calls per second across all threads."""
+    def __init__(self, per_second):
+        self.interval = 1.0 / per_second
+        self.lock = threading.Lock()
+        self.next_time = time.monotonic()
+
+    def acquire(self):
+        with self.lock:
+            now = time.monotonic()
+            wait = self.next_time - now
+            self.next_time = max(now, self.next_time) + self.interval
+        if wait > 0:
+            time.sleep(wait)
+
 
 
 ####################################################################
@@ -467,10 +486,16 @@ def getRealAccounts():
 
         accounts_to_fetch.append(neonAccountDict[account])
 
-    # Fetch memberships concurrently (5 workers to stay within Neon's rate limits)
+    # Neon's rate limit is 10 req/sec; use 9 for headroom against sleep/network jitter
+    rate_limiter = RateLimiter(per_second=9)
     logging.info("Fetching membership details for %s accounts", len(accounts_to_fetch))
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        results = list(executor.map(appendMemberships, accounts_to_fetch))
+
+    def fetch_with_rate_limit(account):
+        rate_limiter.acquire()
+        return appendMemberships(account)
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = list(executor.map(fetch_with_rate_limit, accounts_to_fetch))
 
     for account in results:
         neonAccountDict[account["Account ID"]] = account
