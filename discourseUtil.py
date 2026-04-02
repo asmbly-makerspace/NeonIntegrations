@@ -22,7 +22,6 @@ dryRun = False
 # Discourse Group names
 GROUP_MAKERS = "makers"
 GROUP_COMMUNITY = "community"
-GROUP_COWORKING = "coworking"
 GROUP_LEADERSHIP = "leadership"
 GROUP_STEWARDS = "stewards"
 GROUP_WIKI_ADMINS = "sysops"
@@ -31,7 +30,6 @@ GROUP_WIKI_ADMINS = "sysops"
 GROUP_IDS = {
     GROUP_MAKERS: 42,
     GROUP_COMMUNITY: 45,
-    GROUP_COWORKING: 55,
     GROUP_LEADERSHIP: 41,
     GROUP_STEWARDS: 44,
     GROUP_WIKI_ADMINS: 57,

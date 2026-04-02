@@ -59,7 +59,6 @@ def updateMakers(neonAccounts: dict):
 
 def updateTypes(neonAccounts: dict):
     #using sets for these to pevent duplicate entries
-    coworkingMembers= set()
     leadershipMembers = set()
     stewardsMembers = set()
     instructorsMembers = set()
@@ -74,9 +73,6 @@ def updateTypes(neonAccounts: dict):
         if neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE) or neonUtil.accountIsType(neonAccounts[account], neonUtil.DIRECTOR_TYPE):
             leadershipMembers.add(neonAccounts[account].get("DiscourseID"))
 
-        if neonUtil.accountIsType(neonAccounts[account], neonUtil.COWORKING_TYPE):
-            coworkingMembers.add(neonAccounts[account].get("DiscourseID"))
-
         if neonUtil.accountIsType(neonAccounts[account], neonUtil.STEWARD_TYPE) or neonUtil.accountIsType(neonAccounts[account], neonUtil.SUPER_TYPE):
             stewardsMembers.add(neonAccounts[account].get("DiscourseID"))
 
@@ -89,7 +85,6 @@ def updateTypes(neonAccounts: dict):
     #Discourse is annoying about primary groups - there's no way to set a heirarchy; it's last-one-sticks
     #Update the "highest rank" group last so users new to multiple groups wind up with the highest title
     discourseUtil.setGroupMembers(list(wikiAdmins), discourseUtil.GROUP_WIKI_ADMINS)
-    discourseUtil.setGroupMembers(list(coworkingMembers), discourseUtil.GROUP_COWORKING)
     discourseUtil.setGroupMembers(list(stewardsMembers), discourseUtil.GROUP_STEWARDS)
     #haven't actually decided on a Discourse group for instructors yet
     #discourseUtil.setGroupMembers(list(instructorsMembers), discourseUtil.GROUP_INSTRUCTORS)

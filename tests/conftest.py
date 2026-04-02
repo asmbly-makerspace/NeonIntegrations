@@ -113,7 +113,7 @@ def mock_discourse(requests_mock):
     """Mock Discourse API group member endpoints with empty responses."""
     from discourseUtil import D_baseURL
 
-    groups = ['makers', 'community', 'coworking', 'leadership', 'stewards', 'sysops']
+    groups = ['makers', 'community', 'leadership', 'stewards', 'sysops']
     mocks = {}
     for group in groups:
         mocks[group] = requests_mock.get(
