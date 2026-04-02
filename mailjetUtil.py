@@ -364,7 +364,7 @@ class MJService:
         retry=retry_if_result(lambda x: x == "Processing"),
     )
     def get_job_status(self, job_id: int) -> str | None:
-        response = self.client.contact_managemanycontacts.get(id=job_id)
+        response = self.client.contact_managemanycontacts.get(action_id=job_id)
 
         if response.status_code == 404:
             logging.info("Job %s not yet available, retrying...", job_id)
