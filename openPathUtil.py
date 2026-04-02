@@ -287,7 +287,6 @@ def getOpGroups(neonAccount):
 # Given a Neon account and optionally an OpenPath user, perform necessary updates
 #################################################################################
 def updateGroups(neonAccount, openPathGroups=None, email=False):
-    logging.info(f'''Updating Neon group memberships for {neonAccount.get("Email 1")}''')
     if not neonAccount.get("OpenPathID"):
         logging.error("No OpenPathID found to update groups")
         return
@@ -355,6 +354,7 @@ def updateGroups(neonAccount, openPathGroups=None, email=False):
 
     if len(opGroupArray) == 0:
         # account went from no groups to some groups
+        logging.info("Enabling OpenPath access for %s (%s)", neonAccount.get("Account ID"), neonAccount.get("Email 1"))
         gmailUtil.sendMIMEmessage(
             AsmblyMessageFactory.getOpenPathEnableMessage(
                 neonAccount.get("Email 1"), neonAccount.get("fullName")
@@ -363,6 +363,7 @@ def updateGroups(neonAccount, openPathGroups=None, email=False):
 
     if len(neonOpGroups) == 0:
         # account went from some groups to no groups
+        logging.info("Disabling OpenPath access for %s (%s)", neonAccount.get("Account ID"), neonAccount.get("Email 1"))
         gmailUtil.sendMIMEmessage(
             AsmblyMessageFactory.getOpenPathDisableMessage(
                 neonAccount.get("Email 1"), neonAccount.get("fullName")
