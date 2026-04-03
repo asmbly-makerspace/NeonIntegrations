@@ -90,8 +90,8 @@ def addGroupMembers(membersList: list, groupName: str):
         updateResponse = requests.put(
             url, data={"usernames": ",".join(membersList)}, headers=D_headers
         )
-        # pprint(updateResponse)
-        # TODO: check response for skipped usernames.  For now assume callers are checking for valid discourse IDs
+        if updateResponse.status_code != 200:
+            logging.error("Failed to add members to %s: HTTP %s %s", groupName, updateResponse.status_code, updateResponse.text)
 
 
 ####################################################################
@@ -113,8 +113,12 @@ def removeGroupMembers(membersList: list, groupName: str):
         deleteResponse = requests.delete(
             url, data={"usernames": ",".join(membersList)}, headers=D_headers
         )
-        # pprint(deleteResponse)
-        # don't bother with skipped usernames here - removing a user who wasn't in the group is a safe No-Op
+        if deleteResponse.status_code != 200:
+            logging.error("Failed to remove members from %s: HTTP %s %s", groupName, deleteResponse.status_code, deleteResponse.text)
+        else:
+            skipped = deleteResponse.json().get("skipped_usernames", [])
+            if skipped:
+                logging.warning("Skipped removing from %s: %s", groupName, skipped)
 
 
 ####################################################################
