@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
 import os
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
     from aws_ssm import N_APIkey, N_APIuser
@@ -320,6 +321,20 @@ def fixTypes(account: dict):
     return account
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_fixed(5),
+    retry=retry_if_exception_type(ValueError),
+    before_sleep=lambda rs: logging.warning("Neon search returned %s, retrying...", rs.outcome.exception()),
+)
+def _neon_search(data):
+    url = N_baseURL + "/accounts/search"
+    response = requests.post(url, json=data, headers=N_headers)
+    if response.status_code != 200:
+        raise ValueError(f"Post {url} returned status code {response.status_code}: {response.text}")
+    return response
+
+
 ####################################################################
 # Get Neon accounts matching given criteria
 ####################################################################
@@ -366,11 +381,7 @@ def getNeonAccounts(searchFields, neonAccountDict={}):
             "pagination": {"currentPage": page, "pageSize": 200},
         }
 
-        url = N_baseURL + "/accounts/search"
-        response = requests.post(url, json=data, headers=N_headers)
-
-        if response.status_code != 200:
-            raise ValueError(f"Post {url} returned status code {response.status_code}: {response.text}")
+        response = _neon_search(data)
 
         logging.info("Fetching Accounts: %s", response.json().get("pagination"))
         # re-shuffle the data into a format that's a little easier to work with
