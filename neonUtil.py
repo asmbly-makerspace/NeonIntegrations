@@ -318,6 +318,8 @@ def fixTypes(account: dict):
         for type in typelist:
             typeDictList.append({"name": type.strip()})
         account["individualTypes"] = typeDictList
+    if account.get("DiscourseID"):
+        account["DiscourseID"] = account["DiscourseID"].lower()
     return account
 
 
