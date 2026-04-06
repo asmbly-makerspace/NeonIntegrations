@@ -67,7 +67,7 @@ def getGroupMembers(groupName: str):
         total = int(response.json().get("meta")["total"])
         for member in response.json().get("members"):
             # logging.debug(f'''{members["username"]} is a member of {groupName}''')
-            members[member["username"]] = member
+            members[member["username"].lower()] = member
     return members
 
 

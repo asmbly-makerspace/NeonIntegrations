@@ -6,7 +6,9 @@ Tests the main() function by mocking only network interactions (HTTP requests).
 
 import pytest
 from openPathUtil import O_baseURL
-from neon_mocker import NeonUserMock
+from discourseUtil import D_baseURL, GROUP_IDS
+from neonUtil import MEMBERSHIP_ID_REGULAR
+from neon_mocker import NeonUserMock, today_plus
 
 
 class TestDailyMaintenance:
@@ -50,3 +52,39 @@ class TestDailyMaintenance:
         assert neon_search_mock.called, "Neon search should be called"
         assert openpath_mock.called, "OpenPath search should be called"
         assert self.mock_mailjet.contactslist.get.called, "Mailjet contactslist API should be called via SDK"
+
+    def test_discourse_case_mismatch_does_not_cause_churn(self, requests_mock):
+        """Discourse usernames are case-insensitive. A steward stored in Neon as
+        'BobSmith' who appears in Discourse as 'bobsmith' should not be
+        removed and re-added every sync cycle."""
+        start = today_plus(-365)
+        end = today_plus(365)
+        steward = lambda id, did: NeonUserMock(
+            id,
+            individualTypes=['Steward'],
+            custom_fields={'DiscourseID': did},
+        ).add_membership(MEMBERSHIP_ID_REGULAR, start, end, fee=100.0)
+
+        NeonUserMock.mock_search(requests_mock, [
+            steward(1, 'BobSmith'),    # case mismatch with Discourse
+            steward(2, 'janedoe'),     # consistent with Discourse
+            steward(3, 'newsteward'),  # not yet in Discourse group
+        ])
+        requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
+        requests_mock.get(f'{D_baseURL}/groups/stewards/members.json?limit=50&offset=0',
+            json={"members": [{"username": "bobsmith", "name": "Bob Smith"},
+                              {"username": "janedoe", "name": "Jane Doe"}],
+                  "meta": {"total": 2}})
+        modify = {}
+        for name, gid in GROUP_IDS.items():
+            modify[f'add_{name}'] = requests_mock.put(f'{D_baseURL}/groups/{gid}/members.json',
+                json={"success": "OK", "usernames": [], "emails": []})
+            modify[f'rm_{name}'] = requests_mock.delete(f'{D_baseURL}/groups/{gid}/members.json',
+                json={"success": "OK", "usernames": [], "skipped_usernames": []})
+
+        import dailyMaintenance
+        dailyMaintenance.main()
+
+        # only the newsteward is added, not BobSmith
+        assert modify['add_stewards'].last_request.body == "usernames=newsteward"
+        assert not modify['rm_stewards'].called
