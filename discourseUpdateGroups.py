@@ -64,23 +64,24 @@ def updateTypes(neonAccounts: dict):
     instructorsMembers = set()
     wikiAdmins = set()
 
-    for account in neonAccounts:
-        if neonAccounts[account].get("DiscourseID") is None or neonAccounts[account].get("DiscourseID") == "":
-            if neonUtil.accountIsAnyType(neonAccounts[account]):
-                logging.warning(f'''{neonAccounts[account]["First Name"]} {neonAccounts[account]["Last Name"]} ({neonAccounts[account]["Account ID"]}) is interesting but has no Discourse ID''')
+    for account in neonAccounts.values():
+        dID = account.get("DiscourseID")
+        if not dID:
+            if neonUtil.accountIsAnyType(account):
+                logging.warning(f'{account["First Name"]} {account["Last Name"]} ({account["Account ID"]}) has type {account.get("Individual Type")} but no Discourse ID')
             continue
 
-        if neonUtil.accountIsType(neonAccounts[account], neonUtil.LEAD_TYPE) or neonUtil.accountIsType(neonAccounts[account], neonUtil.DIRECTOR_TYPE):
-            leadershipMembers.add(neonAccounts[account].get("DiscourseID"))
+        if neonUtil.accountIsType(account, neonUtil.LEAD_TYPE) or neonUtil.accountIsType(account, neonUtil.DIRECTOR_TYPE):
+            leadershipMembers.add(dID)
 
-        if neonUtil.accountIsType(neonAccounts[account], neonUtil.STEWARD_TYPE) or neonUtil.accountIsType(neonAccounts[account], neonUtil.SUPER_TYPE):
-            stewardsMembers.add(neonAccounts[account].get("DiscourseID"))
+        if neonUtil.accountIsType(account, neonUtil.STEWARD_TYPE) or neonUtil.accountIsType(account, neonUtil.SUPER_TYPE):
+            stewardsMembers.add(dID)
 
-        if neonUtil.accountIsType(neonAccounts[account], neonUtil.INSTRUCTOR_TYPE):
-            instructorsMembers.add(neonAccounts[account].get("DiscourseID"))
+        if neonUtil.accountIsType(account, neonUtil.INSTRUCTOR_TYPE):
+            instructorsMembers.add(dID)
 
-        if neonUtil.accountIsType(neonAccounts[account], neonUtil.WIKI_ADMIN_TYPE):
-            wikiAdmins.add(neonAccounts[account].get("DiscourseID"))
+        if neonUtil.accountIsType(account, neonUtil.WIKI_ADMIN_TYPE):
+            wikiAdmins.add(dID)
 
     #Discourse is annoying about primary groups - there's no way to set a heirarchy; it's last-one-sticks
     #Update the "highest rank" group last so users new to multiple groups wind up with the highest title
