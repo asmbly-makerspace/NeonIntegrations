@@ -30,6 +30,7 @@ GROUP_SHAPER_ORIGIN = 37059
 GROUP_DOMINO = 96643
 GROUP_ONDUTY = 507223
 GROUP_CERAMICS_ONDUTY = 730657
+GROUP_SPECIAL_EVENT = 119566
 
 def isManagedGroup(group: int):
     if (
@@ -307,12 +308,13 @@ def updateGroups(neonAccount, openPathGroups=None, email=False):
 
         # prevent specialty groups from being clobbered
         if not isManagedGroup(id):
-            logging.info(
-                "%s (%s) has unmanaged OpenPath Group ID %s",
-                neonAccount.get("fullName"),
-                neonAccount.get("Email 1"),
-                id,
-            )
+            if id != GROUP_SPECIAL_EVENT:
+                logging.info(
+                    "%s (%s) has unmanaged OpenPath Group ID %s",
+                    neonAccount.get("fullName"),
+                    neonAccount.get("Email 1"),
+                    id,
+                )
             neonOpGroups.append(id)
 
     logging.debug(
