@@ -260,8 +260,29 @@ def lambda_handler(event: dict, _: dict) -> None:
 
         case "updateMembership":
             neon_id = find_key_bfs(neon_response, "accountId")
-        case "editAccount" | "mergedAccount":
+        case "editAccount":
             neon_id = find_key_bfs(neon_response, "accountId")
+        case "mergedAccount":
+            neon_id = find_key_bfs(neon_response, "matchedAccountId")
+        case "updateEventRegistration":
+            data = neon_response.get("data", {})
+            attendee_ids = [
+                a.get("accountId")
+                for t in data.get("tickets", [])
+                for a in t.get("attendees", [])
+            ]
+            logger.info(
+                "Ignoring updateEventRegistration: registrant %s, "
+                "attendees %s, event %s, registration %s, "
+                "status %s, attended %s",
+                data.get("registrantAccountId"),
+                attendee_ids,
+                data.get("eventId"),
+                data.get("id"),
+                find_key_bfs(data, "registrationStatus"),
+                find_key_bfs(data, "markedAttended"),
+            )
+            return
 
         case "deleteMembership":
             membership_id = find_key_bfs(neon_response, "membershipId")
