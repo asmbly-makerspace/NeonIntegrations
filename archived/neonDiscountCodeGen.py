@@ -1,3 +1,9 @@
+# Ensure project root is on sys.path so project imports work from subfolders
+import sys
+from pathlib import Path
+projectRoot = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(projectRoot))
+
 import requests
 from bs4 import BeautifulSoup
 import secrets
@@ -14,17 +20,34 @@ from config import N_user, N_password
 # running the script. The script is capable of handling accounts with MFA enabled.        #
 ###########################################################################################
 
+###########################################################################################
+# Coupon designs in Canva https://canva.link/m64nc48q0ly46ps
+###########################################################################################
+# MEMBERSHIP                                                                              #
+#   $25 off                                                                               #
+#   1st month free                                                                        #
+###########################################################################################
+# CLASSES                                                                                 #
+#   $50 off (CNC)                                                                         #
+#   $35 off (free WSS)                                                                    #
+#   $80 off (free Shaper Origin)                                                          #
+###########################################################################################
+
+
+
+
+
 # Coupon validity dates in MM/DD/YYYY format
-VALID_FROM_DATE = "11/09/2024"
-VALID_TO_DATE = "03/31/2025"
+VALID_FROM_DATE = "4/10/2026"
+VALID_TO_DATE = "12/31/2026"
 # Prefix of the generated codes
-BASE_STRING = "TWF_MEM"
+BASE_STRING = "GVA-GST-"
 # Length of the randomly generated portion of the code
-LENGTH_RANDOM = 7
+LENGTH_RANDOM = 5
 # Amount in dollars of the discount
 COUPON_AMOUNT = 25
-CSV_CODES_FILE = "MemCodes.csv"
-NUM_COUPONS = 30
+CSV_CODES_FILE = "GVA-GST-MemCodes25.csv"
+NUM_COUPONS = 28
 
 # CODE_TYPE can be either "Membership" or "Event"
 CODE_TYPE = "Membership"
