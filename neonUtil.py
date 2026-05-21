@@ -268,7 +268,11 @@ def getMemberById(id: int, detailed=False):
     url = N_baseURL + f"/accounts/{id}"
     response = requests.get(url, headers=N_headers)
 
-    if response.status_code != 200:
+    # Neon returns a 222 when an account has been merged into another count.
+    # This still works, but can cause confusion.
+    if response.status_code == 222:
+        logging.warning(f"Account {id} has been merged with another account. Please update anywhere still using the old id.")
+    elif response.status_code != 200:
         raise ValueError(f"Get {url} returned status code {response.status_code}")
 
     account = response.json().get("individualAccount")
