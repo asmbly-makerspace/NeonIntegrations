@@ -233,7 +233,10 @@ def lambda_handler(event: dict, _: dict) -> None:
     # This will be read as a string, not a boolean. Since we're only using this
     # as a temporary measure to migrate off the legacy webhooks, I don't think
     # we need to worry about casting into the correct data type.
-    legacy = neon_response.get('customParameters', {}).get('legacy')
+    legacy = None
+    parameters = neon_response.get('customParameters')
+    if parameters is not None:
+        legacy = parameters.get('legacy')
     if legacy is not None and legacy == 'true':
         logger.warning('LEGACY EVENT DETECTED')
         logger.warning('This type of webhook will be deprecated soon - please update your webhook.')
