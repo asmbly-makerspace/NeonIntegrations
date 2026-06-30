@@ -397,3 +397,154 @@ def test_create_account_is_currently_dropped(openpath):
     # the payload contains a valid accountId.
     lf.lambda_handler(create_account(), {})
     openpath.assert_not_called()
+
+
+# ###########################################################################
+# NEW FORMAT (post 2026-05-09) -- string IDs, flat shapes, legacy:"false".
+# Characterizing how today's handler treats new-format payloads; the
+# divergences from the legacy behavior above are flagged inline for the
+# refactor to converge.
+# ###########################################################################
+
+
+# ===========================================================================
+# editAccount (new) -- string id passthrough
+# ===========================================================================
+
+
+def new_edit_account(account_id=None):
+    # new: string accountId, accountCustomFields array
+    account_id = str(rand_id()) if account_id is None else account_id
+    return make_event(
+        "editAccount",
+        {
+            "individualAccount": {
+                "accountId": account_id,
+                "primaryContact": {"contactId": str(rand_id())},
+                "accountCustomFields": [],
+                "individualTypes": [],
+            }
+        },
+        NEW_PARAMS,
+    )
+
+
+def test_new_edit_account_passes_string_id(openpath):
+    # DIVERGENCE (id type): new yields a string id where legacy yields an int;
+    # both are passed straight through. The refactor decides whether to
+    # normalize the type.
+    account_id = str(rand_id())
+    lf.lambda_handler(new_edit_account(account_id), {})
+    openpath.assert_called_once_with(account_id)
+
+
+# ===========================================================================
+# updateMembership (new) -- flat shape, string id passthrough
+# ===========================================================================
+
+
+def new_update_membership(account_id=None):
+    # new: flat fields hoisted to the data top level (no membershipEnrollment /
+    # transaction wrappers)
+    account_id = str(rand_id()) if account_id is None else account_id
+    return make_event(
+        "updateMembership",
+        {
+            "id": str(rand_id()),
+            "accountId": account_id,
+            "enrollType": "RENEW",
+            "status": "SUCCEEDED",
+            "termStartDate": "2026-06-07",
+            "payments": [{"id": str(rand_id()), "paymentStatus": "Succeeded"}],
+        },
+        NEW_PARAMS,
+    )
+
+
+def test_new_update_membership_passes_string_id(openpath):
+    # DIVERGENCE (id type only): like legacy, the account is resolved and reaches
+    # OpenPath -- just as a string.
+    account_id = str(rand_id())
+    lf.lambda_handler(new_update_membership(account_id), {})
+    openpath.assert_called_once_with(account_id)
+
+
+# ===========================================================================
+# createMembership (new) -- join detection
+# ===========================================================================
+#
+# ASSUMED SHAPE: no new-format createMembership was captured in the logs; this
+# is inferred from the new updateMembership shape (flat, enrollType/status,
+# payments array).
+#
+# RENEW / FAILED already behave like legacy (no join handling), so those are
+# plain green parity tests. A successful JOIN/REJOIN -- and the resulting
+# Mailjet add -- is the real gap: the flat enrollType/status never match the
+# handler's find_key_bfs("enrollmentType")/find_key_bfs("transactionStatus")
+# lookups, so today the join is silently dropped. Those are written as the
+# TARGET behavior and marked xfail(strict): they fail now and will XPASS (which
+# fails CI, prompting removal of the marker) once the refactor routes new joins
+# through handle_joins.
+
+
+def new_create_membership(enroll_type, status, account_id=None):
+    account_id = str(rand_id()) if account_id is None else account_id
+    return make_event(
+        "createMembership",
+        {
+            "id": str(rand_id()),
+            "accountId": account_id,
+            "enrollType": enroll_type,
+            "status": status,
+            "termStartDate": "2026-06-10",
+            "payments": [{"id": str(rand_id()), "paymentStatus": "Succeeded"}],
+        },
+        NEW_PARAMS,
+    )
+
+
+NEW_JOIN_XFAIL = pytest.mark.xfail(
+    strict=True,
+    reason="new-format createMembership join detection not implemented; "
+    "the refactor should route new JOIN/REJOIN through handle_joins",
+)
+
+
+@NEW_JOIN_XFAIL
+@pytest.mark.parametrize("enroll_type", ["JOIN", "REJOIN"])
+def test_new_successful_join_enters_join_path(openpath, neon_account, enroll_type):
+    # TARGET: a successful new-format JOIN/REJOIN should fetch the account via
+    # handle_joins, exactly like legacy. Fails today (the join is dropped).
+    account_id = str(rand_id())
+    lf.lambda_handler(new_create_membership(enroll_type, "SUCCEEDED", account_id), {})
+    neon_account.assert_called_once_with(id=account_id)
+    openpath.assert_called_once_with(account_id)
+
+
+def test_new_renew_skips_join_path(openpath, neon_account):
+    # Parity with legacy, and already true today: RENEW is not a join.
+    account_id = str(rand_id())
+    lf.lambda_handler(new_create_membership("RENEW", "SUCCEEDED", account_id), {})
+    neon_account.assert_not_called()
+    openpath.assert_called_once_with(account_id)
+
+
+def test_new_failed_transaction_skips_join_path(openpath, neon_account):
+    # Parity with legacy, and already true today: a failed transaction is not a join.
+    account_id = str(rand_id())
+    lf.lambda_handler(new_create_membership("JOIN", "FAILED", account_id), {})
+    neon_account.assert_not_called()
+    openpath.assert_called_once_with(account_id)
+
+
+@NEW_JOIN_XFAIL
+def test_new_fresh_join_adds_to_mailjet(openpath, neon_account, mailjet):
+    # TARGET: a fresh first join in the new format should add to Mailjet, like
+    # the legacy equivalent. Fails today (handle_joins is never entered).
+    today = datetime.datetime.now(lf.TZ).date()
+    neon_account.return_value = {
+        "membershipDates": {today.isoformat(): [(today + datetime.timedelta(days=30)).isoformat()]}
+    }
+    account_id = str(rand_id())
+    lf.lambda_handler(new_create_membership("JOIN", "SUCCEEDED", account_id), {})
+    mailjet.assert_called_once()
