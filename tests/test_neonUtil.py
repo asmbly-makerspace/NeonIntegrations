@@ -1,5 +1,5 @@
 import neonUtil
-from tests.neon_mocker import NeonUserMock, today_plus
+from neon_mocker import NeonUserMock, today_plus
 
 
 today = today_plus(0)

@@ -6,7 +6,7 @@ Tests the main() function by mocking only network interactions (HTTP requests).
 
 import pytest
 from neonUtil import N_baseURL
-from tests.neon_mocker import NeonUserMock, NeonEventMock
+from neon_mocker import NeonUserMock, NeonEventMock
 
 
 def test_main_processes_attended_event(requests_mock):
