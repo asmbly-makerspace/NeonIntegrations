@@ -20,6 +20,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
+pythonpath = ["."]
 filterwarnings = [
     # httplib2 uses deprecated pyparsing API (camelCase instead of snake_case)
     # This is an upstream issue: https://github.com/httplib2/httplib2

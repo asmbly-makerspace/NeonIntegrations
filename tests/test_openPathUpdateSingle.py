@@ -1,5 +1,5 @@
 from openPathUpdateSingle import openPathUpdateSingle
-from tests.neon_mocker import NeonUserMock, today_plus, assert_history
+from neon_mocker import NeonUserMock, today_plus, assert_history
 from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL, INSTRUCTOR_TYPE, ONDUTY_TYPE
 from openPathUtil import GROUP_SUBSCRIBERS, GROUP_INSTRUCTORS, GROUP_ONDUTY, O_baseURL
 from datetime import datetime, timezone

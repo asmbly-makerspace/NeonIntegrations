@@ -254,9 +254,14 @@ def lambda_handler(event: dict, _: dict) -> None:
                 logger.error("No Neon ID found in event data")
                 return
 
-            if find_key_bfs(data, "transactionStatus") == "SUCCEEDED" and find_key_bfs(
-                data, "enrollmentType"
-            ) in {
+            if legacy == "true":
+                transaction_status = find_key_bfs(data, "transactionStatus")
+                enroll_type = find_key_bfs(data, "enrollmentType")
+            else:
+                transaction_status = find_key_bfs(data, "status")
+                enroll_type = find_key_bfs(data, "enrollType")
+
+            if transaction_status == "SUCCEEDED" and enroll_type in {
                 "JOIN",
                 "REJOIN",
             }:

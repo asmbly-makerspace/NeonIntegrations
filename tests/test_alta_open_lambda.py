@@ -14,11 +14,20 @@ legacy (old_webhooks.json / events.json):
     ``{"ticket": [...]}``);
   - customParameters may be null or tagged ``legacy: "true"``
 
-new (new_webhooks.json, post 2026-05-09):
+new (post 2026-05-09):
   - string account IDs (e.g. "1877")
   - flat shapes (membership fields hoisted to the data top level; tickets as
     plain arrays);
-  - customParameters tagged ``legacy: "false"``
+  - customParameters is ``null`` today -- the new webhook was activated without
+    the ``legacy``/``webhook_name`` parameters, so its events arrive unmarked.
+    Once those parameters are added it will be tagged ``legacy: "false"``.
+    Either way the handler treats anything that is not explicitly
+    ``legacy: "true"`` as the new format, so both null and "false" route to the
+    flat (status/enrollType) fields.
+
+Verified against 306 real createMembership events captured 2026-06-02..07-02:
+every ``null`` event was flat/new (string id) and every ``legacy: "true"`` event
+was nested/legacy (int id) -- a clean 155/151 split with no crossover.
 """
 
 import datetime
@@ -77,10 +86,16 @@ def make_event(event_trigger, data, custom_parameters):
     }
 
 
-# customParameters variants seen in production
-UNKNOWN_PARAMS = None  # truly-legacy events send customParameters: null
-LEGACY_PARAMS = {"webhook_name": "UpdateMembershipLegacy", "legacy": "true"}
-NEW_PARAMS = {"webhook_name": "UpdateMembership20260509", "legacy": "false"}
+# customParameters variants seen in production.
+# NOTE: post-cutover (2026-05-09), a null customParameters means the NEW webhook
+# firing without its legacy/webhook_name params -- not a legacy event. The
+# handler keys off the legacy flag, treating anything not "true" as new format.
+NULL_PARAMS = None  # new webhook today: activated without legacy/webhook_name
+LEGACY_PARAMS = {"webhook_name": "NewMembershipLegacy", "legacy": "true"}
+NEW_PARAMS = {"webhook_name": "NewMembership", "legacy": "false"}  # future: once params added
+
+# Back-compat alias: older tests below used UNKNOWN_PARAMS for null customParameters.
+UNKNOWN_PARAMS = NULL_PARAMS
 
 
 def rand_id():
@@ -397,3 +412,188 @@ def test_create_account_is_currently_dropped(openpath):
     # the payload contains a valid accountId.
     lf.lambda_handler(create_account(), {})
     openpath.assert_not_called()
+
+
+# ###########################################################################
+# NEW FORMAT (post 2026-05-09) -- string IDs, flat shapes, legacy:"false".
+# Characterizing how today's handler treats new-format payloads; the
+# divergences from the legacy behavior above are flagged inline for the
+# refactor to converge.
+# ###########################################################################
+
+
+# ===========================================================================
+# editAccount (new) -- string id passthrough
+# ===========================================================================
+
+
+def new_edit_account(account_id=None):
+    # new: string accountId, accountCustomFields array
+    account_id = str(rand_id()) if account_id is None else account_id
+    return make_event(
+        "editAccount",
+        {
+            "individualAccount": {
+                "accountId": account_id,
+                "primaryContact": {"contactId": str(rand_id())},
+                "accountCustomFields": [],
+                "individualTypes": [],
+            }
+        },
+        NEW_PARAMS,
+    )
+
+
+def test_new_edit_account_passes_string_id(openpath):
+    # DIVERGENCE (id type): new yields a string id where legacy yields an int;
+    # both are passed straight through. The refactor decides whether to
+    # normalize the type.
+    account_id = str(rand_id())
+    lf.lambda_handler(new_edit_account(account_id), {})
+    openpath.assert_called_once_with(account_id)
+
+
+# ===========================================================================
+# updateMembership (new) -- flat shape, string id passthrough
+# ===========================================================================
+
+
+def new_update_membership(account_id=None):
+    # new: flat fields hoisted to the data top level (no membershipEnrollment /
+    # transaction wrappers)
+    account_id = str(rand_id()) if account_id is None else account_id
+    return make_event(
+        "updateMembership",
+        {
+            "id": str(rand_id()),
+            "accountId": account_id,
+            "enrollType": "RENEW",
+            "status": "SUCCEEDED",
+            "termStartDate": "2026-06-07",
+            "payments": [{"id": str(rand_id()), "paymentStatus": "Succeeded"}],
+        },
+        NEW_PARAMS,
+    )
+
+
+def test_new_update_membership_passes_string_id(openpath):
+    # DIVERGENCE (id type only): like legacy, the account is resolved and reaches
+    # OpenPath -- just as a string.
+    account_id = str(rand_id())
+    lf.lambda_handler(new_update_membership(account_id), {})
+    openpath.assert_called_once_with(account_id)
+
+
+# ===========================================================================
+# createMembership (new) -- join detection
+# ===========================================================================
+#
+# Real captured shape (306 events, 2026-06-02..07-02): flat data with
+# enrollType/status at the top level and string ids, wrapped around a rich
+# membership body and a payments[] array carrying card details. Verified values:
+# status in {SUCCEEDED, FAILED}, enrollType in {JOIN, RENEW} (REJOIN was not seen
+# in the window but is handled identically). These events arrive with
+# customParameters null today, and will carry legacy:"false" once the new
+# webhook's params are added -- both take the handler's non-legacy branch, so the
+# join tests below run against both variants.
+
+
+# customParameters values the new webhook produces now (null) and after its
+# params are added ("false"); both must route to the flat status/enrollType fields.
+NEW_PARAM_VARIANTS = [
+    pytest.param(NULL_PARAMS, id="null-params"),
+    pytest.param(NEW_PARAMS, id="legacy-false"),
+]
+
+
+def new_create_membership(enroll_type, status, account_id=None, custom_parameters=NEW_PARAMS):
+    # Mirrors the real flat payload; PII (names, card token/last-four) is replaced
+    # with obvious fakes. Only accountId/enrollType/status drive handler behavior,
+    # but the surrounding structure (nested creditCardOnline.id, paymentStatus)
+    # keeps the find_key_bfs lookups honest against a realistic shape.
+    account_id = str(rand_id()) if account_id is None else account_id
+    return make_event(
+        "createMembership",
+        {
+            "id": str(rand_id()),
+            "accountId": account_id,
+            "membershipLevel": {"id": "1", "name": "Regular Membership"},
+            "membershipTerm": {"id": "1", "name": "Monthly Membership"},
+            "autoRenewal": True,
+            "changeType": "UNCHANGED",
+            "termUnit": "MONTH",
+            "termDuration": 1,
+            "enrollType": enroll_type,
+            "transactionDate": "2026-06-10",
+            "termStartDate": "2026-06-10",
+            "termEndDate": "2026-07-09",
+            "fee": 95.0,
+            "status": status,
+            "membershipCustomFields": [],
+            "timestamps": {
+                "createdBy": "Test Admin",
+                "createdDateTime": "2026-06-10T12:00:00Z",
+                "lastModifiedBy": "Test Admin",
+                "lastModifiedDateTime": "2026-06-10T12:00:05Z",
+            },
+            "payments": [
+                {
+                    "id": str(rand_id()),
+                    "amount": 95.0,
+                    "paymentStatus": "Succeeded",
+                    "tenderType": 4,
+                    "creditCardOnline": {
+                        "id": rand_id(),
+                        "token": "nptoken_FAKE",
+                        "cardNumberLastFour": "0000",
+                        "cardTypeCode": "V",
+                        "cardHolderName": "Test Cardholder",
+                        "transactionNumber": "npcharge_FAKE",
+                    },
+                }
+            ],
+            "donorCoveredFeeFlag": False,
+        },
+        custom_parameters,
+    )
+
+
+@pytest.mark.parametrize("params", NEW_PARAM_VARIANTS)
+@pytest.mark.parametrize("enroll_type", ["JOIN", "REJOIN"])
+def test_new_successful_join_enters_join_path(openpath, neon_account, enroll_type, params):
+    # A successful new-format JOIN/REJOIN fetches the account via handle_joins,
+    # exactly like legacy -- whether unmarked (null) or tagged legacy:"false".
+    account_id = str(rand_id())
+    lf.lambda_handler(new_create_membership(enroll_type, "SUCCEEDED", account_id, params), {})
+    neon_account.assert_called_once_with(id=account_id)
+    openpath.assert_called_once_with(account_id)
+
+
+@pytest.mark.parametrize("params", NEW_PARAM_VARIANTS)
+def test_new_renew_skips_join_path(openpath, neon_account, params):
+    # RENEW is not a join, so handle_joins is never entered.
+    account_id = str(rand_id())
+    lf.lambda_handler(new_create_membership("RENEW", "SUCCEEDED", account_id, params), {})
+    neon_account.assert_not_called()
+    openpath.assert_called_once_with(account_id)
+
+
+@pytest.mark.parametrize("params", NEW_PARAM_VARIANTS)
+def test_new_failed_transaction_skips_join_path(openpath, neon_account, params):
+    # A failed transaction is not a join, even for JOIN.
+    account_id = str(rand_id())
+    lf.lambda_handler(new_create_membership("JOIN", "FAILED", account_id, params), {})
+    neon_account.assert_not_called()
+    openpath.assert_called_once_with(account_id)
+
+
+@pytest.mark.parametrize("params", NEW_PARAM_VARIANTS)
+def test_new_fresh_join_adds_to_mailjet(openpath, neon_account, mailjet, params):
+    # A fresh first join in the new format adds to Mailjet, like the legacy equivalent.
+    today = datetime.datetime.now(lf.TZ).date()
+    neon_account.return_value = {
+        "membershipDates": {today.isoformat(): [(today + datetime.timedelta(days=30)).isoformat()]}
+    }
+    account_id = str(rand_id())
+    lf.lambda_handler(new_create_membership("JOIN", "SUCCEEDED", account_id, params), {})
+    mailjet.assert_called_once()

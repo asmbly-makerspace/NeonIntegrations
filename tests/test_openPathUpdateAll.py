@@ -4,7 +4,7 @@ from openPathUpdateAll import openPathUpdateAll
 from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL, LEAD_TYPE
 from openPathUtil import GROUP_SUBSCRIBERS, GROUP_CERAMICS, GROUP_MANAGEMENT, O_baseURL
 
-from tests.neon_mocker import NeonUserMock, today_plus, assert_history
+from neon_mocker import NeonUserMock, today_plus, assert_history
 
 
 ALTA_ID = 456

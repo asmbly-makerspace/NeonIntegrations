@@ -30,3 +30,6 @@ JupyterNotebooks/**
 
 # coverage files
 .coverage
+
+# Captured webhook logs (contain member PII -- never commit)
+*_logs.json
