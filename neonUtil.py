@@ -237,7 +237,7 @@ def appendMemberships(account: dict, detailed=False):
         ):
             if (
                 account["autoRenewal"] == True
-                and currentMembershipStatus == "No Record"
+                and currentMembershipStatus in ("No Record", "PENDING")
             ):
                 account["validMembership"] = True
                 account["ceramicsMembership"] = (lastActiveMembershipTier == MEMBERSHIP_ID_CERAMICS)
