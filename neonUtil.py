@@ -277,20 +277,35 @@ def getMemberById(id: int, detailed=False):
     if account.get("accountCustomFields"):
         # raise custom fields to top-level so they're easier to reach by calling functions
         for field in account.pop("accountCustomFields"):
+            fieldName = field.get("name")
             if field.get("value"):
-                account[field.get("name")] = field.get("value")
+                account[fieldName] = field.get("value")
             elif field.get("optionValues"):
-                if field.get("optionValues")[0].get("name"):
-                    account[field.get("name")] = field.get("optionValues")[0].get(
-                        "name"
-                    )
+                # Option-type fields (checkbox/dropdown/radio) return every
+                # selected option in optionValues.  Keep all of them so a
+                # multi-select field isn't silently truncated to its first
+                # option, and fall back to an option's raw value when it has no
+                # display name.
+                selected = [
+                    option.get("name") or option.get("value")
+                    for option in field.get("optionValues")
+                    if option.get("name") or option.get("value")
+                ]
+                if selected:
+                    account[fieldName] = ", ".join(selected)
                 else:
-                    raise ValueError(
-                        f'Unexpected value format for Neon custom field {field.get("name")}'
+                    # An option field with no usable option (e.g. every entry is
+                    # blank) shouldn't abort the whole account fetch.
+                    logging.warning(
+                        "Neon custom field %s has no usable option value; skipping",
+                        fieldName,
                     )
             else:
-                raise ValueError(
-                    f"""Can't find value for Neon custom field {field.get("name")}"""
+                # A custom field with neither a value nor a selected option
+                # (e.g. an unchecked checkbox) shouldn't abort the whole account
+                # fetch and every downstream caller of getMemberById.
+                logging.warning(
+                    "Neon custom field %s has no value; skipping", fieldName
                 )
 
     # copy primary contact info to match search results format

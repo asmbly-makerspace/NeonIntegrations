@@ -1,5 +1,11 @@
 import neonUtil
-from neon_mocker import NeonUserMock, today_plus
+from neon_mocker import (
+    NeonUserMock,
+    today_plus,
+    build_account_api_response,
+    build_memberships_api_response,
+)
+from neonUtil import N_baseURL
 
 
 today = today_plus(0)
@@ -206,3 +212,99 @@ def test_appendMemberships_membershipDates_mapping_multiple(requests_mock):
         },
         'validMembership': False,
     }
+
+
+# ---------------------------------------------------------------------------
+# getMemberById custom-field flattening
+#
+# getMemberById raises the account's custom fields to top-level keys.  Neon
+# returns option-type fields (checkbox/dropdown/radio) as an ``optionValues``
+# list, one entry per selected option.  These tests cover that branch, which
+# previously had no coverage.
+# ---------------------------------------------------------------------------
+
+def _mock_account_with_custom_fields(requests_mock, custom_fields, account_id=4242):
+    requests_mock.get(
+        f"{N_baseURL}/accounts/{account_id}",
+        json=build_account_api_response(
+            accountId=account_id,
+            accountCustomFields=custom_fields,
+        ),
+    )
+    requests_mock.get(
+        f"{N_baseURL}/accounts/{account_id}/memberships",
+        json=build_memberships_api_response([]),
+    )
+    return account_id
+
+
+def test_getMemberById_plain_value_custom_field(requests_mock):
+    account_id = _mock_account_with_custom_fields(
+        requests_mock, [{"id": "1", "name": "DiscourseID", "value": "someuser"}]
+    )
+    account = neonUtil.getMemberById(account_id)
+    assert account["DiscourseID"] == "someuser"
+
+
+def test_getMemberById_single_option_field(requests_mock):
+    # A checked Yes/No checkbox returns a single selected option.
+    account_id = _mock_account_with_custom_fields(
+        requests_mock,
+        [{"id": "120", "name": "AccessSuspended",
+          "optionValues": [{"id": "30", "name": "Yes"}]}],
+    )
+    account = neonUtil.getMemberById(account_id)
+    assert account["AccessSuspended"] == "Yes"
+
+
+def test_getMemberById_multi_option_field_keeps_all_values(requests_mock):
+    # A multi-select field reports every selected option; none may be dropped.
+    account_id = _mock_account_with_custom_fields(
+        requests_mock,
+        [{"id": "95", "name": "Family Group Member Names",
+          "optionValues": [
+              {"id": "1", "name": "Jane Roe"},
+              {"id": "2", "name": "John Roe"},
+          ]}],
+    )
+    account = neonUtil.getMemberById(account_id)
+    assert account["Family Group Member Names"] == "Jane Roe, John Roe"
+
+
+def test_getMemberById_option_without_name_falls_back_to_value(requests_mock):
+    account_id = _mock_account_with_custom_fields(
+        requests_mock,
+        [{"id": "92", "name": "FamilyGroupPrimaryMember",
+          "optionValues": [{"id": "1", "value": "Yes"}]}],
+    )
+    account = neonUtil.getMemberById(account_id)
+    assert account["FamilyGroupPrimaryMember"] == "Yes"
+
+
+def test_getMemberById_empty_option_field_does_not_crash(requests_mock):
+    # An option field with no selected option (e.g. an unchecked checkbox) must
+    # not abort the whole account fetch.  The field is simply omitted, and the
+    # rest of the account still loads.
+    account_id = _mock_account_with_custom_fields(
+        requests_mock,
+        [
+            {"id": "91", "name": "Family Group Sub Member", "optionValues": []},
+            {"id": "1", "name": "DiscourseID", "value": "someuser"},
+        ],
+    )
+    account = neonUtil.getMemberById(account_id)
+    assert "Family Group Sub Member" not in account
+    assert account["DiscourseID"] == "someuser"
+
+
+def test_getMemberById_valueless_custom_field_does_not_crash(requests_mock):
+    account_id = _mock_account_with_custom_fields(
+        requests_mock,
+        [
+            {"id": "5", "name": "SomeBlankField"},
+            {"id": "1", "name": "DiscourseID", "value": "someuser"},
+        ],
+    )
+    account = neonUtil.getMemberById(account_id)
+    assert "SomeBlankField" not in account
+    assert account["DiscourseID"] == "someuser"
