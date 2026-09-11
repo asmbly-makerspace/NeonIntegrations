@@ -1,7 +1,8 @@
-from discourseUpdateGroups import discourseUpdateGroups
+from discourseUpdateGroups import discourseUpdateGroups, update_discourse_ids
 from openPathUpdateAll import openPathUpdateAll
 from mailjetUtil import run_mailjet_maintenance
 
+import discourseUtil
 import neonUtil
 import logging
 import datetime, pytz
@@ -42,6 +43,10 @@ def main():
     else:
         openPathUpdateAll(neonAccounts, mailSummary=False)
 
+    # Match Discourse with Neon accounts based on email, then
+    # writes newly matched IDs back into neo and to the local account objects
+    discourseAccounts = discourseUtil.getActiveUsers()
+    neonUtil.batchUpdateDIDs(update_discourse_ids(neonAccounts, discourseAccounts))
 
     discourseUpdateGroups(neonAccounts)
     run_mailjet_maintenance()

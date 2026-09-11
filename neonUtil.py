@@ -110,6 +110,41 @@ def updateDID(account: dict):
         raise ValueError(f"Patch {url} returned status code {response.status_code}")
 
 
+####################################################################
+# Write a batch of DiscourseIDs to Neon.
+# Takes [(account, discourseID), ...]; an empty discourseID clears the
+# field.  The account dicts are updated in place so the caller's copy
+# stays in sync with Neon.
+####################################################################
+def batchUpdateDIDs(matches: list):
+    if not matches:
+        return
+
+    logging.info("Updating DiscourseID on %s Neon accounts", len(matches))
+
+    # Unclear what Neon's rate limit is for updates, but 9/s caused a few 429s, so use 5/s just in case
+    rate_limiter = RateLimiter(per_second=5)
+    failures = []
+
+    def update(match):
+        account, discourseID = match
+        account["DiscourseID"] = discourseID
+        rate_limiter.acquire()
+        try:
+            updateDID(account)
+        except (ValueError, requests.RequestException) as e:
+            # one bad account shouldn't cost us the rest of the batch
+            failures.append((account.get("Account ID"), e))
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        list(executor.map(update, matches))
+
+    if failures:
+        logging.error("Failed to update DiscourseID on %s of %s accounts", len(failures), len(matches))
+        for accountId, e in failures:
+            logging.error("   Neon #%s: %s", accountId, e)
+
+
 class RateLimiter:
     """Allows up to `per_second` calls per second across all threads."""
     def __init__(self, per_second):
@@ -340,7 +375,11 @@ def _neon_search(data):
 ####################################################################
 # Get Neon accounts matching given criteria
 ####################################################################
-def getNeonAccounts(searchFields, neonAccountDict={}):
+def getNeonAccounts(searchFields, neonAccountDict=None):
+    # a fresh dict per call unless the caller is accumulating into one of their own
+    if neonAccountDict is None:
+        neonAccountDict = {}
+
     # Output Fields
     # 85 is DiscourseId
     # 77 is OrientationDate
@@ -402,7 +441,7 @@ def getNeonAccounts(searchFields, neonAccountDict={}):
 ####################################################################
 # Get all accounts in neon with OP IDs but no memberships
 ####################################################################
-def getOrphanOpAccounts(neonAccountDict={}):
+def getOrphanOpAccounts(neonAccountDict=None):
     searchFields = [
         {"field": "Membership Expiration Date", "operator": "BLANK"},
         {"field": "OpenPathID", "operator": "NOT_BLANK"},
@@ -414,7 +453,7 @@ def getOrphanOpAccounts(neonAccountDict={}):
 ####################################################################
 # Get all accounts in neon with Discourse IDs but no memberships
 ####################################################################
-def getOrphanDiscourseAccounts(neonAccountDict={}):
+def getOrphanDiscourseAccounts(neonAccountDict=None):
     searchFields = [
         {"field": "Membership Expiration Date", "operator": "BLANK"},
         {"field": "DiscourseID", "operator": "NOT_BLANK"},
@@ -427,7 +466,7 @@ def getOrphanDiscourseAccounts(neonAccountDict={}):
 # Get all members in Neon without subscription details
 # Should we make a synthetic type for "Members" and combine this with getByType?
 ####################################################################
-def getMembersFast(neonAccountDict={}):
+def getMembersFast(neonAccountDict=None):
     searchFields = [{"field": "Membership Expiration Date", "operator": "NOT_BLANK"}]
 
     return getNeonAccounts(searchFields, neonAccountDict=neonAccountDict)
@@ -436,7 +475,7 @@ def getMembersFast(neonAccountDict={}):
 ####################################################################
 # Get all accounts of a given type in Neon without subscription details
 ####################################################################
-def getAccountsByType(type: str, neonAccountDict={}):
+def getAccountsByType(type: str, neonAccountDict=None):
     searchFields = [{"field": "Individual Type", "operator": "EQUAL", "value": type}]
 
     return getNeonAccounts(searchFields, neonAccountDict=neonAccountDict)

@@ -26,6 +26,11 @@ GROUP_LEADERSHIP = "leadership"
 GROUP_STEWARDS = "stewards"
 GROUP_WIKI_ADMINS = "sysops"
 
+# Discourse returns at most 100 users per page of the admin user list
+USERS_PER_PAGE = 100
+# sanity limit so a misbehaving API can't page forever
+MAX_USER_PAGES = 200
+
 # Discourse Group numeric IDs
 GROUP_IDS = {
     GROUP_MAKERS: 42,
@@ -37,6 +42,34 @@ GROUP_IDS = {
 
 
 ####################################################################
+# return all active discourse usernames and emails, keyed by username
+####################################################################
+def getActiveUsers():
+    users = {}
+
+    for page in range(MAX_USER_PAGES):
+        url = D_baseURL + f"""/admin/users/list/active.json?page={page}&show_emails=true"""
+        response = requests.get(url, headers=D_headers)
+        if response.status_code != 200:
+            logging.error("Failed to fetch active Discourse users (page %s): HTTP %s", page, response.status_code)
+            return None
+
+        batch = response.json()
+        for user in batch:
+            user["username"] = user["username"].lower()
+            users[user["username"]] = user
+
+        if len(batch) < USERS_PER_PAGE:
+            return users
+
+        logging.debug("%s active users retrieved from Discourse... querying for more", len(users))
+
+    # a partial list looks just like "these users don't exist anymore", so don't return one
+    logging.error("Gave up fetching Discourse users after %s pages", MAX_USER_PAGES)
+    return None
+
+
+####################################################################
 # return all members of the given discourse group
 ####################################################################
 def getGroupMembers(groupName: str):
@@ -45,21 +78,20 @@ def getGroupMembers(groupName: str):
         return None
 
     members = {}
-    limit = 50
     offset = 0
     total = 0
-    while offset + limit <= total + limit:
+    while offset + USERS_PER_PAGE <= total + USERS_PER_PAGE:
         url = (
             D_baseURL
             + f"""/groups/{groupName}/members.json"""
             + "?limit="
-            + str(limit)
+            + str(USERS_PER_PAGE)
             + "&offset="
             + str(offset)
         )
         print(f"""fetching from {url}""")
         response = requests.get(url, headers=D_headers)
-        offset += limit
+        offset += USERS_PER_PAGE
         if response.status_code != 200:
             logging.error(f"Failed to fetch group {groupName}: HTTP {response.status_code}")
             return None
