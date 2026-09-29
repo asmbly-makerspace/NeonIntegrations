@@ -99,8 +99,10 @@ def discourseUpdateGroups(neonAccounts: dict):
         logging.error("discourseUpdateGroups() called with empty accounts dict.  aborting.")
         return
 
+    logging.info("Starting Discourse sync.")
     updateMakers(neonAccounts)
     updateTypes(neonAccounts)
+    logging.info("Finished Discourse sync.")
 
 #begin standalone script functionality -- pull neonAccounts and call our function
 def main():
