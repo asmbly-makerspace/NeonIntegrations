@@ -89,7 +89,7 @@ def getGroupMembers(groupName: str):
             + "&offset="
             + str(offset)
         )
-        print(f"""fetching from {url}""")
+        logging.info(f"""fetching from {url}""")
         response = requests.get(url, headers=D_headers)
         offset += USERS_PER_PAGE
         if response.status_code != 200:
