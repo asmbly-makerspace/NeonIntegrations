@@ -62,6 +62,59 @@ class AltaClient:
             "Content-Type": "application/json",
         }
 
+    ####################################################################
+    # Get a single OpenPath user by OpenPath ID
+    ####################################################################
+    def getUser(self, opId: int):
+        url = self.O_baseURL + f"/users/{opId}"
+        response = requests.get(url, headers=self.O_headers)
+
+        if response.status_code != 200:
+            raise ValueError(f"Get {url} returned status code {response.status_code}")
+
+        return response.json().get("data")
+
+    ####################################################################
+    # Given an OpenPath ID, return group membership
+    ####################################################################
+    def getGroupsById(self, id):
+        if not id:
+            return []
+
+        url = self.O_baseURL + f"/users/{id}/groups"
+        response = requests.get(url, self.O_headers)
+
+        if response.status_code != 200:
+            raise ValueError(f"Get {url} returned status code {response.status_code}")
+
+        return response.json().get("data")
+
+    ####################################################################
+    # fetch all credentials for given OpenPath ID
+    ####################################################################
+    def getCredentialsForId(self, id: int):
+        # this should be a pretty thorough check for sane argument
+        assert int(id) > 0
+
+        url = self.O_baseURL + f"""/users/{id}/credentials?offset=0&sort=id&order=asc"""
+        response = requests.get(url, headers=self.O_headers)
+        if response.status_code != 200:
+            raise ValueError(f"Get {url} returned status code {response.status_code}")
+
+        return response.json().get("data")
+
+    ####################################################################
+    # Delete a single credential
+    ####################################################################
+    def deleteCredential(self, userId: int, credentialId: int):
+        url = self.O_baseURL + f"""/users/{userId}/credentials/{credentialId}"""
+        response = requests.delete(url, headers=self.O_headers)
+        if response.status_code != 204:
+            raise ValueError(
+                f"Delete {url} returned status code {response.status_code}; expected 204"
+            )
+
+
 ### OpenPath Account Info
 # Asmbly is OpenPath org ID 5231
 O_baseURL = "https://api.openpath.com/orgs/5231"
@@ -111,14 +164,7 @@ def getAllUsers():
 # Get a single OpenPath user by OpenPath ID
 ####################################################################
 def getUser(opId: int):
-    url = O_baseURL + f"/users/{opId}"
-    response = requests.get(url, headers=O_headers)
-
-    if response.status_code != 200:
-        raise ValueError(f"Get {url} returned status code {response.status_code}")
-
-    return response.json().get("data")
-
+    return alta_client.getUser(opId)
 
 ####################################################################
 # Deactivate (ie mark as deleted) an OpenPath user by ID
@@ -156,43 +202,21 @@ def reallyActuallyDeleteUser(opId: int):
 # Given an OpenPath ID, return group membership
 ####################################################################
 def getGroupsById(id):
-    if not id:
-        return []
-
-    url = O_baseURL + f"/users/{id}/groups"
-    response = requests.get(url, headers=O_headers)
-
-    if response.status_code != 200:
-        raise ValueError(f"Get {url} returned status code {response.status_code}")
-
-    return response.json().get("data")
+    return alta_client.getGroupsById(id)
 
 
 ####################################################################
 # fetch all credentials for given OpenPath ID
 ####################################################################
 def getCredentialsForId(id: int):
-    # this should be a pretty thorough check for sane argument
-    assert int(id) > 0
-
-    url = O_baseURL + f"""/users/{id}/credentials?offset=0&sort=id&order=asc"""
-    response = requests.get(url, headers=O_headers)
-    if response.status_code != 200:
-        raise ValueError(f"Get {url} returned status code {response.status_code}")
-
-    return response.json().get("data")
+    return alta_client.getCredentialsForId(id)
 
 
 ####################################################################
 # Delete a single credential
 ####################################################################
 def deleteCredential(userId: int, credentialId: int):
-    url = O_baseURL + f"""/users/{userId}/credentials/{credentialId}"""
-    response = requests.delete(url, headers=O_headers)
-    if response.status_code != 204:
-        raise ValueError(
-            f"Delete {url} returned status code {response.status_code}; expected 204"
-        )
+    return alta_client.deleteCredential(userId, credentialId)
 
 
 ####################################################################
