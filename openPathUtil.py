@@ -51,16 +51,26 @@ def isManagedGroup(group: int):
 
 dryRun = False
 
+class AltaClient:
+    def __init__(self, base_url, username, api_key):
+        self.O_baseURL = base_url
+        O_auth = f"{O_APIuser}:{O_APIkey}"
+        O_signature = b64encode(bytearray(O_auth.encode())).decode()
+        self.O_headers = {
+            "Authorization": f"Basic {O_signature}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
 ### OpenPath Account Info
-O_auth = f"{O_APIuser}:{O_APIkey}"
 # Asmbly is OpenPath org ID 5231
 O_baseURL = "https://api.openpath.com/orgs/5231"
-O_signature = b64encode(bytearray(O_auth.encode())).decode()
-O_headers = {
-    "Authorization": f"Basic {O_signature}",
-    "Accept": "application/json",
-    "Content-Type": "application/json",
-}
+
+# Creating an AltaClient class. This allows for gradual migration of the API
+# calls in this class, rather than needing to replace all the API calls with a
+# new client simultaneously.
+alta_client = AltaClient(O_baseURL, O_APIuser, O_APIkey)
+O_headers = alta_client.O_headers
 
 
 ####################################################################
