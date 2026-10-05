@@ -28,12 +28,12 @@ def updateMakers(neonAccounts: dict):
         #logging.debug(pformat(neonAccounts[account]))
         if neonAccounts[account].get("DiscourseID") is None or neonAccounts[account].get("DiscourseID") == "":
             #neon accounts missing a DiscourseID
-            logging.debug(neonAccounts[account]["First Name"]+" "+neonAccounts[account]["Last Name"]+" ("+neonAccounts[account]["Account ID"]+") is active but has no Discourse ID")
+            logging.debug("%s %s (%s) is active but has no Discourse ID", neonAccounts[account].get("First Name"), neonAccounts[account].get("Last Name"), neonAccounts[account]["Account ID"])
             pass
         elif makers.get(neonAccounts[account]["DiscourseID"]) is None:
             dID = neonAccounts[account]["DiscourseID"]
             #neon accounts not in maker group
-            logging.info(dID+" ("+neonAccounts[account]["First Name"]+" "+neonAccounts[account]["Last Name"]+") is active and will be added to Makers")
+            logging.info("%s (%s %s) is active and will be added to Makers", dID, neonAccounts[account].get("First Name"), neonAccounts[account].get("Last Name"))
             addMakers.add(f'{dID}')
 
     #promote new Makers -- add to Makers, remove from Community (which may fail, but that's OK)
@@ -49,7 +49,8 @@ def updateMakers(neonAccounts: dict):
                     remove = False
 
         if remove:
-            logging.info(maker+" ("+makers[maker]["name"]+") used to be a subscriber but is no longer")
+            # Discourse sends name: null for users who never set a full name
+            logging.info("%s (%s) used to be a subscriber but is no longer", maker, makers[maker].get("name"))
             removeMakers.add(f'{maker}')
 
     #demote expired or otherwise inactive Makers -- remove from Makers, add to Community
@@ -147,7 +148,7 @@ def group_neon_accounts(nAccounts):
 def find_matching_neon_account(dAccount, nAccountsByEmail):
     # normalized to match how nAccountsByEmail is keyed
     dEmail = dAccount["email"].strip().lower()
-    dName = dAccount["name"] or ""
+    dName = dAccount.get("name") or ""
 
     emailMatches = nAccountsByEmail.get(dEmail, [])
     if len(emailMatches) == 0:
