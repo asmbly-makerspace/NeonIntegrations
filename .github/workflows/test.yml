@@ -22,5 +22,5 @@ on:
   push:
     branches:
     - '*'
-  # Lets the deploy workflows run this same test job and deploy only if it passes.
+  # Lets the deploy workflows run these tests first and deploy only if they all pass.
   workflow_call:
