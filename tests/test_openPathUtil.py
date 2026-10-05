@@ -7,8 +7,7 @@ ALTA_ID = 456
 
 
 def test_delete_all_credentials_skips_malformed_credential(requests_mock, caplog):
-    # A credential without an "id" can't be deleted. It should be logged and
-    # skipped, and the rest of the user's credentials should still be deleted.
+    # A credential without an "id" is logged and skipped; the others are still deleted.
     requests_mock.get(
         f'{O_baseURL}/users/{ALTA_ID}/credentials',
         json={"data": [{"id": 1}, {"credentialType": {"name": "card"}}, {"id": 3}]},

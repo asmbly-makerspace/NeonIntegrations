@@ -1,18 +1,7 @@
 name: Lint
-# Fails the build on errors that would crash a script at runtime:
-#   E9  - syntax errors
-#   F63 - invalid comparisons (e.g. `x is "str"`)
-#   F7  - misplaced statements (e.g. `return` outside a function)
-#   F82 - undefined names (e.g. a typo'd or out-of-scope variable)
-# Style rules are deliberately not enabled.
-#
-# --target-version py312 because the EC2 box and the test job run Python 3.12
-# (otherwise ruff would assume 3.13 from requires-python in pyproject.toml).
-# archived/, WIP/, examples/ and it_volunteer_day/ are not deployed.
-#
-# To run locally:
-#   pip install ruff==0.16.10
-#   ruff check --target-version py312 --select E9,F63,F7,F82 --extend-exclude archived,WIP,examples,it_volunteer_day .
+# Only syntax errors and likely bugs (E9, F63, F7, F82), no style rules.
+# py312 matches EC2 and the test job; ruff would otherwise assume 3.13 from pyproject.toml.
+# Nothing outside the excluded folders imports from them.
 on:
   pull_request:
     branches:
