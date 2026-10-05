@@ -64,21 +64,35 @@ def getFieldForEvent(className: str):
     return None, None
 
 
+# A malformed registration is logged and counted as not attended
+def isMarkedAttended(registration, eventId):
+    try:
+        return registration["tickets"][0]["attendees"][0]["markedAttended"] == True
+    except (KeyError, IndexError, TypeError):
+        logging.warning(
+            "Skipping registration for Account ID %s in event %s: no ticket or attendee",
+            registration.get("registrantAccountId"),
+            eventId,
+        )
+        return False
+
+
 def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str):
     date = datetime.datetime.strftime(
         datetime.datetime.strptime(inputDate, "%Y-%m-%d"), "%m/%d/%Y"
     )
 
-    acctCustFields = neon.getAccountIndividual(neonId)["individualAccount"][
-        "accountCustomFields"
-    ]
-
-    customIdList = [field["id"] for field in acctCustFields]
-    if fieldId in customIdList:
-        logging.info("Account ID %s already has %s marked", neonId, shortName)
-        return
-
+    # Read the account inside the try so one bad account doesn't stop the event
     try:
+        acctCustFields = neon.getAccountIndividual(neonId)["individualAccount"][
+            "accountCustomFields"
+        ]
+
+        customIdList = [field["id"] for field in acctCustFields]
+        if fieldId in customIdList:
+            logging.info("Account ID %s already has %s marked", neonId, shortName)
+            return
+
         ##### NEON #####
         # Update part of an account
         # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
@@ -102,11 +116,15 @@ def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str)
                 shortName,
             )
         else:
+            # Include Neon's response body to help diagnose failures like #57
             logging.error(
-                "%s FAILED!  \n\tAccount ID %s \n\tClass '%s'",
+                "%s FAILED!  \n\tAccount ID %s \n\tClass '%s' \n\tField %s = %s \n\tResponse: %s",
                 patch.status_code,
                 neonId,
                 shortName,
+                fieldId,
+                date,
+                patch.text[:1000],
             )
 
     except Exception:
@@ -161,7 +179,7 @@ def main():
                 continue
             attendees = [
                 r for r in registrants
-                if r["tickets"][0]["attendees"][0]["markedAttended"] == True
+                if isMarkedAttended(r, eventId)
             ]
             if not attendees:
                 logging.info("No attendees marked for event %s (%s)", eventName, eventId)
