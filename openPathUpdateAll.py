@@ -6,6 +6,7 @@ import neonUtil
 import openPathUtil
 import logging
 import json
+import sys
 from email.mime.text import MIMEText
 from AsmblyMessageFactory import commonMessageFooter
 import gmailUtil
@@ -23,6 +24,21 @@ def getWarningText(warningUsers):
     return f'''
     WARNING: {len(warningUsers)} USER{'S HAVE' if len(warningUsers) > 1 else ' HAS'} FACILITY ACCESS WITHOUT A SIGNED WAIVER:
       {list_separator.join(warningUsers)}'''
+
+def getFailureText(failures, neonAccounts):
+    if len(failures) == 0:
+        return ""
+
+    failureLines = []
+    for accountId, reason in failures:
+        account = neonAccounts[accountId]
+        failureLines.append(f'''{account.get("fullName")} ({account.get("Email 1")}), Neon ID {accountId}: {reason}''')
+
+    list_separator = '\n      '
+    return f'''
+    ERROR: {len(failures)} ACCOUNT{'S' if len(failures) > 1 else ''} COULD NOT BE SYNCED WITH OPENPATH, SO THEIR DOOR ACCESS MAY BE OUT OF DATE:
+      {list_separator.join(failureLines)}
+'''
 
 def openPathUpdateAll(neonAccounts, mailSummary = False):
     opUsers = openPathUtil.getAllUsers()
@@ -45,72 +61,89 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     missingCsiSubscribers = {}
     compedSubscribers = []
     compedLeaders = []
+    failures = [] #(Neon account ID, reason)
 
     paidRegulars = 0
     paidCeramics = 0
 
     for accountId, account in neonAccounts.items():
-        if not account.get("OpenPathID") and accountId in opUsersByExternalId:
-            opUser = opUsersByExternalId[accountId]
-            logging.info(
-                "Reconciling OpenPathID %s for Neon account %s (%s)",
-                opUser.get("id"),
-                accountId,
-                account.get("Email 1"),
-            )
-            account["OpenPathID"] = opUser.get("id")
-            neonUtil.updateOpenPathID(account)
+        try:
+            if not account.get("OpenPathID") and accountId in opUsersByExternalId:
+                opUser = opUsersByExternalId[accountId]
+                logging.info(
+                    "Reconciling OpenPathID %s for Neon account %s (%s)",
+                    opUser.get("id"),
+                    accountId,
+                    account.get("Email 1"),
+                )
+                account["OpenPathID"] = opUser.get("id")
+                neonUtil.updateOpenPathID(account)
 
-        if not account.get("paidRegular") and not account.get("paidCeramics") and not neonUtil.accountIsType(account, neonUtil.STAFF_TYPE):
-            #Accounts that are neither paid nor staff might still have access
-            if neonUtil.accountIsType(account, neonUtil.LEAD_TYPE):
-                compedLeaders.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
-            elif account.get("compedRegular") or account.get("compedCeramics"):
-                compedSubscribers.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
+            if not account.get("paidRegular") and not account.get("paidCeramics") and not neonUtil.accountIsType(account, neonUtil.STAFF_TYPE):
+                #Accounts that are neither paid nor staff might still have access
+                if neonUtil.accountIsType(account, neonUtil.LEAD_TYPE):
+                    compedLeaders.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
+                elif account.get("compedRegular") or account.get("compedCeramics"):
+                    compedSubscribers.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
 
-        if account.get("validMembership"):
-            subscriberCount += 1
-            if account.get("ceramicsMembership"):
-                ceramicsCount += 1
+            if account.get("validMembership"):
+                subscriberCount += 1
+                if account.get("ceramicsMembership"):
+                    ceramicsCount += 1
 
-            #accounts with concurrent paid regular and ceramics memberships are most likely
-            #upgrades that should be only counted as ceramics members
-            if account.get("paidCeramics"):
-                paidCeramics += 1
-            elif account.get("paidRegular"):
-                paidRegulars += 1
+                #accounts with concurrent paid regular and ceramics memberships are most likely
+                #upgrades that should be only counted as ceramics members
+                if account.get("paidCeramics"):
+                    paidCeramics += 1
+                elif account.get("paidRegular"):
+                    paidRegulars += 1
 
-        if account.get("paidRegular") and account.get("paidCeramics"):
-            logging.info(f'''{account.get("fullName")} ({account.get("Email 1")}) has concurrent paid memberships.''')
+            if account.get("paidRegular") and account.get("paidCeramics"):
+                logging.info(f'''{account.get("fullName")} ({account.get("Email 1")}) has concurrent paid memberships.''')
 
-        if neonUtil.subscriberHasFacilityAccess(account):
-            facilityUserCount += 1
+            if neonUtil.subscriberHasFacilityAccess(account):
+                facilityUserCount += 1
 
-        if neonUtil.subscriberHasCeramicsAccess(account):
-            ceramicsFacilityCount += 1
+            if neonUtil.subscriberHasCeramicsAccess(account):
+                ceramicsFacilityCount += 1
 
-        if account.get("OpenPathID"):
-            openPathUtil.updateGroups(account,
-                                        openPathGroups=opUsers.get(int(account.get("OpenPathID"))).get("groups"))
-            #note that this isn't necessarily 100% accurate, because we have Neon users with provisioned OpenPath IDs and no access groups
-            #assuming that typical users who gained and lost openPath access have a signed waiver
-            if not account.get("WaiverDate"):
-                warningUsers.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
-        elif neonUtil.accountHasFacilityAccess(account):
-            if openPathUtil.createUser(account):
-                openPathUtil.updateGroups(account,
-                                            openPathGroups=[]) #pass empty groups list to skip the http get
-                openPathUtil.createMobileCredential(account)
-        elif account.get("validMembership"):
-            startDate = account.get("Membership Start Date")
-            if not account.get("WaiverDate"):
-                missingWaiverSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {startDate}'''
-            if not account.get("FacilityTourDate"):
-                missingTourSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {startDate}'''
+            if account.get("OpenPathID"):
+                opUser = None
+                try:
+                    opUser = opUsers.get(int(account.get("OpenPathID")))
+                except (TypeError, ValueError):
+                    pass #non-numeric OpenPathID; reported below
 
-        #an account might be missing CSI but still have regular facility access stuff handled
-        if account.get("ceramicsMembership") and not account.get("CsiDate"):
-            missingCsiSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {account.get("Ceramics Start Date")}'''
+                if opUser is None:
+                    #don't clear the ID or recreate the user; a paging glitch could hide a real user for one run
+                    logging.error("Neon account %s (%s) has OpenPathID \"%s\", which doesn't match any OpenPath user; skipping its OpenPath update",
+                                  accountId, account.get("Email 1"), account.get("OpenPathID"))
+                    failures.append((accountId, f'''OpenPathID "{account.get("OpenPathID")}" doesn't match any OpenPath user'''))
+                else:
+                    openPathUtil.updateGroups(account, openPathGroups=opUser.get("groups"))
+                #note that this isn't necessarily 100% accurate, because we have Neon users with provisioned OpenPath IDs and no access groups
+                #assuming that typical users who gained and lost openPath access have a signed waiver
+                if not account.get("WaiverDate"):
+                    warningUsers.append(f'''{account.get("fullName")} ({account.get("Email 1")})''')
+            elif neonUtil.accountHasFacilityAccess(account):
+                if openPathUtil.createUser(account):
+                    openPathUtil.updateGroups(account,
+                                                openPathGroups=[]) #pass empty groups list to skip the http get
+                    openPathUtil.createMobileCredential(account)
+            elif account.get("validMembership"):
+                startDate = account.get("Membership Start Date")
+                if not account.get("WaiverDate"):
+                    missingWaiverSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {startDate}'''
+                if not account.get("FacilityTourDate"):
+                    missingTourSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {startDate}'''
+
+            #an account might be missing CSI but still have regular facility access stuff handled
+            if account.get("ceramicsMembership") and not account.get("CsiDate"):
+                missingCsiSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {account.get("Ceramics Start Date")}'''
+        except Exception as e:
+            #don't let one account stop the rest of the batch
+            logging.exception("Failed to sync Neon account %s (%s) with OpenPath", accountId, account.get("Email 1"))
+            failures.append((accountId, f"{type(e).__name__}: {e}"))
 
     list_separator = '\n            '
     compedSubscriberString = ""
@@ -140,7 +173,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
             {list_separator.join(missingTourSubscribers[x] for x in sorted(missingTourSubscribers, reverse=True))}
         {len(missingCsiSubscribers)} are missing Ceramics Introduction{':' if len(missingCsiSubscribers) > 0 else ' (yay!)'}
             {list_separator.join(missingCsiSubscribers[x] for x in sorted(missingCsiSubscribers, reverse=True))}
-{getWarningText(warningUsers)}
+{getFailureText(failures, neonAccounts)}{getWarningText(warningUsers)}
 {compedLeaderDetails}
 {compedSubscriberDetails}
 {commonMessageFooter}
@@ -172,6 +205,9 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     logging.info(msg.get_payload())
     print(summaryMsg.get_payload())
 
+    #empty when every account synced
+    return failures
+
 #begin standalone script functionality -- pull neonAccounts and call our function
 def main():
     neonAccounts = {}
@@ -186,7 +222,8 @@ def main():
     #    for account in neonAccountJson:
     #        neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]
 
-    openPathUpdateAll(neonAccounts)
+    if openPathUpdateAll(neonAccounts):
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

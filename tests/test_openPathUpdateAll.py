@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 
+import pytest
+
+import openPathUpdateAll as openPathUpdateAllScript
 from openPathUpdateAll import openPathUpdateAll
 from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL, LEAD_TYPE
 from openPathUtil import GROUP_SUBSCRIBERS, GROUP_CERAMICS, GROUP_MANAGEMENT, O_baseURL
@@ -261,3 +264,115 @@ def test_handles_failed_user_creation(requests_mock):
         (get_all_users._method, get_all_users._url),
         (create_alta._method, create_alta._url),
     ])
+
+
+@pytest.mark.parametrize("stale_id", [999, "12345 (old)"])
+def test_stale_openpath_id_does_not_stop_later_accounts(requests_mock, stale_id):
+    """Reported and skipped; the ID isn't cleared and the user isn't recreated."""
+    rm = requests_mock
+
+    stale = NeonUserMock(1, open_path_id=stale_id, waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+    lapsed = NeonUserMock(2, open_path_id=102)  # no membership, but still in SUBSCRIBERS
+
+    get_all_users = mock_get_all_users(rm, [
+        {"id": lapsed.open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]},
+    ])
+    revoke = rm.put(f'{O_baseURL}/users/{lapsed.open_path_id}/groupIds', status_code=204)
+
+    accounts = {act.account_id: act.mock(rm) for act in [stale, lapsed]}
+
+    failures = []
+    assert_history(rm, lambda: failures.extend(openPathUpdateAll(accounts)), [
+        (get_all_users._method, get_all_users._url),
+        (revoke._method, revoke._url),
+    ])
+
+    assert revoke.last_request.json() == {"groupIds": []}
+    assert failures == [(stale.account_id, f'OpenPathID "{stale_id}" doesn\'t match any OpenPath user')]
+
+
+def test_failed_group_update_does_not_stop_later_accounts(requests_mock):
+    rm = requests_mock
+
+    first = NeonUserMock(1, open_path_id=101, waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+    second = NeonUserMock(2, open_path_id=102, waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+
+    accounts = {act.account_id: act.mock(rm) for act in [first, second]}
+    get_all_users = mock_empty_groups(rm, accounts)
+    failed = rm.put(f'{O_baseURL}/users/{first.open_path_id}/groupIds', status_code=500)
+    granted = rm.put(f'{O_baseURL}/users/{second.open_path_id}/groupIds', status_code=204)
+
+    failures = []
+    assert_history(rm, lambda: failures.extend(openPathUpdateAll(accounts)), [
+        (get_all_users._method, get_all_users._url),
+        (failed._method, failed._url),
+        (granted._method, granted._url),
+    ])
+
+    assert granted.last_request.json() == {"groupIds": [GROUP_SUBSCRIBERS]}
+    assert failures == [(
+        first.account_id,
+        f'ValueError: Put {O_baseURL}/users/{first.open_path_id}/groupIds returned status code 500; expected 204',
+    )]
+
+
+def sent_emails(send_mock):
+    """Map recipient -> plain-text body of each email sent"""
+    return {
+        call.args[0]['To']: call.args[0].get_payload(decode=True).decode()
+        for call in send_mock.call_args_list
+    }
+
+
+def test_failures_are_listed_in_membership_email(requests_mock, mocker):
+    rm = requests_mock
+    send = mocker.patch('gmailUtil.sendMIMEmessage')
+
+    stale = NeonUserMock(1, firstName="Stale", lastName="Member", open_path_id=999,
+            waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+    failing = NeonUserMock(2, firstName="Failing", lastName="Member", open_path_id=102,
+            waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+
+    mock_get_all_users(rm, [{"id": failing.open_path_id, "groups": []}])
+    rm.put(f'{O_baseURL}/users/{failing.open_path_id}/groupIds', status_code=500)
+
+    accounts = {act.account_id: act.mock(rm) for act in [stale, failing]}
+    openPathUpdateAll(accounts, mailSummary=True)
+
+    emails = sent_emails(send)
+    body = emails['membership@asmbly.org']
+    assert 'ERROR: 2 ACCOUNTS COULD NOT BE SYNCED WITH OPENPATH' in body
+    assert 'Stale Member (Stale.Member@example.com), Neon ID 1: OpenPathID "999" doesn\'t match any OpenPath user' in body
+    assert 'Failing Member (Failing.Member@example.com), Neon ID 2: ValueError: Put ' in body
+    assert 'COULD NOT BE SYNCED' not in emails['membership.committee@asmbly.org']
+
+
+def test_clean_run_returns_no_failures(requests_mock, mocker):
+    rm = requests_mock
+    send = mocker.patch('gmailUtil.sendMIMEmessage')
+
+    account = NeonUserMock(1, open_path_id=101, waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+    mock_get_all_users(rm, [{"id": account.open_path_id, "groups": [{"id": GROUP_SUBSCRIBERS}]}])
+
+    accounts = {account.account_id: account.mock(rm)}
+    assert openPathUpdateAll(accounts, mailSummary=True) == []
+    assert 'COULD NOT BE SYNCED' not in sent_emails(send)['membership@asmbly.org']
+
+
+def test_standalone_script_exits_non_zero_when_an_account_fails(requests_mock, mocker):
+    rm = requests_mock
+
+    stale = NeonUserMock(1, open_path_id=999)
+    accounts = {stale.account_id: stale.mock(rm)}
+    mock_get_all_users(rm, [])
+    mocker.patch('neonUtil.getRealAccounts', return_value=accounts)
+
+    with pytest.raises(SystemExit) as exit_info:
+        openPathUpdateAllScript.main()
+    assert exit_info.value.code == 1
