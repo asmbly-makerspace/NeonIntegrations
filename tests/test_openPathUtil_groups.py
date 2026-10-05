@@ -19,16 +19,16 @@ is made (change the expected value in the same PR as the code):
                 NEON_USER_TYPES_GUIDE.md lines 30, 65 and 330 say the flag
                 overrides the type; the code does not do that.
   [coworking]   A CoWorking Tenant whose membership has lapsed keeps
-                SUBSCRIBERS (plus COWORKING, STEWARDS and tool groups) while
-                waiver and tour are on file. The code comment in
-                neonUtil.accountHasFacilityAccess says this is intended; the
+                SUBSCRIBERS and COWORKING (plus STEWARDS and tool groups where
+                they apply) while waiver and tour are on file. The code comment
+                in neonUtil.accountHasFacilityAccess says this is intended; the
                 guide (line 128) says SUBSCRIBERS needs a valid membership.
   [leadership]  Leader and Super Steward get MANAGEMENT, but unlike Space Lead
-                they do not count as having facility access. Without a valid
-                membership they get MANAGEMENT only (no SUBSCRIBERS or tool
-                groups), and openPathUpdateSingle/openPathUpdateAll do not
-                create an Alta user for them. The guide (lines 52-54 and
-                102-104) says they need no membership.
+                the type alone does not count as facility access. Without a
+                valid membership they get MANAGEMENT only (no SUBSCRIBERS or
+                tool groups), and openPathUpdateSingle/openPathUpdateAll do not
+                create an Alta user for them. The guide (lines 52-57 and
+                102-107) says they need no membership.
 
 A suspended Leader or Super Steward row carries both [suspension] and
 [leadership], because either decision could change it.
