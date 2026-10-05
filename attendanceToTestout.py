@@ -64,8 +64,7 @@ def getFieldForEvent(className: str):
     return None, None
 
 
-# A registration with no tickets or no attendees is logged and treated as
-# not attended, instead of raising and dropping every registration in the event.
+# A malformed registration is logged and counted as not attended
 def isMarkedAttended(registration, eventId):
     try:
         return registration["tickets"][0]["attendees"][0]["markedAttended"] == True
@@ -83,9 +82,7 @@ def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str)
         datetime.datetime.strptime(inputDate, "%Y-%m-%d"), "%m/%d/%Y"
     )
 
-    # The account read is inside the try so that an account we can't read
-    # (error response, company account, etc.) is logged and skipped without
-    # stopping the remaining attendees of the event.
+    # Read the account inside the try so one bad account doesn't stop the event
     try:
         acctCustFields = neon.getAccountIndividual(neonId)["individualAccount"][
             "accountCustomFields"
@@ -119,7 +116,7 @@ def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str)
                 shortName,
             )
         else:
-            # Neon's response body holds the reason for the failure (see #57)
+            # Include Neon's response body to help diagnose failures like #57
             logging.error(
                 "%s FAILED!  \n\tAccount ID %s \n\tClass '%s' \n\tField %s = %s \n\tResponse: %s",
                 patch.status_code,
