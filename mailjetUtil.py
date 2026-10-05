@@ -180,6 +180,19 @@ class Subscriber(BaseModel):
         return self
 
 
+def to_chicago_time(value: datetime.datetime) -> datetime.datetime:
+    """Return value as an America/Chicago datetime.
+
+    Neon dates such as "2026-11-04" are calendar days in Austin and parse to
+    naive midnight, so attach the Chicago zone to them. Calling astimezone() on
+    a naive value would read it as server time (UTC on Lambda and EC2) and move
+    it to the evening before.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=ZoneInfo("America/Chicago"))
+    return value.astimezone(ZoneInfo("America/Chicago"))
+
+
 @dataclass
 class MJCredentials:
     public_key: str
@@ -319,14 +332,12 @@ class MJService:
                         "signed_waiver": sub.signed_waiver,
                         "active_member": sub.active_member,
                         "latest_membership_end": (
-                            sub.latest_membership_end.astimezone(
-                                ZoneInfo("America/Chicago")
-                            ).isoformat()
+                            to_chicago_time(sub.latest_membership_end).isoformat()
                             if sub.latest_membership_end
                             else None
                         ),
                         "orientation_date": (
-                            sub.orientation_date.isoformat()
+                            to_chicago_time(sub.orientation_date).isoformat()
                             if sub.orientation_date
                             else None
                         ),
@@ -552,7 +563,7 @@ def update_mj_all_contacts_list(
             orientation_date=(
                 datetime.datetime.strptime(
                     neon_account_dict[account_id].get("FacilityTourDate"), "%m/%d/%Y"
-                ).astimezone(ZoneInfo("America/Chicago"))
+                ).replace(tzinfo=ZoneInfo("America/Chicago"))
                 if neon_account_dict[account_id].get("FacilityTourDate")
                 else None
             ),
