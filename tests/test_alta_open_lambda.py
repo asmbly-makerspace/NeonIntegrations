@@ -310,6 +310,45 @@ def test_rejoin_after_long_lapse_adds_to_mailjet(openpath, neon_account, mailjet
 
 
 # ===========================================================================
+# add_member_to_mailjet -- date properties sent to Mailjet
+# ===========================================================================
+
+
+def test_add_member_to_mailjet_sends_chicago_midnight_dates(mock_ssm, mock_mailjet, host_tz):
+    # Dates must reach Mailjet as Chicago midnight whatever the host time zone.
+    mock_mailjet.contactslist.get.return_value.content = json.dumps({
+        "Count": 2,
+        "Data": [
+            {"ID": 123, "Name": "NewMembers", "IsDeleted": False,
+             "SubscriberCount": 0, "CreatedAt": "2024-01-01T00:00:00Z"},
+            {"ID": 456, "Name": "AllContacts", "IsDeleted": False,
+             "SubscriberCount": 0, "CreatedAt": "2024-01-01T00:00:00Z"},
+        ],
+        "Total": 2,
+    }).encode()
+    create = mock_mailjet.contact_managemanycontacts.create
+    create.return_value.status_code = 201
+    create.return_value.json.return_value = {"Data": [{"JobID": rand_id()}]}
+
+    account = {
+        "Account ID": str(rand_id()),
+        "Email 1": "Test@Example.com",
+        "First Name": "Test",
+        "Last Name": "User",
+        "MailjetContactID": rand_id(),
+        "FacilityTourDate": "10/01/2026",
+        "WaiverDate": "09/01/2026",
+        "validMembership": True,
+    }
+    lf.add_member_to_mailjet(account, [datetime.date(2026, 11, 4)])
+
+    properties = create.call_args.kwargs["data"]["Contacts"][0]["Properties"]
+    # Oct 1 is CDT (UTC-5), Nov 4 is CST (UTC-6)
+    assert properties["orientation_date"] == "2026-10-01T00:00:00-05:00"
+    assert properties["latest_membership_end"] == "2026-11-04T00:00:00-06:00"
+
+
+# ===========================================================================
 # mergedAccount -- resolves the surviving (matched) account
 # ===========================================================================
 #

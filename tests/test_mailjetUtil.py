@@ -9,6 +9,7 @@ from mailjetUtil import (
     MJCredentials,
     Subscriber,
     MailjetAction,
+    update_mj_all_contacts_list,
 )
 
 
@@ -267,6 +268,39 @@ class TestBulkUpdateSubscribersInLists:
 
         assert job_id == 54321
         assert mock_mailjet_client.contact_managemanycontacts.create.call_count == 1
+
+
+class TestUpdateMjAllContactsList:
+    """Test suite for update_mj_all_contacts_list."""
+
+    def test_neon_dates_sent_as_chicago_midnight(self, mj_service, mock_mailjet_client, host_tz):
+        """Neon dates are sent as Chicago midnight on any host time zone."""
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"Data": [{"JobID": 54321}]}
+        mock_mailjet_client.contact_managemanycontacts.create.return_value = mock_response
+
+        neon_accounts = {
+            "1001": {
+                "Email 1": "Test@Example.com",
+                "MailjetContactID": None,
+                "First Name": "Test",
+                "Last Name": "User",
+                "FacilityTourDate": "10/01/2026",
+                "Account Current Membership Status": "Active",
+                "Membership Expiration Date": "2026-11-04",
+                "WaiverDate": "09/01/2026",
+            }
+        }
+
+        job_id = update_mj_all_contacts_list(mj_service, neon_accounts)
+
+        assert job_id == 54321
+        data = mock_mailjet_client.contact_managemanycontacts.create.call_args.kwargs["data"]
+        properties = data["Contacts"][0]["Properties"]
+        # Oct 1 is CDT (UTC-5), Nov 4 is CST (UTC-6)
+        assert properties["orientation_date"] == "2026-10-01T00:00:00-05:00"
+        assert properties["latest_membership_end"] == "2026-11-04T00:00:00-06:00"
 
 
 class TestSubscriberModel:

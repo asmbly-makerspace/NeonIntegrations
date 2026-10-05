@@ -180,6 +180,13 @@ class Subscriber(BaseModel):
         return self
 
 
+def to_chicago_time(value: datetime.datetime) -> datetime.datetime:
+    """Attach Chicago to a naive datetime instead of reading it as host time."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=ZoneInfo("America/Chicago"))
+    return value.astimezone(ZoneInfo("America/Chicago"))
+
+
 @dataclass
 class MJCredentials:
     public_key: str
@@ -319,14 +326,12 @@ class MJService:
                         "signed_waiver": sub.signed_waiver,
                         "active_member": sub.active_member,
                         "latest_membership_end": (
-                            sub.latest_membership_end.astimezone(
-                                ZoneInfo("America/Chicago")
-                            ).isoformat()
+                            to_chicago_time(sub.latest_membership_end).isoformat()
                             if sub.latest_membership_end
                             else None
                         ),
                         "orientation_date": (
-                            sub.orientation_date.isoformat()
+                            to_chicago_time(sub.orientation_date).isoformat()
                             if sub.orientation_date
                             else None
                         ),
@@ -552,7 +557,7 @@ def update_mj_all_contacts_list(
             orientation_date=(
                 datetime.datetime.strptime(
                     neon_account_dict[account_id].get("FacilityTourDate"), "%m/%d/%Y"
-                ).astimezone(ZoneInfo("America/Chicago"))
+                ).replace(tzinfo=ZoneInfo("America/Chicago"))
                 if neon_account_dict[account_id].get("FacilityTourDate")
                 else None
             ),

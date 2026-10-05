@@ -1,6 +1,7 @@
 from unittest.mock import patch, MagicMock, mock_open
 from types import SimpleNamespace
 import sys
+import time
 import pytest
 
 # Inject mocked config.py (not committed since it contains secrets)
@@ -62,6 +63,18 @@ def mock_mailjet(mocker):
     mock_mj_client.contactslist.get.return_value.content = b'{"Count": 0, "Data": [], "Total": 0}'
     mocker.patch('mailjetUtil.Client', return_value=mock_mj_client)
     return mock_mj_client
+
+
+@pytest.fixture(params=["UTC", "America/Chicago"])
+def host_tz(request, monkeypatch):
+    """Run the test with the host time zone set to UTC, then America/Chicago."""
+    if not hasattr(time, "tzset"):
+        pytest.skip("time.tzset() is not available on this platform")
+    with monkeypatch.context() as m:
+        m.setenv("TZ", request.param)
+        time.tzset()
+        yield request.param
+    time.tzset()
 
 
 @pytest.fixture
