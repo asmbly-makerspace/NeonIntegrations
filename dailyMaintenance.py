@@ -5,6 +5,7 @@ from mailjetUtil import run_mailjet_maintenance
 import discourseUtil
 import neonUtil
 import logging
+import sys
 import datetime, pytz
 
 import json
@@ -22,7 +23,12 @@ def main():
 
     # For real use, just get neon accounts directly
     # Be aware this takes a long time (2+ minutes)
-    neonAccounts = neonUtil.getRealAccounts()
+    try:
+        neonAccounts = neonUtil.getRealAccounts()
+    except Exception:
+        # syncing from an incomplete account list could revoke door access, so stop here
+        logging.exception("Failed to fetch Neon accounts; skipping the whole sync cycle.")
+        sys.exit(1)
 
     # Testing goes a lot faster if we're working with a cache of accounts
     # with open("Neon/neonAccounts.json") as neonFile:
@@ -30,26 +36,53 @@ def main():
     #     for account in neonAccountJson:
     #         neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]
 
+    # run every phase even if an earlier one fails, then exit 1 if any failed
+    failedPhases = []
+
     # we're going to run this multiple times per day, but we don't want to send a zillion emails
+    # compare wall-clock time; a pytz zone passed as tzinfo= gets local mean time (-5:51), not CST/CDT
     now = datetime.datetime.now(pytz.timezone("America/Chicago"))
-    mailcutoff = datetime.datetime.combine(
-        datetime.datetime.now(pytz.timezone("America/Chicago")),
-        datetime.time(6, 0, tzinfo=pytz.timezone("America/Chicago")),
-    )
 
-
-    if now < mailcutoff:
-        openPathUpdateAll(neonAccounts, mailSummary=True)
-    else:
-        openPathUpdateAll(neonAccounts, mailSummary=False)
+    try:
+        if now.time() < datetime.time(6, 0):
+            openPathFailures = openPathUpdateAll(neonAccounts, mailSummary=True)
+        else:
+            openPathFailures = openPathUpdateAll(neonAccounts, mailSummary=False)
+        # openPathUpdateAll may return the accounts it couldn't update
+        if openPathFailures:
+            logging.error("OpenPath sync failed for %s account(s).", len(openPathFailures))
+            failedPhases.append("OpenPath sync")
+    except Exception:
+        logging.exception("OpenPath sync failed.")
+        failedPhases.append("OpenPath sync")
 
     # Match Discourse with Neon accounts based on email, then
     # writes newly matched IDs back into neo and to the local account objects
-    discourseAccounts = discourseUtil.getActiveUsers()
-    neonUtil.batchUpdateDIDs(update_discourse_ids(neonAccounts, discourseAccounts))
+    try:
+        discourseAccounts = discourseUtil.getActiveUsers()
+        neonUtil.batchUpdateDIDs(update_discourse_ids(neonAccounts, discourseAccounts))
+    except Exception:
+        logging.exception("DiscourseID sync failed.")
+        failedPhases.append("DiscourseID sync")
 
-    discourseUpdateGroups(neonAccounts)
-    run_mailjet_maintenance()
+    # still worth running if the ID sync failed; it uses whatever DiscourseIDs the accounts have
+    try:
+        discourseUpdateGroups(neonAccounts)
+    except Exception:
+        logging.exception("Discourse group sync failed.")
+        failedPhases.append("Discourse group sync")
+
+    # Mailjet does its own Neon searches, so it doesn't depend on the phases above
+    try:
+        run_mailjet_maintenance()
+    except Exception:
+        logging.exception("Mailjet sync failed.")
+        failedPhases.append("Mailjet sync")
+
+    if failedPhases:
+        logging.error("Sync cycle finished, but these phases failed: %s", ", ".join(failedPhases))
+        sys.exit(1)
+
     logging.info("Sync cycle complete.")
 
 
