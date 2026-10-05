@@ -33,14 +33,13 @@ Python scripts that sync Asmbly Makerspace's member records in NeonCRM to OpenPa
 - Python: EC2 and CI use 3.12 with `requirements.txt`. The Lambda image uses 3.13 with `pyproject.toml` and `uv.lock`. Code must work on both.
 - Install: `pip install -r requirements.txt` in a virtualenv.
 - Run tests: `python -m pytest` (what CI runs in `.github/workflows/test.yml`). One file: `python -m pytest tests/test_neonUtil.py -q`.
-- Optional check for syntax errors and undefined names (ruff is not in `requirements.txt`): `ruff check --select E9,F63,F7,F82 --exclude archived,WIP,examples,it_volunteer_day .`
 - Tests need no credentials. `tests/conftest.py` puts fake `config` and `aws_ssm` modules into `sys.modules` and patches `socket.socket`, so any real network call fails with "Network disabled in tests". Mock HTTP with the `requests_mock` fixture. For other services use the conftest fixtures `mock_ssm`, `mock_mailjet`, `mock_smtp`, `mock_google_apis` and `mock_discourse`.
 
 ### How credentials load outside tests
 
 - Modules that hold API credentials (`neonUtil`, `openPathUtil`, `discourseUtil`, `gmailUtil`, `helpers/` and a few scripts) check at import time whether the `USER` environment variable is `ec2-user` or `LAMBDA_TASK_ROOT` is set. If so, they import `aws_ssm.py`, which fetches decrypted secrets from SSM as soon as it is imported. Otherwise they import a local `config.py` (gitignored; it needs the names faked in `tests/conftest.py`). On EC2 this relies on the systemd units running with `USER=ec2-user` (systemd sets it when a unit has `User=ec2-user`); with any other `USER` the scripts import `config.py` instead. The Lambda handler imports `aws_ssm` directly.
 - Mailjet keys are always fetched from SSM with boto3 when the Mailjet code runs (`mailjetUtil.run_mailjet_maintenance`, `lambda_function.add_member_to_mailjet`), even on a dev machine.
-- `classFeedbackAutomation.py` and `dailyClassReminder.py` open `classFeedbackServiceAccountKey.json`, `surveyLinks.json` and `teachers.json` relative to the current directory. Those files exist only on the EC2 box and are gitignored.
+- `classFeedbackAutomation.py` and `dailyClassReminder.py` open `classFeedbackServiceAccountKey.json`, `surveyLinks.json` and `teachers.json` relative to the current directory. They are gitignored, so they are not in the repo.
 
 ## Safety rules
 
@@ -67,8 +66,8 @@ Rules for changing it:
 - Any change to who gets which group needs table-driven tests (`pytest.mark.parametrize`) covering every affected Individual Type and membership state: valid, expired, expired yesterday with auto-renewal (current term PENDING or no record), paid and comped, missing waiver, missing orientation, `AccessSuspended`, ceramics with and without `CsiDate`.
 - Say in plain words in the PR description whether the change alters who gets access, and get a maintainer's review before merging.
 - If a Neon or OpenPath call fails, raise an error or skip that account with a logged error. Never treat a failed lookup as "no membership" or "no groups": the daily sync recomputes groups for every account it fetched, so that would revoke paying members' access.
-- `getOpGroups` and `accountHasFacilityAccess` are separate rules and do not fully agree. For example, Leader and Super Steward get `GROUP_MANAGEMENT` from `getOpGroups`, but `accountHasFacilityAccess` returns False for them unless they also qualify as a subscriber, and `openPathUpdateAll` / `openPathUpdateSingle` use `accountHasFacilityAccess` to decide whether to create an OpenPath user. Check both.
-- Neon custom field IDs (comment block in `neonUtil.getNeonAccounts`, `ACCOUNT_FIELD_OPENPATH_ID`, `EVENT_FIELDS` in `attendanceToTestout.py`), Individual Type strings, membership level IDs (`MEMBERSHIP_ID_REGULAR = 1`, `MEMBERSHIP_ID_CERAMICS = 7`), the OpenPath org ID (5231) and the `GROUP_*` IDs in `openPathUtil.py` are production values configured in Neon and OpenPath. Do not change or "clean up" them.
+- `getOpGroups` and `accountHasFacilityAccess` are separate rules and do not fully agree. For example, Leader and Super Steward get `GROUP_MANAGEMENT` from `getOpGroups`, but `accountHasFacilityAccess` returns False for them unless they also qualify some other way (for example as a subscriber or CoWorking tenant), and `openPathUpdateAll` / `openPathUpdateSingle` use `accountHasFacilityAccess` to decide whether to create an OpenPath user. Check both.
+- Neon custom field IDs (comment block in `neonUtil.getNeonAccounts`, `ACCOUNT_FIELD_OPENPATH_ID`, `EVENT_FIELDS` in `attendanceToTestout.py`), Individual Type strings, membership level IDs (`MEMBERSHIP_ID_REGULAR = 1`, `MEMBERSHIP_ID_CERAMICS = 7`), the OpenPath org ID (5231) and the `GROUP_*` IDs in `openPathUtil.py` are production values configured in Neon and OpenPath. Do not change them or "clean them up".
 - Never call `openPathUtil.reallyActuallyDeleteUser`: deleted users disappear from OpenPath's access logs.
 
 ### Secrets and personal data
@@ -83,13 +82,13 @@ Rules for changing it:
 - Match the file you are editing. Older modules use camelCase (`getOpGroups`, `neonAccount`) and `####` banner comments above functions; newer code (`mailjetUtil.py`, the Lambda) uses snake_case and type hints. Do not rename or reformat code you are not changing.
 - Logging: use lazy %-style arguments, e.g. `logging.info("Updating Neon %s", accountId)`. Do not build messages with `+`: concatenating a field that is `None` raises `TypeError`, even in a debug message that would never be printed. Neon fields can be missing or `None`, so read them with `.get()`.
 - Every bug fix gets a regression test that fails without the fix.
-- Dependencies: EC2 and CI install `requirements.txt`; the Lambda image installs only what `uv.lock` resolves (no dev group). When you add or bump a dependency, update `requirements.txt`, and if anything the Lambda imports needs it, also update `pyproject.toml` and run `uv lock`.
+- Dependencies: EC2 and CI install `requirements.txt`; the Lambda image installs only what `uv.lock` pins (`uv export --frozen`, no dev group). When you add a dependency, add it to both `requirements.txt` and `pyproject.toml` (README.md asks for both), then run `uv lock` and commit `uv.lock`. A package added to `pyproject.toml` without re-locking is left out of the Lambda.
 - Keep PRs small and about one thing. Say what changes in production and where it deploys (Lambda on merge; EC2 after a manual pull).
 
 ## Known gotchas
 
 - **Neon merged accounts:** a GET on an account ID that was merged into another account returns HTTP 222, not 200 (#95, open PR #98). 222 is a 2xx code, so `response.ok` and `raise_for_status()` accept it, while the code's `status_code != 200` checks treat it as an error.
-- **Neon rate limit** is about 10 requests per second. `neonUtil.getRealAccounts` throttles to 9/s with `RateLimiter`, and `batchUpdateDIDs` uses 5/s after seeing 429s. The Lambda and the EC2 jobs read the same key from SSM (`/neon/api_key`), so do not add unthrottled parallel Neon calls.
+- **Neon rate limit:** the code assumes 10 requests per second. `neonUtil.getRealAccounts` throttles to 9/s with `RateLimiter`, and `batchUpdateDIDs` uses 5/s after seeing 429s. The Lambda and the EC2 jobs read the same key from SSM (`/neon/api_key`), so do not add unthrottled parallel Neon calls.
 - **Dates:** the code treats business dates as America/Chicago (`neonUtil`, the Lambda, `dailyMaintenance.py`, `mailjetUtil.py`). `datetime.date.today()` and `.astimezone()` on a naive datetime use the host's timezone, which is not necessarily Chicago. Compute "today" when you need it, not at import time: a warm Lambda container can outlive midnight.
 - The Lambda handler ignores every event between 2:30 and 5:00 AM Chicago time.
 - **Account dict shape:** Neon search results and account fetches differ; `neonUtil.fixTypes` and `getMemberById` normalise both. Keys are Neon display names (`"Account ID"`, `"Email 1"`, and custom fields such as `"WaiverDate"`, `"FacilityTourDate"`, `"OpenPathID"`), and Individual Types are a list of `{"name": ...}` under `individualTypes`.
