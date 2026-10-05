@@ -64,21 +64,38 @@ def getFieldForEvent(className: str):
     return None, None
 
 
+# A registration with no tickets or no attendees is logged and treated as
+# not attended, instead of raising and dropping every registration in the event.
+def isMarkedAttended(registration, eventId):
+    try:
+        return registration["tickets"][0]["attendees"][0]["markedAttended"] == True
+    except (KeyError, IndexError, TypeError):
+        logging.warning(
+            "Skipping registration for Account ID %s in event %s: no ticket or attendee",
+            registration.get("registrantAccountId"),
+            eventId,
+        )
+        return False
+
+
 def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str):
     date = datetime.datetime.strftime(
         datetime.datetime.strptime(inputDate, "%Y-%m-%d"), "%m/%d/%Y"
     )
 
-    acctCustFields = neon.getAccountIndividual(neonId)["individualAccount"][
-        "accountCustomFields"
-    ]
-
-    customIdList = [field["id"] for field in acctCustFields]
-    if fieldId in customIdList:
-        logging.info("Account ID %s already has %s marked", neonId, shortName)
-        return
-
+    # The account read is inside the try so that an account we can't read
+    # (error response, company account, etc.) is logged and skipped without
+    # stopping the remaining attendees of the event.
     try:
+        acctCustFields = neon.getAccountIndividual(neonId)["individualAccount"][
+            "accountCustomFields"
+        ]
+
+        customIdList = [field["id"] for field in acctCustFields]
+        if fieldId in customIdList:
+            logging.info("Account ID %s already has %s marked", neonId, shortName)
+            return
+
         ##### NEON #####
         # Update part of an account
         # https://developer.neoncrm.com/api-v2/#/Accounts/patchAccount
@@ -161,7 +178,7 @@ def main():
                 continue
             attendees = [
                 r for r in registrants
-                if r["tickets"][0]["attendees"][0]["markedAttended"] == True
+                if isMarkedAttended(r, eventId)
             ]
             if not attendees:
                 logging.info("No attendees marked for event %s (%s)", eventName, eventId)

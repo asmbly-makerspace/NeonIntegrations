@@ -126,3 +126,69 @@ def test_main_skips_event_with_no_attended_registrants(requests_mock):
     assert search_mock.called, "Event search API should be called"
     assert registrants_mock.called, "Event registrants API should be called"
     assert not patch_mock.called, "PATCH should not be called when no one attended"
+
+
+@pytest.mark.parametrize("bad_response", [
+    pytest.param({"status_code": 429, "json": [{"code": "429", "message": "Too Many Requests"}]}, id="rate-limited"),
+    pytest.param({"status_code": 502, "text": "<html>Bad Gateway</html>"}, id="not-json"),
+    pytest.param({"status_code": 200, "json": {"companyAccount": {"accountId": "2"}}}, id="company-account"),
+])
+def test_main_continues_after_unreadable_account(requests_mock, caplog, bad_response):
+    """An account that can't be read is skipped; later attendees of the same event are still updated"""
+    students = [NeonUserMock(1), NeonUserMock(2), NeonUserMock(3)]
+    event = NeonEventMock(event_name="Woodshop Safety")
+    for student in students:
+        event.add_registrant(student, marked_attended=True)
+    NeonEventMock.mock_events(requests_mock, [event])
+
+    # Replace the second account's GET with a response that isn't an individual account
+    requests_mock.get(f'{N_baseURL}/accounts/2', **bad_response)
+
+    patch_mocks = [
+        requests_mock.patch(f'{N_baseURL}/accounts/{s.account_id}', status_code=200)
+        for s in students
+    ]
+
+    import attendanceToTestout
+    attendanceToTestout.main()
+
+    assert patch_mocks[0].called, "Attendee before the bad account should be updated"
+    assert not patch_mocks[1].called, "Unreadable account should not be PATCHed"
+    assert patch_mocks[2].called, "Attendee after the bad account should still be updated"
+    assert "Update failed for Account ID 2" in caplog.text
+
+
+def test_main_skips_registration_without_attendees(requests_mock, caplog):
+    """A registration with no tickets or no attendees doesn't stop the rest of the event"""
+    no_tickets = NeonUserMock(1)
+    no_attendees = NeonUserMock(2)
+    student = NeonUserMock(3)
+    event = NeonEventMock(event_name="Woodshop Safety")\
+        .add_registrant(no_tickets, marked_attended=True)\
+        .add_registrant(no_attendees, marked_attended=True)\
+        .add_registrant(student, marked_attended=True)
+    NeonEventMock.mock_events(requests_mock, [event])
+
+    # Replace the registrations so the first two have no ticket / attendee data
+    requests_mock.get(
+        f'{N_baseURL}/events/{event.event_id}/eventRegistrations',
+        json={"eventRegistrations": [
+            {"registrantAccountId": no_tickets.account_id, "tickets": []},
+            {"registrantAccountId": no_attendees.account_id, "tickets": [{"attendees": []}]},
+            {"registrantAccountId": student.account_id, "tickets": [{"attendees": [{"markedAttended": True}]}]},
+        ]}
+    )
+
+    patch_mocks = [
+        requests_mock.patch(f'{N_baseURL}/accounts/{s.account_id}', status_code=200)
+        for s in (no_tickets, no_attendees, student)
+    ]
+
+    import attendanceToTestout
+    attendanceToTestout.main()
+
+    assert not patch_mocks[0].called
+    assert not patch_mocks[1].called
+    assert patch_mocks[2].called, "Attended registrant should still be updated"
+    assert "Skipping registration for Account ID 1" in caplog.text
+    assert "Skipping registration for Account ID 2" in caplog.text
