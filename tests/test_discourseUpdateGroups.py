@@ -4,8 +4,6 @@ Unit tests for update_discourse_ids() and discourseUpdateGroups() in discourseUp
 update_discourse_ids() is pure - both sides are injected, and it returns the
 [(account, discourseID), ...] it wants written - so these build the inputs
 directly and assert on the return value.  Only getActiveUsers() needs the network.
-
-discourseUpdateGroups() talks to Discourse, so those tests mock the group endpoints.
 """
 
 import pytest
@@ -97,7 +95,7 @@ class TestMatching:
         assert applied(update_discourse_ids(accounts, discourse)) == {"1": "bobs"}
 
     def test_discourse_user_without_name_key_still_links(self):
-        """Discourse leaves "name" out entirely when the enable_names setting is off."""
+        """Discourse omits "name" when enable_names is off."""
         accounts = neonAccounts(neonAccount(1, "Bob", "Smith", "bob@example.com"))
         discourse = discourseUsers(("bobs", "bob@example.com"))
         del discourse["bobs"]["name"]
@@ -205,12 +203,11 @@ def mockGroupWrites(requests_mock):
 
 class TestGroupSync:
     @pytest.mark.parametrize("lapsedMaker", [
-        {"username": "lapsed", "name": None},  # never set a full name
-        {"username": "lapsed"},                # enable_names is off
+        {"username": "lapsed", "name": None},
+        {"username": "lapsed"},
     ], ids=["name_null", "name_missing"])
     def test_lapsed_maker_without_a_name_is_still_demoted(self, requests_mock, mock_discourse, caplog, lapsedMaker):
-        """One lapsed maker with no full name must not stop the demotions, or the
-        updateTypes() step that runs after them."""
+        """An unnamed lapsed maker is still demoted, and updateTypes() still runs."""
         requests_mock.get(MAKERS_MEMBERS, json={
             "members": [{"username": "ann", "name": "Ann B"}, lapsedMaker],
             "meta": {"total": 2}})
@@ -223,7 +220,7 @@ class TestGroupSync:
         assert writes["rm_makers"].last_request.body == "usernames=lapsed"
         assert writes["add_community"].last_request.body == "usernames=lapsed"
         assert "lapsed (None) used to be a subscriber but is no longer" in caplog.text
-        # updateTypes() still ran: it reads each group before setting it
+        # updateTypes() reads each group before setting it
         for group in ("stewards", "leadership", "sysops"):
             assert mock_discourse[group].called, f"{group} was not synced"
 
@@ -232,8 +229,7 @@ class TestGroupSync:
         lambda account: account.pop("Last Name"),
     ], ids=["last_name_null", "last_name_missing"])
     def test_neon_member_without_a_last_name_does_not_crash(self, requests_mock, mock_discourse, dropLastName):
-        """Neither Makers log line may crash on a null or absent Neon name.  The
-        no-DiscourseID line is a debug message, but it must not crash at INFO either."""
+        """Neither Makers log line crashes on a null or missing Neon last name."""
         noDiscourseID = member(1, "Cher", "X")
         newMaker = member(2, "Prince", "X", dID="prince")
         dropLastName(noDiscourseID)

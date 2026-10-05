@@ -49,7 +49,7 @@ def updateMakers(neonAccounts: dict):
                     remove = False
 
         if remove:
-            # Discourse sends name: null for users who never set a full name
+            # Discourse can send name: null, or leave it out when enable_names is off
             logging.info("%s (%s) used to be a subscriber but is no longer", maker, makers[maker].get("name"))
             removeMakers.add(f'{maker}')
 
