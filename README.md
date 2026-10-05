@@ -50,7 +50,7 @@ When a script starts, it picks where to read its API credentials from:
 
 Mailjet is the exception. `dailyMaintenance.py` (through `mailjetUtil.run_mailjet_maintenance()`) and `alta_open_lambda` always read `/mailjet/api_key` and `/mailjet/api_secret` from SSM with boto3. There is no `config.py` fallback, even on your own computer. So a local run of `dailyMaintenance.py` uses whatever AWS credentials and region your machine is set up with, which could be Asmbly's production account. Without AWS credentials it fails at the Mailjet step, after it has already made its Neon, OpenPath and Discourse changes.
 
-Some scripts also need files that hold private data. These files are ignored by git, so they are not in this repo. The scripts open them by relative path, so they must be in the directory the script runs from:
+Some scripts also need files that are ignored by git, so they are not in this repo. The scripts open them by relative path, so they must be in the directory the script runs from:
 
 - `teachers.json` - read by `dailyClassReminder.py`. Maps each teacher's name, as entered in the Neon event's "Event Topic" field, to their email address.
 - `classFeedbackServiceAccountKey.json` - Google service account key that `classFeedbackAutomation.py` uses for the Google Drive and Forms APIs (with domain-wide delegation, acting as admin@asmbly.org).
@@ -109,7 +109,7 @@ git pull origin main
 pip3.12 install -r requirements.txt
 ```
 
-(Ideally github actions should update them automatically too, but that's not working at the moment. `.github/workflows/ec2_deploy.yml` runs on every push to `main` and shows as successful, but it does not update the code on the instance. See [#64](https://github.com/asmbly-makerspace/NeonIntegrations/issues/64). The workflow only queues `git checkout main` and `git pull` with `aws ssm send-command`, does not check whether they worked, and never installs dependencies. Until that is fixed, run the steps above by hand after each merge.)
+(Ideally github actions should update them automatically too, but that's not working at the moment. `.github/workflows/ec2_deploy.yml` shows as successful but does not update the code on the instance or install dependencies; see [#64](https://github.com/asmbly-makerspace/NeonIntegrations/issues/64). Until that is fixed, run the steps above by hand after each merge.)
 
 
 ## Logging:
