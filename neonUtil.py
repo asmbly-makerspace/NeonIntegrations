@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
 import os
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type, retry_if_result, wait_exponential_jitter
 
 if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
     from aws_ssm import N_APIkey, N_APIuser
@@ -161,6 +161,44 @@ class RateLimiter:
             time.sleep(wait)
 
 
+####################################################################
+# GET a Neon URL, retrying failures that usually clear up on their own:
+# 429 (rate limited), 5xx and dropped connections.  Any other status
+# (404, Neon's 222 for merged accounts, ...) comes straight back for the
+# caller to check.  Once out of attempts we hand back the last response
+# (or re-raise the last exception), so callers fail just like they did
+# before retries existed.
+####################################################################
+def _is_transient_neon_response(response):
+    return response.status_code == 429 or response.status_code >= 500
+
+
+def _log_neon_retry(retry_state):
+    if retry_state.outcome.failed:
+        reason = repr(retry_state.outcome.exception())
+    else:
+        reason = f"status code {retry_state.outcome.result().status_code}"
+    logging.warning(
+        "Neon GET %s failed (%s), retrying in %.1fs",
+        retry_state.args[0],
+        reason,
+        retry_state.next_action.sleep,
+    )
+
+
+@retry(
+    # at most ~4s of waiting per call.  The Lambda makes two of these calls and times out after 20s.
+    stop=stop_after_attempt(3),
+    wait=wait_exponential_jitter(initial=1, max=4, jitter=0.5),
+    retry=retry_if_result(_is_transient_neon_response)
+    | retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+    before_sleep=_log_neon_retry,
+    # not reraise=True: that only covers exceptions, and would turn a final 429/5xx response into a RetryError
+    retry_error_callback=lambda retry_state: retry_state.outcome.result(),
+)
+def _neon_get(url):
+    return requests.get(url, headers=N_headers)
+
 
 ####################################################################
 # Update a valid Neon account to include membership information
@@ -172,7 +210,7 @@ def appendMemberships(account: dict, detailed=False):
     # Neon counts a failed renewal as a valid subscription so long as automatic renewal is enabled.
     # WE only think a subscription is valid if the payment transaction was successful, so check payment status.
     url = N_baseURL + f'/accounts/{account.get("Account ID")}/memberships'
-    response = requests.get(url, headers=N_headers)
+    response = _neon_get(url)
 
     if response.status_code != 200:
         raise ValueError(f"Get {url} returned status code {response.status_code}: {response.text}")
@@ -301,7 +339,7 @@ def appendMemberships(account: dict, detailed=False):
 ####################################################################
 def getMemberById(id: int, detailed=False):
     url = N_baseURL + f"/accounts/{id}"
-    response = requests.get(url, headers=N_headers)
+    response = _neon_get(url)
 
     if response.status_code != 200:
         raise ValueError(f"Get {url} returned status code {response.status_code}")
