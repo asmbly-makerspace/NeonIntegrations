@@ -306,11 +306,14 @@ class MJService:
         if not list_ids:
             return None
 
+        # IsExcludedFromCampaigns is deliberately left out. Mailjet treats an
+        # explicit False as "remove from the exclusion list", which would undo
+        # any do-not-email exclusion set in Mailjet on every run. When omitted,
+        # Mailjet keeps the stored value (new contacts default to not excluded).
         data = {
             "Contacts": [
                 {
                     "Email": sub.email,
-                    "IsExcludedFromCampaigns": False,
                     "Name": sub.full_name,
                     "Properties": {
                         "first_name": sub.first_name,

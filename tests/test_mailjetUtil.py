@@ -1,4 +1,6 @@
+import datetime
 from unittest.mock import MagicMock, Mock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 from tenacity import wait_none
@@ -267,6 +269,95 @@ class TestBulkUpdateSubscribersInLists:
 
         assert job_id == 54321
         assert mock_mailjet_client.contact_managemanycontacts.create.call_count == 1
+
+    def test_bulk_update_does_not_send_exclusion_flag(self, mj_service, mock_mailjet_client):
+        """The upsert must not send IsExcludedFromCampaigns.
+
+        Mailjet treats IsExcludedFromCampaigns=False as "remove this contact
+        from the exclusion list", so sending it on every run would undo any
+        do-not-email exclusion made in Mailjet. The rest of the payload must
+        be unchanged.
+        """
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"Data": [{"JobID": 54321}]}
+        mock_mailjet_client.contact_managemanycontacts.create.return_value = mock_response
+
+        chicago = ZoneInfo("America/Chicago")
+        subscribers = [
+            Subscriber(
+                email_="Excluded@Example.com",
+                id_=None,
+                first_name="Ex",
+                last_name="Cluded",
+                attended_orientation=True,
+                orientation_date=datetime.datetime(2024, 3, 5, tzinfo=chicago),
+                signed_waiver=True,
+                active_member=True,
+                latest_membership_end=datetime.datetime(
+                    2025, 1, 31, 6, 0, tzinfo=datetime.timezone.utc
+                ),
+            ),
+            Subscriber(
+                email_="new@example.com",
+                id_=None,
+                first_name="New",
+                last_name="Person",
+                attended_orientation=False,
+                orientation_date=None,
+                signed_waiver=False,
+                active_member=False,
+                latest_membership_end=None,
+            ),
+        ]
+
+        mj_service.bulk_update_subscribers_in_lists(
+            list_ids=[123, None, 456],
+            subscribers=subscribers,
+            action=MailjetAction.ADD_NOFORCE,
+        )
+
+        create = mock_mailjet_client.contact_managemanycontacts.create
+        assert create.call_count == 1
+        payload = create.call_args.kwargs["data"]
+
+        for contact in payload["Contacts"]:
+            assert "IsExcludedFromCampaigns" not in contact
+
+        assert payload == {
+            "Contacts": [
+                {
+                    "Email": "excluded@example.com",
+                    "Name": "Ex Cluded",
+                    "Properties": {
+                        "first_name": "Ex",
+                        "last_name": "Cluded",
+                        "attended_orientation": True,
+                        "signed_waiver": True,
+                        "active_member": True,
+                        "latest_membership_end": "2025-01-31T00:00:00-06:00",
+                        "orientation_date": "2024-03-05T00:00:00-06:00",
+                    },
+                },
+                {
+                    "Email": "new@example.com",
+                    "Name": "New Person",
+                    "Properties": {
+                        "first_name": "New",
+                        "last_name": "Person",
+                        "attended_orientation": False,
+                        "signed_waiver": False,
+                        "active_member": False,
+                        "latest_membership_end": None,
+                        "orientation_date": None,
+                    },
+                },
+            ],
+            "ContactsLists": [
+                {"ListID": 123, "Action": "addnoforce"},
+                {"ListID": 456, "Action": "addnoforce"},
+            ],
+        }
 
 
 class TestSubscriberModel:
