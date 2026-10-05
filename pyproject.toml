@@ -14,10 +14,8 @@ dependencies = [
 ]
 
 [dependency-groups]
-# uv installs this group by default, but the Lambda image leaves it out
-# (alta_open_lambda/Dockerfile exports with --no-dev). It holds the test tools,
-# plus google-api-python-client so the tests can import classFeedbackAutomation,
-# which only runs on EC2 (installed there from requirements.txt).
+# Left out of the Lambda image (alta_open_lambda/Dockerfile uses --no-dev).
+# google-api-python-client is for the classFeedbackAutomation tests.
 dev = [
     "google-api-python-client>=2.159.0",
     "pytest>=8.4.1",

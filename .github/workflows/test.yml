@@ -15,9 +15,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run pytest
         run: python -m pytest
-  # The job above matches the EC2 box (requirements.txt on Python 3.12).
-  # The Lambda image is built from pyproject.toml + uv.lock on Python 3.13
-  # (see alta_open_lambda/Dockerfile), so test that environment as well.
+  # The Lambda image is built from uv.lock on Python 3.13 (alta_open_lambda/Dockerfile).
   test-lambda-env:
     runs-on: ubuntu-latest
     steps:
@@ -31,7 +29,7 @@ jobs:
       - name: Install dependencies from uv.lock
         run: uv sync --locked
       - name: Run pytest
-        # "python -m" so it can only use the pytest installed from uv.lock
+        # "python -m" so it uses the pytest from uv.lock, not one on PATH
         run: uv run --locked python -m pytest
 on:
   pull_request:
