@@ -1,37 +1,17 @@
 """
-Characterization tests for the door-access rules:
-  openPathUtil.getOpGroups           which Alta (OpenPath) groups a Neon account earns
-  neonUtil.accountHasFacilityAccess  whether the account counts as having facility access
-  openPathUtil.updateGroups          how Alta is brought in line, including revocation
+Characterization tests for getOpGroups, accountHasFacilityAccess and updateGroups.
+They pin current behaviour, not policy.
 
-These tests pin down what the code does TODAY so that a refactor or a rule
-change that alters who can open which doors fails CI instead of passing
-silently. They are not a statement of policy.
-
-POLICY QUESTIONS
-Some rows pin behaviour the owners have not confirmed. Each such row carries
-one of these tags so they can be found and flipped together once a decision
-is made (change the expected value in the same PR as the code):
-
-  [suspension]  AccessSuspended (Neon field 180) does not remove groups that
-                come from an Individual Type (Paid Staff, Leader, Space Lead,
-                Super Steward, Instructor, Volunteer, Ceramics Volunteer).
-                NEON_USER_TYPES_GUIDE.md lines 30, 65 and 330 say the flag
-                overrides the type; the code does not do that.
-  [coworking]   A CoWorking Tenant whose membership has lapsed keeps
-                SUBSCRIBERS and COWORKING (plus STEWARDS and tool groups where
-                they apply) while waiver and tour are on file. The code comment
-                in neonUtil.accountHasFacilityAccess says this is intended; the
-                guide (line 128) says SUBSCRIBERS needs a valid membership.
-  [leadership]  Leader and Super Steward get MANAGEMENT, but unlike Space Lead
-                the type alone does not count as facility access. Without a
-                valid membership they get MANAGEMENT only (no SUBSCRIBERS or
-                tool groups), and openPathUpdateSingle/openPathUpdateAll do not
-                create an Alta user for them. The guide (lines 52-57 and
-                102-107) says they need no membership.
-
-A suspended Leader or Super Steward row carries both [suspension] and
-[leadership], because either decision could change it.
+Tagged rows record behaviour the owners have not confirmed. Flip the expected
+value in the same PR as the code change.
+  [suspension]  AccessSuspended does not remove groups granted by an Individual
+                Type. NEON_USER_TYPES_GUIDE.md says the flag overrides the type.
+  [coworking]   A CoWorking Tenant with a lapsed membership keeps SUBSCRIBERS and
+                COWORKING while waiver and tour are on file. accountHasFacilityAccess
+                says this is intended; the guide says SUBSCRIBERS needs a membership.
+  [leadership]  Leader and Super Steward without a valid membership get MANAGEMENT
+                only, and no user is created for them in the door access system
+                (Alta). The guide says they need no membership.
 """
 import pytest
 
@@ -61,15 +41,15 @@ from openPathUpdateSingle import openPathUpdateSingle
 from neon_mocker import NeonUserMock, today_plus
 
 
-# The code only checks that these fields are non-empty, so any date will do
+# The code only checks that these fields are non-empty
 DATE = "2025-01-01"
 SHAPER_SIGNOFF = {"Shaper Origin": DATE}
 DOMINO_SIGNOFF = {"Woodshop Specialty Tools": DATE}
 
-# A hand-assigned Alta group the sync does not manage
+# Hand-assigned Alta group that isManagedGroup() does not know
 UNMANAGED_GROUP = 999999
 
-# Every group getOpGroups can hand out (and so updateGroups can take away)
+# Groups getOpGroups can grant and updateGroups can revoke
 MANAGED_GROUPS = [
     MANAGEMENT, SUBSCRIBERS, CERAMICS, COWORKING, STEWARDS, INSTRUCTORS,
     SHAPER_ORIGIN, DOMINO, ONDUTY, CERAMICS_ONDUTY,
@@ -80,9 +60,7 @@ STAFF_GROUPS = [SUBSCRIBERS, STEWARDS, INSTRUCTORS, COWORKING, CERAMICS]
 
 
 def account(*types, member=True, waiver=True, tour=True, suspended=False, **fields):
-    """Build a Neon account dict in the shape getMemberById()/getRealAccounts() return:
-    custom fields raised to top-level keys, Individual Types as [{"name": ...}], and
-    validMembership/ceramicsMembership as set by appendMemberships()."""
+    """Neon account dict in the shape getMemberById()/getRealAccounts() return."""
     acct = {
         "Account ID": "1234",
         "fullName": "Pat Example",
@@ -106,7 +84,7 @@ def row(id, acct, groups, facility):
 
 
 # Each row: account, expected getOpGroups (any order), expected accountHasFacilityAccess.
-# "non-member" means validMembership is False but waiver and tour are on file.
+# "non-member": validMembership is False, waiver and tour on file.
 ACCESS_TABLE = [
     # --- No Individual Type: needs valid membership + waiver + tour, and not suspended ---
     row("member", account(), [SUBSCRIBERS], True),
@@ -226,8 +204,7 @@ ACCESS_TABLE = [
     row("wiki-admin-non-member", account(WIKI_ADMIN_TYPE, member=False), [], False),
 
     # --- Combinations ---
-    # Paid Staff who is also a Leader gets MANAGEMENT *instead of* the staff bundle
-    # (the staff branch in getOpGroups is an `elif`), plus SUBSCRIBERS via the staff type.
+    # The staff branch is an elif, so staff + Leader gets MANAGEMENT, not the staff groups
     row("staff-and-leader",
         account(STAFF_TYPE, DIRECTOR_TYPE, member=False), [SUBSCRIBERS, MANAGEMENT], True),
     row("instructor-and-volunteer-non-member",
@@ -237,7 +214,7 @@ ACCESS_TABLE = [
 
 @pytest.mark.parametrize("acct, expected_groups, expected_facility", ACCESS_TABLE)
 def test_getOpGroups(acct, expected_groups, expected_facility):
-    # getOpGroups builds a set, so order is not meaningful; sorting also catches duplicates
+    # Order comes from a set; comparing sorted lists still catches duplicates
     assert sorted(openPathUtil.getOpGroups(acct)) == sorted(expected_groups)
 
 
@@ -257,14 +234,12 @@ def test_isManagedGroup_false_for_other_groups(group):
 
 
 def test_every_group_getOpGroups_assigns_is_managed():
-    # updateGroups only removes groups that isManagedGroup() knows about and keeps
-    # everything else as hand-assigned. A group added to getOpGroups but not to
-    # isManagedGroup could be granted by the sync but never revoked.
+    # A group getOpGroups grants but isManagedGroup() does not know is never revoked
     assigned = set()
     for param in ACCESS_TABLE:
         assigned.update(openPathUtil.getOpGroups(param.values[0]))
     assert [g for g in sorted(assigned) if not openPathUtil.isManagedGroup(g)] == []
-    # ...and the table above exercises every one of them
+    # The table covers every managed group
     assert assigned == set(MANAGED_GROUPS)
 
 
@@ -277,7 +252,7 @@ PUT_URL = f"{O_baseURL}/users/{OP_ID}/groupIds"
 
 
 def alta_groups(*ids):
-    """Group list in the shape Alta returns it (GET /users and GET /users/{id}/groups)."""
+    """Alta group list as updateGroups reads it."""
     return [{"id": i} for i in ids]
 
 
@@ -353,7 +328,7 @@ end = today_plus(365)
 
 
 def test_openPathUpdateSingle_revokes_lapsed_member(requests_mock):
-    # Lambda path: groups are fetched from Alta, then the account is set to what it earns
+    # Webhook Lambda path: current groups come from GET /users/{id}/groups
     rm = requests_mock
     member = NeonUserMock(waiver_date=start, facility_tour_date=start, open_path_id=OP_ID)\
         .add_membership(REGULAR, start, lapsed_end, fee=100.0)
@@ -366,14 +341,13 @@ def test_openPathUpdateSingle_revokes_lapsed_member(requests_mock):
 
     assert put.call_count == 1
     assert put.last_request.json() == {"groupIds": []}
-    # requests_mock answers unauthenticated calls too; in production a missing
-    # Authorization header means the lookup fails and nothing is revoked
+    # requests_mock accepts calls without auth, so check the header
     assert get_groups.last_request.headers["Authorization"].startswith("Basic ")
     assert put.last_request.headers["Authorization"].startswith("Basic ")
 
 
 def test_openPathUpdateAll_revokes_suspended_member_keeps_special_event(requests_mock):
-    # daily path: current groups come from the bulk GET /users listing
+    # Nightly sync path: current groups come from the bulk GET /users listing
     rm = requests_mock
     member = NeonUserMock(1, waiver_date=start, facility_tour_date=start, open_path_id=OP_ID,
                           access_suspended=True)\
