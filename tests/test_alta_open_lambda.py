@@ -604,15 +604,11 @@ def test_new_fresh_join_adds_to_mailjet(openpath, neon_account, mailjet, params)
 # ===========================================================================
 # createMembership -- join/Mailjet failures must not block the OpenPath update
 # ===========================================================================
-#
-# Join detection and the Mailjet add are extras. The door-access update
-# (openPathUpdateSingle) is the Lambda's main job and must still run when they
-# fail.
 
 
 def test_mailjet_failure_still_updates_openpath(openpath, neon_account, mailjet, caplog):
-    # A fresh first join qualifies for the Mailjet add, but Mailjet (or SSM) errors.
-    today = datetime.datetime.now(lf.TZ).date()
+    # Same-day first join, so the Mailjet add runs. Use lf's clock in case it is patched.
+    today = lf.datetime.datetime.now(lf.TZ).date()
     neon_account.return_value = {
         "membershipDates": {today.isoformat(): [(today + datetime.timedelta(days=30)).isoformat()]}
     }
@@ -635,10 +631,7 @@ def test_mailjet_failure_still_updates_openpath(openpath, neon_account, mailjet,
 def test_join_without_succeeded_term_still_updates_openpath(
     openpath, mailjet, requests_mock, caplog, membership_statuses
 ):
-    # Uses the real getMemberById/appendMemberships. appendMemberships only
-    # records SUCCEEDED terms, so with no memberships the account has no
-    # membershipDates key, and with only a PENDING term it is empty. handle_joins
-    # must treat both as "not a join" instead of raising.
+    # Real appendMemberships: membershipDates ends up missing or empty.
     user = NeonUserMock()
     for status in membership_statuses:
         user.add_membership(MEMBERSHIP_ID_REGULAR, today_plus(0), today_plus(30), status=status)

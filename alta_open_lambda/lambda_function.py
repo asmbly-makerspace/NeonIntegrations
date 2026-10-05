@@ -144,9 +144,7 @@ def handle_joins(neon_id: int) -> tuple[dict, bool, list[datetime.date]]:
     logger.info("Getting account %s from Neon", neon_id)
     account = getMemberById(id=neon_id)
 
-    # appendMemberships only records SUCCEEDED terms, and only adds the
-    # membershipDates key when Neon returns at least one membership. If Neon
-    # doesn't show a SUCCEEDED term (yet), there is no join to detect.
+    # appendMemberships only records SUCCEEDED terms, so this can be missing or empty
     membership_dates = account.get("membershipDates") or {}
     if not membership_dates:
         logger.warning(
@@ -280,9 +278,7 @@ def lambda_handler(event: dict, _: dict) -> None:
                 logger.info(
                     "Getting account and membership end dates for Neon ID: %s", neon_id
                 )
-                # Join detection and the Mailjet add are optional extras. Don't
-                # let a failure here (Neon, SSM or Mailjet) stop the door-access
-                # update below.
+                # Don't let a join/Mailjet failure block the door-access update
                 try:
                     account, should_add_member, membership_end_dates = handle_joins(neon_id)
 
