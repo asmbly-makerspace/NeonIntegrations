@@ -84,6 +84,6 @@ jobs:
         jq -r .StandardErrorContent <<< "$invocation"
         status=$(jq -r .Status <<< "$invocation")
         if [ "$status" != "Success" ]; then
-          echo "::error::EC2 deploy (SSM command $command_id) finished with status $status, exit code $(jq -r .ResponseCode <<< "$invocation")"
+          echo "::error::EC2 deploy did not succeed: SSM command $command_id has status $status (exit code $(jq -r .ResponseCode <<< "$invocation"))"
           exit 1
         fi
