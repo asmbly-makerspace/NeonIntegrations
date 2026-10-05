@@ -24,9 +24,7 @@ else:
 def _today():
     return datetime.datetime.now(pytz.timezone("America/Chicago")).date()
 
-# NOTE these are fixed when the module is first imported.  The Lambda keeps this module loaded
-# across warm invocations (including past midnight), so membership checks call _today() instead.
-# They're only kept for code that still reads neonUtil.today / neonUtil.yesterday.
+# set once at import; membership checks call _today() instead
 today = _today()
 yesterday = today - datetime.timedelta(days=1)
 
@@ -170,14 +168,12 @@ class RateLimiter:
 
 ####################################################################
 # Update a valid Neon account to include membership information
-# today defaults to the current date; callers checking many accounts
-# pass one in so the whole batch is judged against the same day
+# today defaults to the current date
 ####################################################################
 def appendMemberships(account: dict, detailed=False, today=None):
     # this should be a pretty thorough check for sane argument
     assert int(account.get("Account ID")) > 0
 
-    # look up the date on every call, not at import (see note on _today above)
     if today is None:
         today = _today()
     yesterday = today - datetime.timedelta(days=1)
@@ -501,7 +497,7 @@ def getRealAccounts():
     accountCount = 0
     activeSubscriptions = 0
 
-    # one date for the whole run, so a run that crosses midnight doesn't mix two days
+    # one date for the whole run, even if it crosses midnight
     today = _today()
     yesterday = today - datetime.timedelta(days=1)
 
