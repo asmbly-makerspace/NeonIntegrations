@@ -47,11 +47,8 @@ GROUP_IDS = {
 def getActiveUsers():
     users = {}
 
-    # Sort oldest account first.  This list is sorted by last_seen_at by default, so
-    # anyone who visits the forum while we're paging jumps onto a page we've already
-    # read and gets left out - and update_discourse_ids() treats a missing user as a
-    # deleted one.  Creation dates don't change, so paging by them is stable.
-    # Discourse pages start at 1 (page=0 is the same as page=1).
+    # page by creation date; in the default last_seen_at order a user who visits mid-paging can be skipped
+    # Discourse treats page=0 as page=1, so start at 1
     for page in range(1, MAX_USER_PAGES + 1):
         url = D_baseURL + f"""/admin/users/list/active.json?page={page}&show_emails=true&order=created&asc=true"""
         response = requests.get(url, headers=D_headers)

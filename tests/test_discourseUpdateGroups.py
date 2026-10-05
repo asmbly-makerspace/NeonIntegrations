@@ -3,8 +3,7 @@ Unit tests for update_discourse_ids() in discourseUpdateGroups.py
 
 update_discourse_ids() is pure - both sides are injected, and it returns the
 [(account, discourseID), ...] it wants written - so these build the inputs
-directly and assert on the return value.  Only getActiveUsers() needs the network;
-its tests at the bottom run against a fake of Discourse's admin user list.
+directly and assert on the return value.  Only getActiveUsers() needs the network.
 """
 
 import pytest
@@ -174,14 +173,10 @@ class TestMatching:
 
 
 class FakeDiscourseUserList:
-    """Serves /admin/users/list/active.json the way Discourse does it
-    (lib/admin_user_index_query.rb): 100 users per page, page=0 and page=1 are both
-    the first page, sorted by created_at if asked for order=created (descending
-    unless asc is given), otherwise by last_seen_at, most recent first."""
+    """Pages and sorts /admin/users/list/active.json like upstream lib/admin_user_index_query.rb."""
 
     def __init__(self, count):
-        # user000 is the oldest account and was seen most recently.  The last one
-        # created hasn't been on the forum for longest.
+        # user000 is the oldest account and the most recently seen
         self.users = [{"username": f"user{i:03}", "email": f"user{i:03}@example.com",
                        "created": i, "seen": -i} for i in range(count)]
         self.loginDuringPaging = None
@@ -220,9 +215,7 @@ class TestGetActiveUsers:
             assert r.qs["show_emails"] == ["true"]
 
     def test_user_who_logs_in_while_paging_is_not_missed(self, requests_mock):
-        """Sorted by last_seen_at, user149 would jump onto the first page after we'd
-        read it.  Leaving them out would clear their DiscourseID as if they'd been
-        deleted, and drop them from makers, stewards and leadership."""
+        """Sorted by last_seen_at, user149 would move onto page 1 after it was read."""
         fake = FakeDiscourseUserList(150)
         fake.loginDuringPaging = "user149"
         requests_mock.get(DISCOURSE_USERS_URL, json=fake)
