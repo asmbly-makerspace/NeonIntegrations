@@ -25,7 +25,7 @@ The Python version and dependency file depend on where the code runs:
 | GitHub Actions tests (`.github/workflows/test.yml`) | 3.12 | `requirements.txt` |
 | `alta_open_lambda` (Docker image) | 3.13 | `pyproject.toml` and `uv.lock` |
 
-`pyproject.toml` (which requires Python 3.13 or newer) and `uv.lock` are only used to build the Lambda image. `.python-version` says 3.13 to match the Lambda, and tools such as uv and pyenv will pick it up, so ask for 3.12 explicitly when you create your environment (for example `python3.12 -m venv <dir>` or `uv venv --python 3.12`).
+The dependency lists in `pyproject.toml` (which requires Python 3.13 or newer) and `uv.lock` are only used to build the Lambda image. `pytest` also reads its settings from the `[tool.pytest.ini_options]` section of `pyproject.toml`, so that file matters for the tests too. `.python-version` says 3.13 to match the Lambda, and tools such as uv and pyenv will pick it up, so ask for 3.12 explicitly when you create your environment (for example `python3.12 -m venv <dir>` or `uv venv --python 3.12`; uv will warn that 3.12 does not match `requires-python`, which is expected).
 
 If you add any new dependencies, make sure to update both `requirements.txt` and `pyproject.toml`, then run `uv lock` (needs [uv](https://docs.astral.sh/uv/)) and commit the updated `uv.lock`. The Lambda image is built with `uv export --frozen`, which uses `uv.lock` as it is, so a package added to `pyproject.toml` without re-locking is silently left out of the Lambda.
 
@@ -125,7 +125,7 @@ Here are the scripts that are currently being executed by our automation. Note t
 ### alta_open_lambda
 
 - Triggered by Neon webhooks. It acts on `createMembership`, `updateMembership`, `deleteMembership`, `editAccount` and `mergedAccount` events. `updateEventRegistration` events are logged and otherwise ignored, as are any other event types. Webhooks that arrive between 2:30 and 5:00 AM Central time are skipped.
-- For each event it acts on, it looks up the Neon account and updates that user in OpenPath (`openPathUpdateSingle.py`). For example, it will update a user's openpath account to give them access to the space if a user has met all the criteria.
+- For each event it acts on, it looks up the Neon account and creates or updates that user in OpenPath (`openPathUpdateSingle.py`). For example, it will update a user's openpath account to give them access to the space if a user has met all the criteria.
 - For a successful `JOIN` or `REJOIN` `createMembership` that starts today (a first membership, or one starting at least 365 days after the previous one ended), it also adds the member to the Mailjet `NewMembers` and `AllContacts` lists. This only happens if the Neon account already has a `FacilityTourDate`, an email, a first and last name, and a `MailjetContactID`.
 - It does not touch Discourse.
 
@@ -134,7 +134,7 @@ Here are the scripts that are currently being executed by our automation. Note t
 - Triggered daily by systemd timer asmbly-daily-maintenance.service
 - Similar to `alta_open_lambda`, it syncs **all** accounts from neon -> OpenPath, discourse, and Mailjet.
 - It also matches Discourse users to Neon accounts by email and updates the `DiscourseID` field in Neon.
-- When it runs before 6:00 AM Central time, it emails the daily subscriber report to membership@asmbly.org and a summary to membership.committee@asmbly.org.
+- When it runs before about 6 AM Central time, it emails the daily subscriber report to membership@asmbly.org and a summary to membership.committee@asmbly.org.
 
 ### attendanceToTestout.py
 
