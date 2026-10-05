@@ -315,9 +315,7 @@ def test_rejoin_after_long_lapse_adds_to_mailjet(openpath, neon_account, mailjet
 
 
 def test_add_member_to_mailjet_sends_chicago_midnight_dates(mock_ssm, mock_mailjet, host_tz):
-    # Neon dates are calendar days in Austin. Lambda runs in UTC, so the dates
-    # must not depend on the server's time zone: each one should reach Mailjet
-    # as midnight Chicago time on that same day.
+    # Dates must reach Mailjet as Chicago midnight whatever the host time zone.
     mock_mailjet.contactslist.get.return_value.content = json.dumps({
         "Count": 2,
         "Data": [
@@ -345,7 +343,7 @@ def test_add_member_to_mailjet_sends_chicago_midnight_dates(mock_ssm, mock_mailj
     lf.add_member_to_mailjet(account, [datetime.date(2026, 11, 4)])
 
     properties = create.call_args.kwargs["data"]["Contacts"][0]["Properties"]
-    # October 1 is in daylight time (UTC-5), November 4 in standard time (UTC-6)
+    # Oct 1 is CDT (UTC-5), Nov 4 is CST (UTC-6)
     assert properties["orientation_date"] == "2026-10-01T00:00:00-05:00"
     assert properties["latest_membership_end"] == "2026-11-04T00:00:00-06:00"
 

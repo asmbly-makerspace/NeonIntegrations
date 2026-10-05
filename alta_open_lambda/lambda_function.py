@@ -116,9 +116,7 @@ def add_member_to_mailjet(
         first_name=account_first_name,
         last_name=account_last_name,
         attended_orientation=attended_orientation,
-        # Neon dates are calendar days in Austin, so attach the Chicago zone to
-        # midnight. astimezone() would read the naive value as server time (UTC)
-        # and move it to the evening before.
+        # Attach the zone: astimezone() reads naive values as host local time
         orientation_date=(
             datetime.datetime.strptime(facility_tour_date, "%m/%d/%Y").replace(tzinfo=TZ)
             if facility_tour_date

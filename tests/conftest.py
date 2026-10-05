@@ -67,11 +67,7 @@ def mock_mailjet(mocker):
 
 @pytest.fixture(params=["UTC", "America/Chicago"])
 def host_tz(request, monkeypatch):
-    """Run the test as if the server's local time zone were the given zone.
-
-    Lambda and the EC2 box run in UTC; a developer laptop in Austin runs in
-    America/Chicago. Code that formats dates should give the same result on both.
-    """
+    """Run the test with the host time zone set to UTC, then America/Chicago."""
     if not hasattr(time, "tzset"):
         pytest.skip("time.tzset() is not available on this platform")
     with monkeypatch.context() as m:

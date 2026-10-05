@@ -271,11 +271,10 @@ class TestBulkUpdateSubscribersInLists:
 
 
 class TestUpdateMjAllContactsList:
-    """Test suite for update_mj_all_contacts_list (run daily by dailyMaintenance)."""
+    """Test suite for update_mj_all_contacts_list."""
 
     def test_neon_dates_sent_as_chicago_midnight(self, mj_service, mock_mailjet_client, host_tz):
-        """Neon dates are calendar days in Austin. Each one should reach Mailjet
-        as midnight Chicago time on that same day, whatever the server's time zone."""
+        """Neon dates are sent as Chicago midnight on any host time zone."""
         mock_response = Mock()
         mock_response.status_code = 201
         mock_response.json.return_value = {"Data": [{"JobID": 54321}]}
@@ -299,7 +298,7 @@ class TestUpdateMjAllContactsList:
         assert job_id == 54321
         data = mock_mailjet_client.contact_managemanycontacts.create.call_args.kwargs["data"]
         properties = data["Contacts"][0]["Properties"]
-        # October 1 is in daylight time (UTC-5), November 4 in standard time (UTC-6)
+        # Oct 1 is CDT (UTC-5), Nov 4 is CST (UTC-6)
         assert properties["orientation_date"] == "2026-10-01T00:00:00-05:00"
         assert properties["latest_membership_end"] == "2026-11-04T00:00:00-06:00"
 
