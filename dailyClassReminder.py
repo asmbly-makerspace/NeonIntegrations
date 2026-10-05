@@ -148,12 +148,10 @@ def main():
                         # but these aren't accessible from the API, so we will just use the info from the main account
                         acct_info = neon.getAccountIndividual(acct_id)
                         email = acct_info["individualAccount"]["primaryContact"]["email1"]
-                        addresses = acct_info["individualAccount"]["primaryContact"]["addresses"]
-                        # Get all phone numbers in the address entries, then use the first non-None result
+                        addresses = acct_info["individualAccount"]["primaryContact"].get("addresses") or []
+                        # Get all phone numbers in the address entries, then use the first non-empty one, or N/A
                         phones = [addr.get('phone1') for addr in addresses]
-                        phone = [p for p in phones if p][0]
-                        if not phone:
-                            phone = "N/A"
+                        phone = next((p for p in phones if p), "N/A")
 
                         # Build a dictionary list of attendee names under this registration
                         attendee_list = {"name": [], "email": email, "phone": phone}
