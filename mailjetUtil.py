@@ -186,6 +186,22 @@ class MJCredentials:
     secret_key: str
 
 
+def get_mailjet_credentials() -> MJCredentials:
+    """Fetch the Mailjet keys from SSM by name. Raises if either is missing."""
+    # Not shared with aws_ssm, which fetches every other secret on import
+    names = ["/mailjet/api_key", "/mailjet/api_secret"]
+    response = boto3.client("ssm").get_parameters(Names=names, WithDecryption=True)
+    values = {p["Name"]: p["Value"] for p in response["Parameters"]}
+    missing = [name for name in names if name not in values]
+    if missing:
+        raise RuntimeError("SSM parameter(s) not found: " + ", ".join(missing))
+
+    return MJCredentials(
+        public_key=values["/mailjet/api_key"],
+        secret_key=values["/mailjet/api_secret"],
+    )
+
+
 class MailserviceInterface(Protocol):
     def send_email(self) -> None: ...
 
@@ -582,18 +598,7 @@ def run_mailjet_maintenance() -> None:
     Main entry point for running maintenance tasks on Mailjet.
     """
 
-    ssm_mj_creds = boto3.client("ssm").get_parameters(
-        Names=[
-            "/mailjet/api_key",
-            "/mailjet/api_secret",
-        ],
-        WithDecryption=True,
-    )
-
-    mj_creds = MJCredentials(
-        public_key=ssm_mj_creds["Parameters"][0]["Value"],
-        secret_key=ssm_mj_creds["Parameters"][1]["Value"],
-    )
+    mj_creds = get_mailjet_credentials()
 
     mailjet = MJService(mj_creds)
 

@@ -1,7 +1,19 @@
 import boto3
 
-ssm_creds = boto3.client("ssm").get_parameters(
-    Names=[
+
+def _get_parameters(names: list[str]) -> dict[str, str]:
+    """Fetch decrypted SSM parameters as {name: value}. Raises if any are missing."""
+    # GetParameters accepts at most 10 names
+    response = boto3.client("ssm").get_parameters(Names=names, WithDecryption=True)
+    values = {p["Name"]: p["Value"] for p in response["Parameters"]}
+    missing = [name for name in names if name not in values]
+    if missing:
+        raise RuntimeError("SSM parameter(s) not found: " + ", ".join(missing))
+    return values
+
+
+ssm_creds = _get_parameters(
+    [
         "/altaopen/api_key",
         "/altaopen/api_user",
         "/discourse/api_key",
@@ -10,18 +22,17 @@ ssm_creds = boto3.client("ssm").get_parameters(
         "/gmail/password",
         "/neon/api_key",
         "/neon/api_user",
-    ],
-    WithDecryption=True,
+    ]
 )
 
-N_APIkey = ssm_creds["Parameters"][6]["Value"]
-N_APIuser = ssm_creds["Parameters"][7]["Value"]
+N_APIkey = ssm_creds["/neon/api_key"]
+N_APIuser = ssm_creds["/neon/api_user"]
 
-G_user = ssm_creds["Parameters"][5]["Value"]
-G_password = ssm_creds["Parameters"][4]["Value"]
+G_user = ssm_creds["/gmail/user"]
+G_password = ssm_creds["/gmail/password"]
 
-O_APIkey = ssm_creds["Parameters"][0]["Value"]
-O_APIuser = ssm_creds["Parameters"][1]["Value"]
+O_APIkey = ssm_creds["/altaopen/api_key"]
+O_APIuser = ssm_creds["/altaopen/api_user"]
 
-D_APIkey = ssm_creds["Parameters"][2]["Value"]
-D_APIuser = ssm_creds["Parameters"][3]["Value"]
+D_APIkey = ssm_creds["/discourse/api_key"]
+D_APIuser = ssm_creds["/discourse/api_user"]
