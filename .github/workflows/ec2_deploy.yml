@@ -38,12 +38,9 @@ jobs:
       run: |
         set -euo pipefail
 
-        # AWS-RunShellScript runs as root, but the checkout belongs to ec2-user (the user the
-        # systemd timers run as). Run the update as ec2-user: as root, git refuses the repo
-        # ("detected dubious ownership") or leaves root-owned files in .git.
-        # These are the README's manual steps, except that we deploy exactly the pushed commit
-        # and --ff-only fails the deploy instead of making a merge commit on the instance.
-        # remote_cmd is wrapped in single quotes below, so it must not contain any itself.
+        # SSM runs commands as root; run the README's update steps as ec2-user instead.
+        # --ff-only fails the deploy if main on the instance has diverged.
+        # remote_cmd goes inside single quotes below, so it must not contain any.
         remote_cmd="cd /home/ec2-user/NeonIntegrations \
           && git fetch origin main \
           && git checkout main \
@@ -60,10 +57,8 @@ jobs:
           --output text)
         echo "Sent SSM command $command_id"
 
-        # send-command returns as soon as the command is queued, so wait for it to finish.
-        # The waiter exits non-zero if the command fails, and gives up after about 100 seconds,
-        # which pip can exceed when requirements change, so wait up to three times.
-        # The waiter and get-command-invocation need ssm:GetCommandInvocation on the role.
+        # The waiter gives up after ~100 s, so retry while the command is still running.
+        # Needs ssm:GetCommandInvocation on the role.
         for _ in 1 2 3; do
           if aws ssm wait command-executed --command-id "$command_id" --instance-id "$INSTANCE_ID"; then
             break
@@ -76,7 +71,7 @@ jobs:
           esac
         done
 
-        # Always show the instance's output, then fail the job unless the command succeeded.
+        # Print the instance's output, then fail unless the command succeeded.
         invocation=$(aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID" --output json)
         echo "----- stdout from the instance -----"
         jq -r .StandardOutputContent <<< "$invocation"
