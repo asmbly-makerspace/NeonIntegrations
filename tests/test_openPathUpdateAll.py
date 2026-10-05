@@ -268,9 +268,7 @@ def test_handles_failed_user_creation(requests_mock):
 
 @pytest.mark.parametrize("stale_id", [999, "12345 (old)"])
 def test_stale_openpath_id_does_not_stop_later_accounts(requests_mock, stale_id):
-    """An OpenPathID that matches no OpenPath user (hard-deleted in OpenPath, typo in Neon) is
-    reported and skipped. Later accounts still sync, and the stale ID is neither cleared
-    in Neon nor recreated in OpenPath."""
+    """Reported and skipped; the ID isn't cleared and the user isn't recreated."""
     rm = requests_mock
 
     stale = NeonUserMock(1, open_path_id=stale_id, waiver_date=start, facility_tour_date=tour)\
@@ -295,7 +293,6 @@ def test_stale_openpath_id_does_not_stop_later_accounts(requests_mock, stale_id)
 
 
 def test_failed_group_update_does_not_stop_later_accounts(requests_mock):
-    """An OpenPath error for one account is logged and reported; later accounts still sync."""
     rm = requests_mock
 
     first = NeonUserMock(1, open_path_id=101, waiver_date=start, facility_tour_date=tour)\
@@ -323,7 +320,7 @@ def test_failed_group_update_does_not_stop_later_accounts(requests_mock):
 
 
 def sent_emails(send_mock):
-    """Map recipient -> plain-text body for every email passed to gmailUtil.sendMIMEmessage"""
+    """Map recipient -> plain-text body of each email sent"""
     return {
         call.args[0]['To']: call.args[0].get_payload(decode=True).decode()
         for call in send_mock.call_args_list
@@ -331,7 +328,6 @@ def sent_emails(send_mock):
 
 
 def test_failures_are_listed_in_membership_email(requests_mock, mocker):
-    """Staff see the accounts that didn't sync in the membership@ email, not just in the logs."""
     rm = requests_mock
     send = mocker.patch('gmailUtil.sendMIMEmessage')
 
@@ -370,7 +366,6 @@ def test_clean_run_returns_no_failures(requests_mock, mocker):
 
 
 def test_standalone_script_exits_non_zero_when_an_account_fails(requests_mock, mocker):
-    """Running openPathUpdateAll.py by hand still reports failure through its exit status."""
     rm = requests_mock
 
     stale = NeonUserMock(1, open_path_id=999)

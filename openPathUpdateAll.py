@@ -61,7 +61,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     missingCsiSubscribers = {}
     compedSubscribers = []
     compedLeaders = []
-    failures = [] #(Neon account ID, reason) for each account we couldn't sync with OpenPath
+    failures = [] #(Neon account ID, reason)
 
     paidRegulars = 0
     paidCeramics = 0
@@ -112,12 +112,10 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
                 try:
                     opUser = opUsers.get(int(account.get("OpenPathID")))
                 except (TypeError, ValueError):
-                    pass #non-numeric junk in Neon's OpenPathID field; reported below
+                    pass #non-numeric OpenPathID; reported below
 
                 if opUser is None:
-                    #The OpenPath user is gone (e.g. hard-deleted) or the ID in Neon is wrong.  Report it and skip
-                    #only this account's OpenPath update.  Don't clear the ID or recreate the user: a paging glitch
-                    #in getAllUsers() could hide a real user for one run, so a human should check first.
+                    #don't clear the ID or recreate the user; a paging glitch could hide a real user for one run
                     logging.error("Neon account %s (%s) has OpenPathID \"%s\", which doesn't match any OpenPath user; skipping its OpenPath update",
                                   accountId, account.get("Email 1"), account.get("OpenPathID"))
                     failures.append((accountId, f'''OpenPathID "{account.get("OpenPathID")}" doesn't match any OpenPath user'''))
@@ -143,7 +141,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
             if account.get("ceramicsMembership") and not account.get("CsiDate"):
                 missingCsiSubscribers[accountId] = f'''{account.get("fullName")} ({account.get("Email 1")}) - since {account.get("Ceramics Start Date")}'''
         except Exception as e:
-            #one bad account (or one failed OpenPath/Neon call) shouldn't cost us the rest of the batch
+            #don't let one account stop the rest of the batch
             logging.exception("Failed to sync Neon account %s (%s) with OpenPath", accountId, account.get("Email 1"))
             failures.append((accountId, f"{type(e).__name__}: {e}"))
 
@@ -207,7 +205,7 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
     logging.info(msg.get_payload())
     print(summaryMsg.get_payload())
 
-    #an empty list means every account synced; callers can treat anything else as a failed run
+    #empty when every account synced
     return failures
 
 #begin standalone script functionality -- pull neonAccounts and call our function
