@@ -187,7 +187,8 @@ def _log_neon_retry(retry_state):
 
 
 @retry(
-    # at most ~4s of waiting per call.  The Lambda makes two of these calls and times out after 20s.
+    # at most ~4s of waiting per call.  The Lambda times out after 20s; a JOIN webhook makes
+    # four of these calls (getMemberById twice), other webhooks make two.
     stop=stop_after_attempt(3),
     wait=wait_exponential_jitter(initial=1, max=4, jitter=0.5),
     retry=retry_if_result(_is_transient_neon_response)
