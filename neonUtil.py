@@ -162,12 +162,8 @@ class RateLimiter:
 
 
 ####################################################################
-# GET a Neon URL, retrying failures that usually clear up on their own:
-# 429 (rate limited), 5xx and dropped connections.  Any other status
-# (404, Neon's 222 for merged accounts, ...) comes straight back for the
-# caller to check.  Once out of attempts we hand back the last response
-# (or re-raise the last exception), so callers fail just like they did
-# before retries existed.
+# GET a Neon URL, retrying 429, 5xx, ConnectionError and Timeout.
+# Other statuses (404, 222, ...) are returned for the caller to check.
 ####################################################################
 def _is_transient_neon_response(response):
     return response.status_code == 429 or response.status_code >= 500
@@ -187,14 +183,13 @@ def _log_neon_retry(retry_state):
 
 
 @retry(
-    # at most ~4s of waiting per call.  The Lambda times out after 20s; a JOIN webhook makes
-    # four of these calls (getMemberById twice), other webhooks make two.
+    # at most ~4s of waiting per call; a JOIN makes four calls in the webhook Lambda (20s timeout)
     stop=stop_after_attempt(3),
     wait=wait_exponential_jitter(initial=1, max=4, jitter=0.5),
     retry=retry_if_result(_is_transient_neon_response)
     | retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
     before_sleep=_log_neon_retry,
-    # not reraise=True: that only covers exceptions, and would turn a final 429/5xx response into a RetryError
+    # return the last response (or re-raise the last exception) instead of a RetryError
     retry_error_callback=lambda retry_state: retry_state.outcome.result(),
 )
 def _neon_get(url):

@@ -17,7 +17,7 @@ CERAMICS = neonUtil.MEMBERSHIP_ID_CERAMICS
 
 @pytest.fixture(autouse=True)
 def _no_retry_wait():
-    """Disable tenacity retry wait times so tests run instantly."""
+    """Skip the retry backoff so tests don't sleep."""
     original_wait = neonUtil._neon_get.retry.wait
     neonUtil._neon_get.retry.wait = wait_none()
     yield
@@ -224,9 +224,7 @@ def test_appendMemberships_membershipDates_mapping_multiple(requests_mock):
     }
 
 
-# ---------------------------------------------------------------------------
-# Retrying transient Neon errors on the per-account GETs
-# ---------------------------------------------------------------------------
+# retries on the per-account GETs
 
 @pytest.mark.parametrize('first_response', [
     {'status_code': 429, 'text': 'Too Many Requests'},
@@ -260,7 +258,7 @@ def test_appendMemberships_gives_up_after_three_attempts(requests_mock, response
         f'{N_baseURL}/accounts/{account.account_id}/memberships', **response
     )
 
-    # same error the caller saw before retries existed (not a tenacity RetryError)
+    # the original error, not a tenacity RetryError
     with pytest.raises(expected_error, match=message):
         neonUtil.appendMemberships({'Account ID': account.account_id})
 
@@ -282,8 +280,7 @@ def test_appendMemberships_does_not_retry_404(requests_mock):
 
 
 def test_neon_get_does_not_retry_222(requests_mock):
-    # Neon answers 222 for a merged account.  It isn't transient, so the
-    # helper hands it back untouched and getMemberById decides what to do.
+    # 222 (merged account) isn't transient; getMemberById checks the status itself
     url = f'{N_baseURL}/accounts/123'
     merged = requests_mock.get(url, status_code=222, json=build_account_api_response(123))
 
@@ -337,8 +334,7 @@ def test_getRealAccounts_survives_one_429(requests_mock):
 
 
 def test_getRealAccounts_still_raises_when_an_account_keeps_failing(requests_mock):
-    # We must not guess: treating the account as a non-member would revoke a
-    # paying member's door access, so the run still aborts like before.
+    # treating the account as a non-member would revoke a paying member's door access
     accounts = _mock_real_accounts(requests_mock, 5)
     requests_mock.get(
         f'{N_baseURL}/accounts/{accounts[2].account_id}/memberships',
