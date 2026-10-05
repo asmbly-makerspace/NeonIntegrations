@@ -43,6 +43,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "alta_open_lambda"))
 
 import lambda_function as lf
+from neon_mocker import NeonUserMock, today_plus
+from neonUtil import MEMBERSHIP_ID_REGULAR
 
 
 @pytest.fixture
@@ -597,3 +599,54 @@ def test_new_fresh_join_adds_to_mailjet(openpath, neon_account, mailjet, params)
     account_id = str(rand_id())
     lf.lambda_handler(new_create_membership("JOIN", "SUCCEEDED", account_id, params), {})
     mailjet.assert_called_once()
+
+
+# ===========================================================================
+# createMembership -- join/Mailjet failures must not block the OpenPath update
+# ===========================================================================
+#
+# Join detection and the Mailjet add are extras. The door-access update
+# (openPathUpdateSingle) is the Lambda's main job and must still run when they
+# fail.
+
+
+def test_mailjet_failure_still_updates_openpath(openpath, neon_account, mailjet, caplog):
+    # A fresh first join qualifies for the Mailjet add, but Mailjet (or SSM) errors.
+    today = datetime.datetime.now(lf.TZ).date()
+    neon_account.return_value = {
+        "membershipDates": {today.isoformat(): [(today + datetime.timedelta(days=30)).isoformat()]}
+    }
+    mailjet.side_effect = RuntimeError("Mailjet is down")
+    account_id = str(rand_id())
+    with caplog.at_level(logging.ERROR):
+        lf.lambda_handler(new_create_membership("JOIN", "SUCCEEDED", account_id), {})
+    mailjet.assert_called_once()
+    assert "Join handling failed" in caplog.text
+    openpath.assert_called_once_with(account_id)
+
+
+@pytest.mark.parametrize(
+    "membership_statuses",
+    [
+        pytest.param([], id="no-memberships"),
+        pytest.param(["PENDING"], id="pending-only"),
+    ],
+)
+def test_join_without_succeeded_term_still_updates_openpath(
+    openpath, mailjet, requests_mock, caplog, membership_statuses
+):
+    # Uses the real getMemberById/appendMemberships. appendMemberships only
+    # records SUCCEEDED terms, so with no memberships the account has no
+    # membershipDates key, and with only a PENDING term it is empty. handle_joins
+    # must treat both as "not a join" instead of raising.
+    user = NeonUserMock()
+    for status in membership_statuses:
+        user.add_membership(MEMBERSHIP_ID_REGULAR, today_plus(0), today_plus(30), status=status)
+    user.mock(requests_mock)
+    account_id = str(user.account_id)
+    with caplog.at_level(logging.INFO):
+        lf.lambda_handler(new_create_membership("JOIN", "SUCCEEDED", account_id), {})
+    assert "No SUCCEEDED membership terms found" in caplog.text
+    assert "Join handling failed" not in caplog.text
+    mailjet.assert_not_called()
+    openpath.assert_called_once_with(account_id)

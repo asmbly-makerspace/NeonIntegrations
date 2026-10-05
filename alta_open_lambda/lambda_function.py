@@ -143,16 +143,28 @@ def add_member_to_mailjet(
 def handle_joins(neon_id: int) -> tuple[dict, bool, list[datetime.date]]:
     logger.info("Getting account %s from Neon", neon_id)
     account = getMemberById(id=neon_id)
+
+    # appendMemberships only records SUCCEEDED terms, and only adds the
+    # membershipDates key when Neon returns at least one membership. If Neon
+    # doesn't show a SUCCEEDED term (yet), there is no join to detect.
+    membership_dates = account.get("membershipDates") or {}
+    if not membership_dates:
+        logger.warning(
+            "No SUCCEEDED membership terms found for Neon ID %s; skipping join check",
+            neon_id,
+        )
+        return account, False, []
+
     membership_start_dates = sorted(
         [
             datetime.datetime.strptime(key, "%Y-%m-%d").date()
-            for key in account.get("membershipDates").keys()
+            for key in membership_dates.keys()
         ]
     )
     membership_end_dates = sorted(
         [
             datetime.datetime.strptime(value[0], "%Y-%m-%d").date()
-            for value in account.get("membershipDates").values()
+            for value in membership_dates.values()
         ]
     )
 
@@ -268,11 +280,20 @@ def lambda_handler(event: dict, _: dict) -> None:
                 logger.info(
                     "Getting account and membership end dates for Neon ID: %s", neon_id
                 )
-                account, should_add_member, membership_end_dates = handle_joins(neon_id)
+                # Join detection and the Mailjet add are optional extras. Don't
+                # let a failure here (Neon, SSM or Mailjet) stop the door-access
+                # update below.
+                try:
+                    account, should_add_member, membership_end_dates = handle_joins(neon_id)
 
-                if should_add_member:
-                    logger.info("Adding Neon ID %s to Mailjet", neon_id)
-                    add_member_to_mailjet(account, membership_end_dates)
+                    if should_add_member:
+                        logger.info("Adding Neon ID %s to Mailjet", neon_id)
+                        add_member_to_mailjet(account, membership_end_dates)
+                except Exception:
+                    logger.exception(
+                        "Join handling failed for Neon ID %s; continuing with Alta Open update",
+                        neon_id,
+                    )
 
         case "updateMembership":
             neon_id = find_key_bfs(neon_response, "accountId")
