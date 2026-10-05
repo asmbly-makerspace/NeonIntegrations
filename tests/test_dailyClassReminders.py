@@ -8,7 +8,11 @@ import json
 import pytest
 from unittest.mock import mock_open
 
-from neon_mocker import NeonUserMock, NeonEventMock
+from neonUtil import N_baseURL
+from neon_mocker import NeonUserMock, NeonEventMock, build_account_api_response
+
+# Marks a key that should be left out of the mocked Neon response entirely
+MISSING = object()
 
 
 class TestDailyClassReminders:
@@ -211,4 +215,96 @@ class TestDailyClassReminders:
         email_message = self.mock_smtp.send_message.call_args[0][0]
         assert email_message["To"] == "classes@asmbly.org"
 
+    def test_registrant_without_phone_shows_na(
+        self, requests_mock, mock_teachers_file
+    ):
+        """Test that a registrant with no phone number is listed with N/A instead of
+        stopping the teacher's email"""
+        student = NeonUserMock(phone=None)
+        event = NeonEventMock().add_registrant(student)
 
+        search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
+
+        import dailyClassReminder
+        dailyClassReminder.main()
+
+        # Verify event search API was called
+        assert search_mock.called
+
+        assert self.mock_smtp.send_message.call_count == 1
+        email_message = self.mock_smtp.send_message.call_args[0][0]
+        email_body = email_message.as_string()
+
+        assert f"{student.firstName} {student.lastName}" in email_body
+        assert f"{student.email}, N/A" in email_body
+
+    def test_canceled_registrant_without_phone_does_not_block_email(
+        self, requests_mock, mock_teachers_file
+    ):
+        """Test that a canceled registrant with no phone number doesn't stop the email
+        for the teacher's classes"""
+        good_student = NeonUserMock(1, "Good", "Student")
+        canceled_student = NeonUserMock(2, "Canceled", "Student", phone=None)
+
+        event1 = NeonEventMock(1, event_name="Woodworking 101")\
+            .add_registrant(good_student)\
+            .add_registrant(canceled_student, status="CANCELED")
+        event2 = NeonEventMock(2, event_name="Advanced Woodworking")
+
+        search_mock, _ = NeonEventMock.mock_events(requests_mock, [event1, event2])
+
+        import dailyClassReminder
+        dailyClassReminder.main()
+
+        # Verify event search API was called
+        assert search_mock.called
+
+        assert self.mock_smtp.send_message.call_count == 1
+        email_message = self.mock_smtp.send_message.call_args[0][0]
+        email_body = email_message.as_string()
+
+        assert email_message["To"] == "john@example.com"
+        assert "Woodworking 101" in email_body
+        assert "Advanced Woodworking" in email_body
+        assert f"{good_student.firstName} {good_student.lastName}" in email_body
+        assert f"{canceled_student.firstName} {canceled_student.lastName}" not in email_body
+
+    @pytest.mark.parametrize("addresses, expected_phone", [
+        pytest.param(MISSING, "N/A", id="no-addresses-key"),
+        pytest.param(None, "N/A", id="addresses-null"),
+        pytest.param([{"addressLine1": "1 Main St"}], "N/A", id="address-without-phone1"),
+        pytest.param([{"phone1": None}], "N/A", id="phone1-null"),
+        pytest.param([{"phone1": None}, {"phone1": "555-0100"}], "555-0100", id="phone-on-second-address"),
+    ])
+    def test_phone_lookup_handles_address_shapes(
+        self, requests_mock, mock_teachers_file, addresses, expected_phone
+    ):
+        """Test that the first phone number found in the account's addresses is used,
+        and that accounts without one still get an email with N/A"""
+        student = NeonUserMock()
+        event = NeonEventMock().add_registrant(student)
+
+        search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
+
+        # Replace the account response with one using the address shape under test
+        account = build_account_api_response(
+            student.account_id, student.firstName, student.lastName, student.email
+        )
+        primary_contact = account["individualAccount"]["primaryContact"]
+        if addresses is MISSING:
+            del primary_contact["addresses"]
+        else:
+            primary_contact["addresses"] = addresses
+        requests_mock.get(f'{N_baseURL}/accounts/{student.account_id}', json=account)
+
+        import dailyClassReminder
+        dailyClassReminder.main()
+
+        # Verify event search API was called
+        assert search_mock.called
+
+        assert self.mock_smtp.send_message.call_count == 1
+        email_message = self.mock_smtp.send_message.call_args[0][0]
+        email_body = email_message.as_string()
+
+        assert f"{student.email}, {expected_phone}" in email_body
