@@ -2,7 +2,8 @@ from openPathUpdateSingle import openPathUpdateSingle
 from neon_mocker import NeonUserMock, today_plus, assert_history
 from neonUtil import MEMBERSHIP_ID_REGULAR, MEMBERSHIP_ID_CERAMICS, ACCOUNT_FIELD_OPENPATH_ID, N_baseURL, INSTRUCTOR_TYPE, ONDUTY_TYPE
 from openPathUtil import GROUP_SUBSCRIBERS, GROUP_INSTRUCTORS, GROUP_ONDUTY, O_baseURL
-from datetime import datetime, timezone
+import pytest
+from datetime import datetime, timedelta, timezone
 
 
 ALTA_ID = 456
@@ -14,7 +15,11 @@ CERAMICS = MEMBERSHIP_ID_CERAMICS
 start = today_plus(-365)
 tour = today_plus(-364)
 end = today_plus(365)
-now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def alta_created_at(age=timedelta(0), fmt="%Y-%m-%dT%H:%M:%S.000Z"):
+    """createdAt for a user created `age` ago. Call per test, not at import time."""
+    return (datetime.now(timezone.utc) - age).strftime(fmt)
 
 
 def test_skips_invalid_user(requests_mock, mocker):
@@ -105,7 +110,7 @@ def test_creates_user_with_correct_group(requests_mock, mocker):
         updates = dict(
             create_alta=rm.post(
                 f'{O_baseURL}/users',
-                status_code=201, json={"data": {"id": ALTA_ID, "createdAt": now}},
+                status_code=201, json={"data": {"id": ALTA_ID, "createdAt": alta_created_at()}},
             ),
             update_neon=rm.patch(
                 f'{N_baseURL}/accounts/{account.account_id}',
@@ -174,3 +179,106 @@ def test_handles_failed_user_creation(requests_mock):
         ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
         (create_alta._method, create_alta._url),
     ])
+
+
+@pytest.mark.parametrize("age, fmt", [
+    (timedelta(0), "%Y-%m-%dT%H:%M:%S.000Z"),
+    (timedelta(0), "%Y-%m-%dT%H:%M:%S.123Z"),
+    (timedelta(0), "%Y-%m-%dT%H:%M:%SZ"),
+    (timedelta(0), "%Y-%m-%dT%H:%M:%S"),
+    (timedelta(seconds=-5), "%Y-%m-%dT%H:%M:%S.000Z"),
+], ids=["just-created", "nonzero-milliseconds", "no-milliseconds", "no-timezone", "alta-clock-5s-ahead"])
+def test_new_alta_user_skips_stale_credential_cleanup(requests_mock, age, fmt):
+    """A user Alta created moments ago is new: no credential cleanup and no user PATCH."""
+    rm = requests_mock
+
+    account = NeonUserMock(waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+    account.mock(rm)
+
+    rm.post(
+        f'{O_baseURL}/users',
+        status_code=201, json={"data": {"id": ALTA_ID, "createdAt": alta_created_at(age, fmt)}},
+    )
+    rm.patch(f'{N_baseURL}/accounts/{account.account_id}', status_code=200)
+    rm.put(f'{O_baseURL}/users/{ALTA_ID}/groupIds', status_code=204)
+    rm.post(
+        f'{O_baseURL}/users/{ALTA_ID}/credentials',
+        status_code=201, json={"data": {"id": CRED_ID}},
+    )
+    rm.post(f'{O_baseURL}/users/{ALTA_ID}/credentials/{CRED_ID}/setupMobile', status_code=204)
+
+    assert_history(rm, lambda: openPathUpdateSingle(account.account_id), [
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}'),
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
+        ('POST', f'{O_baseURL}/users'),
+        ('PATCH', f'{N_baseURL}/accounts/{account.account_id}'),
+        ('PUT', f'{O_baseURL}/users/{ALTA_ID}/groupIds'),
+        ('POST', f'{O_baseURL}/users/{ALTA_ID}/credentials'),
+        ('POST', f'{O_baseURL}/users/{ALTA_ID}/credentials/{CRED_ID}/setupMobile'),
+    ])
+
+
+@pytest.mark.parametrize("age", [
+    timedelta(minutes=10),
+    timedelta(days=2, minutes=1),
+], ids=["10-minutes-old", "2-days-1-minute-old"])
+def test_resurrected_alta_user_is_refreshed(requests_mock, age):
+    """An Alta user with an old createdAt has its credentials deleted and is PATCHed before the Neon save."""
+    rm = requests_mock
+
+    account = NeonUserMock(waiver_date=start, facility_tour_date=tour)\
+        .add_membership(REGULAR, start, end, fee=100.0)
+    account.mock(rm)
+
+    stale_cred_ids = [11, 12]
+    rm.post(
+        f'{O_baseURL}/users',
+        status_code=201, json={"data": {"id": ALTA_ID, "createdAt": alta_created_at(age)}},
+    )
+    rm.get(
+        f'{O_baseURL}/users/{ALTA_ID}/credentials?offset=0&sort=id&order=asc',
+        json={"data": [{"id": cred_id} for cred_id in stale_cred_ids]},
+    )
+    for cred_id in stale_cred_ids:
+        rm.delete(f'{O_baseURL}/users/{ALTA_ID}/credentials/{cred_id}', status_code=204)
+    refresh_alta = rm.patch(f'{O_baseURL}/users/{ALTA_ID}', status_code=200)
+    update_neon = rm.patch(f'{N_baseURL}/accounts/{account.account_id}', status_code=200)
+    rm.put(f'{O_baseURL}/users/{ALTA_ID}/groupIds', status_code=204)
+    rm.post(
+        f'{O_baseURL}/users/{ALTA_ID}/credentials',
+        status_code=201, json={"data": {"id": CRED_ID}},
+    )
+    rm.post(f'{O_baseURL}/users/{ALTA_ID}/credentials/{CRED_ID}/setupMobile', status_code=204)
+
+    assert_history(rm, lambda: openPathUpdateSingle(account.account_id), [
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}'),
+        ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
+        ('POST', f'{O_baseURL}/users'),
+        # stale cleanup
+        ('GET', f'{O_baseURL}/users/{ALTA_ID}/credentials'),
+        *[('DELETE', f'{O_baseURL}/users/{ALTA_ID}/credentials/{cred_id}') for cred_id in stale_cred_ids],
+        ('PATCH', f'{O_baseURL}/users/{ALTA_ID}'),
+        # then the same as a new user
+        ('PATCH', f'{N_baseURL}/accounts/{account.account_id}'),
+        ('PUT', f'{O_baseURL}/users/{ALTA_ID}/groupIds'),
+        ('POST', f'{O_baseURL}/users/{ALTA_ID}/credentials'),
+        ('POST', f'{O_baseURL}/users/{ALTA_ID}/credentials/{CRED_ID}/setupMobile'),
+    ])
+
+    assert refresh_alta.last_request.json() == {
+        "identity": {
+            "email": account.email,
+            "firstName": account.firstName,
+            "lastName": account.lastName,
+        },
+        "externalId": account.account_id,
+        "hasRemoteUnlock": False,
+    }
+    assert update_neon.last_request.json() == {
+        "individualAccount": {
+            "accountCustomFields": [
+                {"id": str(ACCOUNT_FIELD_OPENPATH_ID), "name": "OpenPathID", "value": str(ALTA_ID)}
+            ]
+        }
+    }

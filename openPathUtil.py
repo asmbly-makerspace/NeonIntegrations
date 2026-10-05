@@ -5,7 +5,7 @@
 from os import environ
 from pprint import pformat
 from base64 import b64encode
-import datetime, pytz
+import datetime
 import requests
 import logging
 from pprint import pprint
@@ -418,11 +418,13 @@ def createUser(neonAccount):
 
         # openPath times are in UTC
         opUser = response.json().get("data")
-        createdTime = datetime.datetime.strptime(
-            opUser.get("createdAt"), "%Y-%m-%dT%H:%M:%S.000Z"
-        ).replace(tzinfo=datetime.timezone.utc)
-        userAge = datetime.datetime.now(pytz.timezone("America/Chicago")) - createdTime
-        if userAge.seconds > 300:
+        # fromisoformat() accepts "Z" and any fraction length on python 3.11+
+        createdTime = datetime.datetime.fromisoformat(opUser.get("createdAt"))
+        if createdTime.tzinfo is None:
+            createdTime = createdTime.replace(tzinfo=datetime.timezone.utc)
+        userAge = datetime.datetime.now(datetime.timezone.utc) - createdTime
+        # not .seconds, which ignores whole days and wraps negative ages
+        if userAge.total_seconds() > 300:
             logging.warning(
                 "Found an existing OpenPath user created at %s for %s when updating Neon account %s",
                 opUser.get("createdAt"),

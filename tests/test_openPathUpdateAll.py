@@ -16,7 +16,11 @@ CERAMICS = MEMBERSHIP_ID_CERAMICS
 start = today_plus(-365)
 tour = today_plus(-364)
 end = today_plus(365)
-now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def alta_created_at():
+    """createdAt for a user created just now. Call per test, not at import time."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
 def mock_get_all_users(rm, users):
@@ -160,7 +164,7 @@ def test_creates_user(requests_mock):
         create_alta=rm.post(
             f'{O_baseURL}/users',
             status_code=201,
-            json={"data": {"id": ALTA_ID, "createdAt": now}},
+            json={"data": {"id": ALTA_ID, "createdAt": alta_created_at()}},
         ),
         update_neon=rm.patch(
             f'{N_baseURL}/accounts/{account.account_id}',
