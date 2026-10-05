@@ -137,14 +137,14 @@ def test_main_skips_event_with_no_attended_registrants(requests_mock):
     pytest.param({"status_code": 200, "json": {"companyAccount": {"accountId": "2"}}}, id="company-account"),
 ])
 def test_main_continues_after_unreadable_account(requests_mock, caplog, bad_response):
-    """An account that can't be read is skipped; later attendees of the same event are still updated"""
+    """An unreadable account is skipped and later attendees of the event are still updated"""
     students = [NeonUserMock(1), NeonUserMock(2), NeonUserMock(3)]
     event = NeonEventMock(event_name="Woodshop Safety")
     for student in students:
         event.add_registrant(student, marked_attended=True)
     NeonEventMock.mock_events(requests_mock, [event])
 
-    # Replace the second account's GET with a response that isn't an individual account
+    # The second account's GET returns something other than an individual account
     requests_mock.get(f'{N_baseURL}/accounts/2', **bad_response)
 
     patch_mocks = [
@@ -162,7 +162,7 @@ def test_main_continues_after_unreadable_account(requests_mock, caplog, bad_resp
 
 
 def test_main_logs_neon_response_when_patch_fails(requests_mock, caplog):
-    """A failed PATCH logs Neon's response body and what was sent, so the failure can be diagnosed"""
+    """A failed PATCH logs the field, the date sent and Neon's response body"""
     student = NeonUserMock()
     event = NeonEventMock(event_name="Woodshop Safety")\
         .add_registrant(student, marked_attended=True)
@@ -197,7 +197,7 @@ def test_main_skips_registration_without_attendees(requests_mock, caplog):
         .add_registrant(student, marked_attended=True)
     NeonEventMock.mock_events(requests_mock, [event])
 
-    # Replace the registrations so the first two have no ticket / attendee data
+    # The first registration has no tickets, the second has no attendees
     requests_mock.get(
         f'{N_baseURL}/events/{event.event_id}/eventRegistrations',
         json={"eventRegistrations": [
