@@ -4,6 +4,9 @@ Unit tests for attendanceToTestout.py
 Tests the main() function by mocking only network interactions (HTTP requests).
 """
 
+import datetime
+import logging
+
 import pytest
 from neonUtil import N_baseURL
 from neon_mocker import NeonUserMock, NeonEventMock
@@ -156,6 +159,31 @@ def test_main_continues_after_unreadable_account(requests_mock, caplog, bad_resp
     assert not patch_mocks[1].called, "Unreadable account should not be PATCHed"
     assert patch_mocks[2].called, "Attendee after the bad account should still be updated"
     assert "Update failed for Account ID 2" in caplog.text
+
+
+def test_main_logs_neon_response_when_patch_fails(requests_mock, caplog):
+    """A failed PATCH logs Neon's response body and what was sent, so the failure can be diagnosed"""
+    student = NeonUserMock()
+    event = NeonEventMock(event_name="Woodshop Safety")\
+        .add_registrant(student, marked_attended=True)
+    NeonEventMock.mock_events(requests_mock, [event])
+
+    requests_mock.patch(
+        f'{N_baseURL}/accounts/{student.account_id}',
+        status_code=400,
+        json=[{"code": "400", "message": "Invalid value for custom field 84"}],
+    )
+
+    import attendanceToTestout
+    attendanceToTestout.main()
+
+    expected_date = datetime.date.fromisoformat(event.date).strftime("%m/%d/%Y")
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1
+    assert "400 FAILED!" in errors[0]
+    assert f"Account ID {student.account_id}" in errors[0]
+    assert f"Field 84 = {expected_date}" in errors[0]
+    assert "Invalid value for custom field 84" in errors[0]
 
 
 def test_main_skips_registration_without_attendees(requests_mock, caplog):
