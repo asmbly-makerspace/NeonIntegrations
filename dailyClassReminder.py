@@ -148,11 +148,8 @@ def main():
                         # but these aren't accessible from the API, so we will just use the info from the main account
                         acct_info = neon.getAccountIndividual(acct_id)
                         email = acct_info["individualAccount"]["primaryContact"]["email1"]
-                        # Accounts with no address on file may have an empty, null or missing address list
                         addresses = acct_info["individualAccount"]["primaryContact"].get("addresses") or []
-                        # Get all phone numbers in the address entries, then use the first non-empty result.
-                        # Fall back to "N/A" when no address has a phone number, so one registrant without
-                        # a phone doesn't stop the teacher's reminder email from being sent.
+                        # Get all phone numbers in the address entries, then use the first non-empty one, or N/A
                         phones = [addr.get('phone1') for addr in addresses]
                         phone = next((p for p in phones if p), "N/A")
 

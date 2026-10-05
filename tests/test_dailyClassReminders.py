@@ -11,7 +11,7 @@ from unittest.mock import mock_open
 from neonUtil import N_baseURL
 from neon_mocker import NeonUserMock, NeonEventMock, build_account_api_response
 
-# Marks a key that should be left out of the mocked Neon response entirely
+# Sentinel for leaving a key out of the mocked response
 MISSING = object()
 
 
@@ -218,8 +218,7 @@ class TestDailyClassReminders:
     def test_registrant_without_phone_shows_na(
         self, requests_mock, mock_teachers_file
     ):
-        """Test that a registrant with no phone number is listed with N/A instead of
-        stopping the teacher's email"""
+        """Test that a registrant with no phone number is listed with N/A"""
         student = NeonUserMock(phone=None)
         event = NeonEventMock().add_registrant(student)
 
@@ -241,8 +240,7 @@ class TestDailyClassReminders:
     def test_canceled_registrant_without_phone_does_not_block_email(
         self, requests_mock, mock_teachers_file
     ):
-        """Test that a canceled registrant with no phone number doesn't stop the email
-        for the teacher's classes"""
+        """Test that a canceled registrant with no phone doesn't block the teacher's email"""
         good_student = NeonUserMock(1, "Good", "Student")
         canceled_student = NeonUserMock(2, "Canceled", "Student", phone=None)
 
@@ -279,14 +277,13 @@ class TestDailyClassReminders:
     def test_phone_lookup_handles_address_shapes(
         self, requests_mock, mock_teachers_file, addresses, expected_phone
     ):
-        """Test that the first phone number found in the account's addresses is used,
-        and that accounts without one still get an email with N/A"""
+        """Test that the first phone in the account's addresses is used, or N/A if none"""
         student = NeonUserMock()
         event = NeonEventMock().add_registrant(student)
 
         search_mock, _ = NeonEventMock.mock_events(requests_mock, [event])
 
-        # Replace the account response with one using the address shape under test
+        # Override the account response with the address shape under test
         account = build_account_api_response(
             student.account_id, student.firstName, student.lastName, student.email
         )
