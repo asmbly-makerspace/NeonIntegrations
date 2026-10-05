@@ -30,7 +30,7 @@ def assert_history(requests_mock, fn, expected_history):
 
 def today_plus(days_offset):
     """Return a date string relative to today."""
-    return str(neonUtil.today + timedelta(days=days_offset))
+    return str(neonUtil._today() + timedelta(days=days_offset))
 
 
 def build_membership_response(

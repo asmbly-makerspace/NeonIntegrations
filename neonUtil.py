@@ -21,7 +21,13 @@ else:
 
 # I'm not absolutely certain NeonCRM thinks it's in central time, but it's in the ballpark.
 # pacific time might be slightly more accurate.  Maybe I'll ask their support.
-today = datetime.datetime.now(pytz.timezone("America/Chicago")).date()
+def _today():
+    return datetime.datetime.now(pytz.timezone("America/Chicago")).date()
+
+# NOTE these are fixed when the module is first imported.  The Lambda keeps this module loaded
+# across warm invocations (including past midnight), so membership checks call _today() instead.
+# They're only kept for code that still reads neonUtil.today / neonUtil.yesterday.
+today = _today()
 yesterday = today - datetime.timedelta(days=1)
 
 
@@ -164,10 +170,17 @@ class RateLimiter:
 
 ####################################################################
 # Update a valid Neon account to include membership information
+# today defaults to the current date; callers checking many accounts
+# pass one in so the whole batch is judged against the same day
 ####################################################################
-def appendMemberships(account: dict, detailed=False):
+def appendMemberships(account: dict, detailed=False, today=None):
     # this should be a pretty thorough check for sane argument
     assert int(account.get("Account ID")) > 0
+
+    # look up the date on every call, not at import (see note on _today above)
+    if today is None:
+        today = _today()
+    yesterday = today - datetime.timedelta(days=1)
 
     # Neon counts a failed renewal as a valid subscription so long as automatic renewal is enabled.
     # WE only think a subscription is valid if the payment transaction was successful, so check payment status.
@@ -488,6 +501,10 @@ def getRealAccounts():
     accountCount = 0
     activeSubscriptions = 0
 
+    # one date for the whole run, so a run that crosses midnight doesn't mix two days
+    today = _today()
+    yesterday = today - datetime.timedelta(days=1)
+
     neonAccountDict = getMembersFast()
     # Special accounts might not have any membership records
     neonAccountDict = getAccountsByType(STAFF_TYPE, neonAccountDict=neonAccountDict)
@@ -544,7 +561,7 @@ def getRealAccounts():
 
     def fetch_with_rate_limit(account):
         rate_limiter.acquire()
-        return appendMemberships(account)
+        return appendMemberships(account, today=today)
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         results = list(executor.map(fetch_with_rate_limit, accounts_to_fetch))

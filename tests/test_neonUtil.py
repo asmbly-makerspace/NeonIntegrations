@@ -1,3 +1,9 @@
+import datetime
+from types import SimpleNamespace
+
+import pytest
+import pytz
+
 import neonUtil
 from neon_mocker import NeonUserMock, today_plus
 
@@ -206,3 +212,74 @@ def test_appendMemberships_membershipDates_mapping_multiple(requests_mock):
         },
         'validMembership': False,
     }
+
+
+CHICAGO = pytz.timezone("America/Chicago")
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """Lets a test choose the current time that neonUtil sees.
+
+    clock.set(t1, t2, ...) makes successive datetime.now() calls inside neonUtil
+    return those Central times in order; the last one repeats.
+    """
+    readings = []
+
+    class FakeDatetime(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            t = readings.pop(0) if len(readings) > 1 else readings[0]
+            return CHICAGO.localize(t).astimezone(tz)
+
+    def setTimes(*times):
+        readings[:] = times
+        # swap only neonUtil's reference to the datetime module, not the real module
+        monkeypatch.setattr(neonUtil, 'datetime', SimpleNamespace(
+            datetime=FakeDatetime, date=datetime.date, timedelta=datetime.timedelta))
+
+    return SimpleNamespace(set=setTimes)
+
+
+# The Lambda imports neonUtil once per container and reuses it for every warm
+# invocation, so a container started before midnight keeps handling webhooks
+# after it.  Here neonUtil was imported at 23:50 on 2026-10-05 and the webhook
+# arrives at 00:10 on 2026-10-06, so memberships must be judged against the 6th.
+@pytest.mark.parametrize('start, end, autoRenewal, expected', [
+    ('2026-10-06', '2026-11-05', False, True),   # term starts today (member just paid)
+    ('2026-09-05', '2026-10-05', False, False),  # term ended yesterday, no auto-renewal
+    ('2026-09-05', '2026-10-05', True, True),    # term ended yesterday, renewal pending: grace day
+    ('2026-09-04', '2026-10-04', True, False),   # term ended two days ago: grace day is over
+])
+def test_appendMemberships_uses_date_of_call_not_import(requests_mock, monkeypatch, clock,
+                                                         start, end, autoRenewal, expected):
+    # what neonUtil computed when the container imported it at 23:50 on the 5th
+    monkeypatch.setattr(neonUtil, 'today', datetime.date(2026, 10, 5))
+    monkeypatch.setattr(neonUtil, 'yesterday', datetime.date(2026, 10, 4))
+    clock.set(datetime.datetime(2026, 10, 6, 0, 10))
+
+    account = NeonUserMock().add_membership(REGULAR, start, end, fee=50.0, autoRenewal=autoRenewal)
+
+    # mock() returns neonUtil.getMemberById(), which is what the Lambda calls
+    assert account.mock(requests_mock)['validMembership'] is expected
+
+
+# getRealAccounts reads the date once when it starts and judges every account
+# against that day, even if the run (or a warm Lambda) crosses midnight.
+def test_getRealAccounts_uses_one_date_for_the_whole_run(requests_mock, monkeypatch, clock):
+    # neonUtil was imported the day before; that must not matter
+    monkeypatch.setattr(neonUtil, 'today', datetime.date(2026, 10, 4))
+    monkeypatch.setattr(neonUtil, 'yesterday', datetime.date(2026, 10, 3))
+
+    startsToday = NeonUserMock(1).add_membership(REGULAR, '2026-10-05', '2026-11-04', fee=50.0)
+    endedYesterday = NeonUserMock(2).add_membership(REGULAR, '2026-09-04', '2026-10-04', fee=50.0, autoRenewal=True)
+    endedTwoDaysAgo = NeonUserMock(3).add_membership(REGULAR, '2026-09-03', '2026-10-03', fee=50.0, autoRenewal=True)
+    NeonUserMock.mock_search(requests_mock, [startsToday, endedYesterday, endedTwoDaysAgo])
+
+    # the run starts at 23:59 on the 5th; any later reading of the clock is past midnight
+    clock.set(datetime.datetime(2026, 10, 5, 23, 59), datetime.datetime(2026, 10, 6, 0, 1))
+    accounts = neonUtil.getRealAccounts()
+
+    assert accounts['1']['validMembership'] is True    # term started today
+    assert accounts['2']['validMembership'] is True    # grace day for the pending renewal
+    assert accounts['3']['validMembership'] is False   # grace day is over
