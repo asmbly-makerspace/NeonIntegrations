@@ -15,6 +15,22 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run pytest
         run: python -m pytest
+  # The Lambda image is built from uv.lock on Python 3.13 (alta_open_lambda/Dockerfile).
+  test-lambda-env:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+      - name: Check uv.lock is up to date with pyproject.toml
+        run: uv lock --check
+      - name: Install dependencies from uv.lock
+        run: uv sync --locked
+      - name: Run pytest
+        # "python -m" so it uses the pytest from uv.lock, not one on PATH
+        run: uv run --locked python -m pytest
 on:
   pull_request:
     branches:
