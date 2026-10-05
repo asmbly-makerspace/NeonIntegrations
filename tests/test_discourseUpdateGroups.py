@@ -11,7 +11,7 @@ from discourseUtil import D_baseURL, USERS_PER_PAGE
 from discourseUpdateGroups import update_discourse_ids
 import discourseUtil
 
-DISCOURSE_PAGE_0 = f'{D_baseURL}/admin/users/list/active.json?page=0&show_emails=true'
+DISCOURSE_USERS_URL = f'{D_baseURL}/admin/users/list/active.json'
 
 
 def neonAccount(neonID, first, last, email, dID=None):
@@ -170,3 +170,65 @@ class TestMatching:
 
     def test_empty_accounts_dict_changes_nothing(self):
         assert update_discourse_ids({}, discourseUsers(("bobs", "bob@example.com"))) == []
+
+
+class FakeDiscourseUserList:
+    """Pages and sorts /admin/users/list/active.json like upstream lib/admin_user_index_query.rb."""
+
+    def __init__(self, count):
+        # user000 is the oldest account and the most recently seen
+        self.users = [{"username": f"user{i:03}", "email": f"user{i:03}@example.com",
+                       "created": i, "seen": -i} for i in range(count)]
+        self.loginDuringPaging = None
+
+    def __call__(self, request, context):
+        query = request.qs
+        page = max(int(query["page"][0]) - 1, 0)
+        if page > 0 and self.loginDuringPaging:
+            # that user logs in once the first page has been read
+            for user in self.users:
+                if user["username"] == self.loginDuringPaging:
+                    user["seen"] = 1
+            self.loginDuringPaging = None
+
+        if query.get("order") == ["created"]:
+            ordered = sorted(self.users, key=lambda u: u["created"], reverse="asc" not in query)
+        else:
+            ordered = sorted(self.users, key=lambda u: u["seen"], reverse=True)
+        batch = ordered[page * USERS_PER_PAGE:(page + 1) * USERS_PER_PAGE]
+        return [{"username": u["username"], "email": u["email"]} for u in batch]
+
+
+class TestGetActiveUsers:
+    def test_pages_oldest_first_starting_at_page_1(self, requests_mock):
+        fake = FakeDiscourseUserList(150)
+        userList = requests_mock.get(DISCOURSE_USERS_URL, json=fake)
+
+        users = discourseUtil.getActiveUsers()
+
+        assert len(users) == 150
+        # page=0 would just fetch page 1 twice
+        assert [r.qs["page"] for r in userList.request_history] == [["1"], ["2"]]
+        for r in userList.request_history:
+            assert r.qs["order"] == ["created"]
+            assert r.qs["asc"] == ["true"]
+            assert r.qs["show_emails"] == ["true"]
+
+    def test_user_who_logs_in_while_paging_is_not_missed(self, requests_mock):
+        """Sorted by last_seen_at, user149 would move onto page 1 after it was read."""
+        fake = FakeDiscourseUserList(150)
+        fake.loginDuringPaging = "user149"
+        requests_mock.get(DISCOURSE_USERS_URL, json=fake)
+
+        users = discourseUtil.getActiveUsers()
+
+        assert "user149" in users
+        assert len(users) == 150
+
+    def test_gives_up_after_max_pages(self, requests_mock, monkeypatch):
+        """a partial list would read as 'these users were deleted'"""
+        monkeypatch.setattr(discourseUtil, "MAX_USER_PAGES", 3)
+        userList = requests_mock.get(DISCOURSE_USERS_URL, json=FakeDiscourseUserList(1000))
+
+        assert discourseUtil.getActiveUsers() is None
+        assert userList.call_count == 3

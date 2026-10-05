@@ -47,8 +47,10 @@ GROUP_IDS = {
 def getActiveUsers():
     users = {}
 
-    for page in range(MAX_USER_PAGES):
-        url = D_baseURL + f"""/admin/users/list/active.json?page={page}&show_emails=true"""
+    # page by creation date; in the default last_seen_at order a user who visits mid-paging can be skipped
+    # Discourse treats page=0 as page=1, so start at 1
+    for page in range(1, MAX_USER_PAGES + 1):
+        url = D_baseURL + f"""/admin/users/list/active.json?page={page}&show_emails=true&order=created&asc=true"""
         response = requests.get(url, headers=D_headers)
         if response.status_code != 200:
             logging.error("Failed to fetch active Discourse users (page %s): HTTP %s", page, response.status_code)
