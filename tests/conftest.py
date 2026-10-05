@@ -123,6 +123,6 @@ def mock_discourse(requests_mock):
     # no users, so dailyMaintenance skips the DiscourseID sync unless a test
     # overrides this with its own user list
     mocks['users'] = requests_mock.get(
-        f'{D_baseURL}/admin/users/list/active.json?page=0&show_emails=true', json=[]
+        f'{D_baseURL}/admin/users/list/active.json?page=1&show_emails=true&order=created&asc=true', json=[]
     )
     return mocks

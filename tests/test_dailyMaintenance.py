@@ -62,7 +62,7 @@ class TestDailyMaintenance:
             MEMBERSHIP_ID_REGULAR, today_plus(-365), today_plus(365), fee=100.0)
         NeonUserMock.mock_search(requests_mock, [member])
         requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
-        requests_mock.get(f'{D_baseURL}/admin/users/list/active.json?page=0&show_emails=true',
+        requests_mock.get(f'{D_baseURL}/admin/users/list/active.json?page=1&show_emails=true&order=created&asc=true',
             json=[{"username": "BobS", "name": "Bob Smith", "email": "bob@example.com"}])
         neonPatch = requests_mock.patch(f'{N_baseURL}/accounts/5001', json={})
         addMakers = requests_mock.put(f'{D_baseURL}/groups/{GROUP_IDS["makers"]}/members.json',
