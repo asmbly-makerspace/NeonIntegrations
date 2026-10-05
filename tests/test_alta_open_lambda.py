@@ -45,23 +45,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "alta_open_lambda"))
 
 import lambda_function as lf
 
-# lambda_handler ignores every webhook between 2:30 and 5:00 AM America/Chicago,
-# and handle_joins compares membership start dates against today's date. Both
-# read the clock, so the suite pins it to a fixed midday instant (the same
-# moment as make_event's eventTimestamp) and gives the same result whatever
-# time CI happens to run.
-PINNED_NOW = datetime.datetime(2026, 6, 10, 12, 0, tzinfo=lf.TZ)
+# lambda_handler skips 2:30-5:00 AM Chicago, so pin its clock to noon. Keep the
+# real date so it matches dates built from the real clock elsewhere.
+PINNED_NOW = datetime.datetime.combine(
+    datetime.datetime.now(lf.TZ).date(), datetime.time(12, 0), tzinfo=lf.TZ
+)
 
 
 @pytest.fixture(autouse=True)
 def clock(mocker):
-    """Pin the time lambda_function sees to PINNED_NOW.
-
-    lambda_function reads the time with datetime.datetime.now(TZ) through its
-    own reference to the datetime module. We swap that reference for a copy
-    whose datetime class has a fixed now(), so nothing outside lambda_function
-    is affected. A test can move the clock by assigning ``clock.pinned``.
-    """
+    """Swap lambda_function's datetime module for one whose now() returns clock.pinned."""
 
     class PinnedDatetime(datetime.datetime):
         pinned = PINNED_NOW
@@ -170,10 +163,7 @@ def test_body_as_dict_currently_raises(openpath):
 # Overnight skip window -- 2:30 AM up to 5:00 AM America/Chicago
 # ===========================================================================
 #
-# The handler returns before reading the body inside this window. The clock is
-# set in UTC (what Lambda runs in) on a summer date (CDT, UTC-5) and a winter
-# date (CST, UTC-6), so these also check that the window follows Chicago wall
-# time across daylight saving.
+# Clock set in UTC on a CDT date and a CST date.
 
 UTC = datetime.timezone.utc
 
@@ -338,8 +328,7 @@ def test_legacy_failed_transaction_skips_join_path(openpath, neon_account):
 # ===========================================================================
 #
 # handle_joins compares the latest membership start date against "today"
-# (America/Chicago), so these membershipDates are built relative to the
-# pinned clock's date (PINNED_NOW; see the clock fixture).
+# (America/Chicago), so these membershipDates are built relative to PINNED_NOW.
 
 
 def test_fresh_first_join_adds_to_mailjet(openpath, neon_account, mailjet):
