@@ -35,6 +35,7 @@ import json
 import logging
 import random
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,33 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "alta_open_lambda"))
 
 import lambda_function as lf
+
+# lambda_handler skips 2:30-5:00 AM Chicago, so pin its clock to noon. Keep the
+# real date so it matches dates built from the real clock elsewhere.
+PINNED_NOW = datetime.datetime.combine(
+    datetime.datetime.now(lf.TZ).date(), datetime.time(12, 0), tzinfo=lf.TZ
+)
+
+
+@pytest.fixture(autouse=True)
+def clock(mocker):
+    """Swap lambda_function's datetime module for one whose now() returns clock.pinned."""
+
+    class PinnedDatetime(datetime.datetime):
+        pinned = PINNED_NOW
+
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                # like the real now(): naive local time
+                return cls.pinned.astimezone().replace(tzinfo=None)
+            return cls.pinned.astimezone(tz)
+
+    pinned_datetime_module = types.ModuleType("datetime")
+    pinned_datetime_module.__dict__.update(vars(datetime))
+    pinned_datetime_module.datetime = PinnedDatetime
+    mocker.patch.object(lf, "datetime", pinned_datetime_module)
+    return PinnedDatetime
 
 
 @pytest.fixture
@@ -129,6 +157,44 @@ def test_body_as_dict_currently_raises(openpath):
     with pytest.raises(TypeError):
         lf.lambda_handler(event, {})
     openpath.assert_not_called()
+
+
+# ===========================================================================
+# Overnight skip window -- 2:30 AM up to 5:00 AM America/Chicago
+# ===========================================================================
+#
+# Clock set in UTC on a CDT date and a CST date.
+
+UTC = datetime.timezone.utc
+
+
+@pytest.mark.parametrize(
+    "utc_now, chicago_time, expect_skip",
+    [
+        pytest.param(datetime.datetime(2026, 6, 10, 7, 29, tzinfo=UTC), "02:29", False, id="CDT-0229-runs"),
+        pytest.param(datetime.datetime(2026, 6, 10, 7, 30, tzinfo=UTC), "02:30", True, id="CDT-0230-skips"),
+        pytest.param(datetime.datetime(2026, 6, 10, 9, 59, tzinfo=UTC), "04:59", True, id="CDT-0459-skips"),
+        pytest.param(datetime.datetime(2026, 6, 10, 10, 0, tzinfo=UTC), "05:00", False, id="CDT-0500-runs"),
+        pytest.param(datetime.datetime(2026, 1, 14, 8, 29, tzinfo=UTC), "02:29", False, id="CST-0229-runs"),
+        pytest.param(datetime.datetime(2026, 1, 14, 8, 30, tzinfo=UTC), "02:30", True, id="CST-0230-skips"),
+        pytest.param(datetime.datetime(2026, 1, 14, 10, 59, tzinfo=UTC), "04:59", True, id="CST-0459-skips"),
+        pytest.param(datetime.datetime(2026, 1, 14, 11, 0, tzinfo=UTC), "05:00", False, id="CST-0500-runs"),
+    ],
+)
+def test_overnight_skip_window_edges(openpath, clock, caplog, utc_now, chicago_time, expect_skip):
+    # guard against a typo in the UTC instants above
+    assert utc_now.astimezone(lf.TZ).strftime("%H:%M") == chicago_time
+    clock.pinned = utc_now
+    account_id = str(rand_id())
+    event = make_event("editAccount", {"individualAccount": {"accountId": account_id}}, NEW_PARAMS)
+    with caplog.at_level(logging.INFO):
+        lf.lambda_handler(event, {})
+    if expect_skip:
+        assert "Skipping run" in caplog.text
+        openpath.assert_not_called()
+    else:
+        assert "Skipping run" not in caplog.text
+        openpath.assert_called_once_with(account_id)
 
 
 # ===========================================================================
@@ -262,13 +328,12 @@ def test_legacy_failed_transaction_skips_join_path(openpath, neon_account):
 # ===========================================================================
 #
 # handle_joins compares the latest membership start date against "today"
-# (America/Chicago, read live -- no frozen clock), so these membershipDates are
-# built relative to the current run date.
+# (America/Chicago), so these membershipDates are built relative to PINNED_NOW.
 
 
 def test_fresh_first_join_adds_to_mailjet(openpath, neon_account, mailjet):
     # First-ever membership, starting today -> add to Mailjet.
-    today = datetime.datetime.now(lf.TZ).date()
+    today = PINNED_NOW.date()
     neon_account.return_value = {
         "membershipDates": {
             today.isoformat(): [(today + datetime.timedelta(days=30)).isoformat()],
@@ -281,7 +346,7 @@ def test_fresh_first_join_adds_to_mailjet(openpath, neon_account, mailjet):
 def test_rejoin_with_recent_membership_does_not_add_to_mailjet(openpath, neon_account, mailjet):
     # Latest membership starts today, but a prior one ended < 365 days ago, so
     # this is a continuation rather than a true rejoin -- no Mailjet add.
-    today = datetime.datetime.now(lf.TZ).date()
+    today = PINNED_NOW.date()
     prior_start = today - datetime.timedelta(days=60)
     prior_end = today - datetime.timedelta(days=30)
     neon_account.return_value = {
@@ -296,7 +361,7 @@ def test_rejoin_with_recent_membership_does_not_add_to_mailjet(openpath, neon_ac
 
 def test_rejoin_after_long_lapse_adds_to_mailjet(openpath, neon_account, mailjet):
     # Prior membership ended > 365 days ago -> treated as a genuine rejoin.
-    today = datetime.datetime.now(lf.TZ).date()
+    today = PINNED_NOW.date()
     lapsed_start = today - datetime.timedelta(days=1000)
     lapsed_end = today - datetime.timedelta(days=800)
     neon_account.return_value = {
@@ -590,7 +655,7 @@ def test_new_failed_transaction_skips_join_path(openpath, neon_account, params):
 @pytest.mark.parametrize("params", NEW_PARAM_VARIANTS)
 def test_new_fresh_join_adds_to_mailjet(openpath, neon_account, mailjet, params):
     # A fresh first join in the new format adds to Mailjet, like the legacy equivalent.
-    today = datetime.datetime.now(lf.TZ).date()
+    today = PINNED_NOW.date()
     neon_account.return_value = {
         "membershipDates": {today.isoformat(): [(today + datetime.timedelta(days=30)).isoformat()]}
     }
