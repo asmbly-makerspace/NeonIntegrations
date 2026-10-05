@@ -5,16 +5,15 @@ import json
 import datetime
 import zoneinfo
 import requests
-import boto3
 import base64
 from collections import deque
 from typing import Any
 
 from mailjetUtil import (
     Subscriber as MailjetSubscriber,
-    MJCredentials,
     MJService,
     MailjetAction,
+    get_mailjet_credentials,
 )
 from openPathUpdateSingle import openPathUpdateSingle
 from neonUtil import getMemberById
@@ -95,18 +94,7 @@ def add_member_to_mailjet(
 
     logger.info("Getting mailjet credentials from SSM")
 
-    ssm_mj_creds = boto3.client("ssm").get_parameters(
-        Names=[
-            "/mailjet/api_key",
-            "/mailjet/api_secret",
-        ],
-        WithDecryption=True,
-    )
-
-    mj_creds = MJCredentials(
-        public_key=ssm_mj_creds["Parameters"][0]["Value"],
-        secret_key=ssm_mj_creds["Parameters"][1]["Value"],
-    )
+    mj_creds = get_mailjet_credentials()
 
     mailjet = MJService(mj_creds)
 

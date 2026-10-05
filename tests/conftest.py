@@ -46,9 +46,10 @@ def mock_ssm(mocker):
     mock_ssm_client = mocker.MagicMock()
     mock_ssm_client.get_parameters.return_value = {
         "Parameters": [
-            {"Value": "test_mailjet_key"},
-            {"Value": "test_mailjet_secret"},
-        ]
+            {"Name": "/mailjet/api_key", "Value": "test_mailjet_key"},
+            {"Name": "/mailjet/api_secret", "Value": "test_mailjet_secret"},
+        ],
+        "InvalidParameters": [],
     }
     mocker.patch('boto3.client', return_value=mock_ssm_client)
     return mock_ssm_client
