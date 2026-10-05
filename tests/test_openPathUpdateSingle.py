@@ -18,9 +18,7 @@ end = today_plus(365)
 
 
 def alta_created_at(age=timedelta(0), fmt="%Y-%m-%dT%H:%M:%S.000Z"):
-    """createdAt as Alta returns it for a user created `age` ago.
-    Call this inside the test, not at import time: createUser treats users older than 5 minutes
-    as resurrected, so a timestamp captured at collection time goes stale on a slow run."""
+    """createdAt for a user created `age` ago. Call per test, not at import time."""
     return (datetime.now(timezone.utc) - age).strftime(fmt)
 
 
@@ -210,7 +208,6 @@ def test_new_alta_user_skips_stale_credential_cleanup(requests_mock, age, fmt):
     )
     rm.post(f'{O_baseURL}/users/{ALTA_ID}/credentials/{CRED_ID}/setupMobile', status_code=204)
 
-    # No GET/DELETE of existing credentials and no PATCH of the Alta user
     assert_history(rm, lambda: openPathUpdateSingle(account.account_id), [
         ('GET', f'{N_baseURL}/accounts/{account.account_id}'),
         ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
@@ -227,9 +224,7 @@ def test_new_alta_user_skips_stale_credential_cleanup(requests_mock, age, fmt):
     timedelta(days=2, minutes=1),
 ], ids=["10-minutes-old", "2-days-1-minute-old"])
 def test_resurrected_alta_user_is_refreshed(requests_mock, age):
-    """Re-creating an email Alta has archived returns the old user with its old createdAt.
-    createUser must delete that user's stale credentials and PATCH its identity before
-    saving the OpenPathID to Neon."""
+    """An Alta user with an old createdAt has its credentials deleted and is PATCHed before the Neon save."""
     rm = requests_mock
 
     account = NeonUserMock(waiver_date=start, facility_tour_date=tour)\
@@ -260,11 +255,11 @@ def test_resurrected_alta_user_is_refreshed(requests_mock, age):
         ('GET', f'{N_baseURL}/accounts/{account.account_id}'),
         ('GET', f'{N_baseURL}/accounts/{account.account_id}/memberships'),
         ('POST', f'{O_baseURL}/users'),
-        # stale cleanup: fetch and delete the old credentials, then refresh the user's identity
+        # stale cleanup
         ('GET', f'{O_baseURL}/users/{ALTA_ID}/credentials'),
         *[('DELETE', f'{O_baseURL}/users/{ALTA_ID}/credentials/{cred_id}') for cred_id in stale_cred_ids],
         ('PATCH', f'{O_baseURL}/users/{ALTA_ID}'),
-        # then carry on exactly as for a new user
+        # then the same as a new user
         ('PATCH', f'{N_baseURL}/accounts/{account.account_id}'),
         ('PUT', f'{O_baseURL}/users/{ALTA_ID}/groupIds'),
         ('POST', f'{O_baseURL}/users/{ALTA_ID}/credentials'),

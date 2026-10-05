@@ -418,13 +418,12 @@ def createUser(neonAccount):
 
         # openPath times are in UTC
         opUser = response.json().get("data")
-        # fromisoformat() (python 3.11+) accepts the trailing "Z" and any number of fractional digits
+        # fromisoformat() accepts "Z" and any fraction length on python 3.11+
         createdTime = datetime.datetime.fromisoformat(opUser.get("createdAt"))
         if createdTime.tzinfo is None:
             createdTime = createdTime.replace(tzinfo=datetime.timezone.utc)
         userAge = datetime.datetime.now(datetime.timezone.utc) - createdTime
-        # use total_seconds(), not .seconds - .seconds drops whole days (a user created 2 days and
-        # 1 minute ago reads as 60s old) and turns a slightly negative age (clock skew) into ~1 day
+        # not .seconds, which ignores whole days and wraps negative ages
         if userAge.total_seconds() > 300:
             logging.warning(
                 "Found an existing OpenPath user created at %s for %s when updating Neon account %s",

@@ -19,9 +19,7 @@ end = today_plus(365)
 
 
 def alta_created_at():
-    """createdAt as Alta returns it for a user created just now.
-    Call this inside the test, not at import time: createUser treats users older than 5 minutes
-    as resurrected, so a timestamp captured at collection time goes stale on a slow run."""
+    """createdAt for a user created just now. Call per test, not at import time."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
