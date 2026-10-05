@@ -1,0 +1,28 @@
+name: Lint
+# Only syntax errors and likely bugs (E9, F63, F7, F82), no style rules.
+# py312 matches EC2 and the test job; ruff would otherwise assume 3.13 from pyproject.toml.
+# Nothing outside the excluded folders imports from them.
+on:
+  pull_request:
+    branches:
+    - main
+  push:
+    branches:
+    - main
+
+permissions:
+  contents: read
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff==0.16.10
+      - name: Run ruff
+        run: ruff check --target-version py312 --select E9,F63,F7,F82 --extend-exclude archived,WIP,examples,it_volunteer_day .

@@ -201,7 +201,7 @@ def deleteAllCredentialsForId(id: int):
         else:
             logging.warning(
                 "Malformed credential in stale OpenPath user %s",
-                neonAccount.get("primaryContact").get("email1"),
+                id,
             )
 
 
