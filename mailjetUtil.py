@@ -306,11 +306,12 @@ class MJService:
         if not list_ids:
             return None
 
+        # No IsExcludedFromCampaigns: per Mailjet's docs, False takes the contact
+        # off the exclusion list. Omitting it should keep the stored value.
         data = {
             "Contacts": [
                 {
                     "Email": sub.email,
-                    "IsExcludedFromCampaigns": False,
                     "Name": sub.full_name,
                     "Properties": {
                         "first_name": sub.first_name,
