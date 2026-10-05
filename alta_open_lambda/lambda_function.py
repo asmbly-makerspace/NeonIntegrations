@@ -32,8 +32,9 @@ TZ = zoneinfo.ZoneInfo("America/Chicago")
 # one-line summary of each event. Setting LOG_RAW_EVENTS=true on the Lambda also
 # logs the body, with the whole value of any key containing one of these parts
 # (case-insensitive) replaced by "[REDACTED]"; e.g. "payments" hides every card
-# field inside it. This is a denylist that can miss new fields, so only turn the
-# flag on while debugging.
+# field inside it. Custom fields are hidden as a whole because their values (e.g.
+# KeyCardID, the door fob number) sit under generic "name"/"value" keys. This is
+# a denylist that can miss new fields, so only turn the flag on while debugging.
 REDACTED_KEY_PARTS = (
     "card",
     "payment",
@@ -45,6 +46,11 @@ REDACTED_KEY_PARTS = (
     "primarycontact",
     "firstname",
     "lastname",
+    "customfield",
+    "createdby",
+    "modifiedby",
+    "login",
+    "password",
 )
 
 

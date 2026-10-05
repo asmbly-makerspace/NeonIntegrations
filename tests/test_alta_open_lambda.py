@@ -619,6 +619,8 @@ FAKE_SECRETS = [
     "member@example.com",
     "123 Fake St",
     "512-555-0100",
+    "keycard_FAKE",  # accountCustomFields KeyCardID value (door fob number)
+    "Test Admin",  # timestamps.createdBy / lastModifiedBy
 ]
 
 
@@ -648,7 +650,7 @@ def contact_edit_account(account_id):
                     "addresses": [{"addressLine1": "123 Fake St", "zipCode": "78701"}],
                     "phones": [{"number": "512-555-0100", "type": "Mobile"}],
                 },
-                "accountCustomFields": [],
+                "accountCustomFields": [{"id": "88", "name": "KeyCardID", "value": "keycard_FAKE"}],
             }
         },
         NEW_PARAMS,
@@ -711,6 +713,7 @@ def test_raw_event_log_is_redacted(openpath, caplog, monkeypatch, trigger, make,
     else:
         assert logged["data"]["individualAccount"]["accountId"] == account_id
         assert logged["data"]["individualAccount"]["primaryContact"] == "[REDACTED]"
+        assert logged["data"]["individualAccount"]["accountCustomFields"] == "[REDACTED]"
     for secret in FAKE_SECRETS:
         assert secret not in caplog.text
 
@@ -744,6 +747,9 @@ def test_redact_replaces_sensitive_keys_at_any_depth():
             "transactionNumber": "npcharge_FAKE",
             "addresses": [{"addressLine1": "123 Fake St"}],
             "phone1": "512-555-0100",
+            "customFieldDataList": {"customFieldData": [{"fieldId": "88", "fieldValue": "keycard_FAKE"}]},
+            "timestamps": {"createdBy": "Test Admin", "createdDateTime": "2026-06-10T12:00:00Z"},
+            "login": {"username": "member@example.com"},
         },
         "customParameters": None,
     }
@@ -765,6 +771,9 @@ def test_redact_replaces_sensitive_keys_at_any_depth():
             "transactionNumber": "[REDACTED]",
             "addresses": "[REDACTED]",
             "phone1": "[REDACTED]",
+            "customFieldDataList": "[REDACTED]",
+            "timestamps": {"createdBy": "[REDACTED]", "createdDateTime": "2026-06-10T12:00:00Z"},
+            "login": "[REDACTED]",
         },
         "customParameters": None,
     }
