@@ -17,7 +17,15 @@ permissions:
   contents: read
 
 jobs:
+  # Deploy only if test.yml passes. The tests need only a read-only token.
+  test:
+    if: ${{ github.repository == 'asmbly-makerspace/NeonIntegrations' }}
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
   deploy:
+    needs: test
     if: ${{ github.repository == 'asmbly-makerspace/NeonIntegrations' }}
     runs-on: ubuntu-latest
 

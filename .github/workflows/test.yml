@@ -22,3 +22,5 @@ on:
   push:
     branches:
     - '*'
+  # Lets the deploy workflows gate on these tests.
+  workflow_call:
