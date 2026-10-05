@@ -10,15 +10,13 @@ from unittest.mock import mock_open
 
 from neon_mocker import NeonUserMock, NeonEventMock
 
-# classFeedbackAutomation imports the Google client libraries at module level.
-# CI and EC2 get them from requirements.txt. Skip this file only where they are
-# actually missing (e.g. a uv environment without google-api-python-client).
+# Skip only where the Google client libraries are not installed
 pytest.importorskip('googleapiclient.discovery')
 pytest.importorskip('google.oauth2.service_account')
 
 import classFeedbackAutomation
 
-# Production IDs hardcoded in getSurveyLink()
+# IDs hardcoded in getSurveyLink()
 TEMPLATE_FILE_ID = "1zCmHpktgblR8auKWMO6eNdTBt2frGj3Q6ExFTP9rHKI"
 SURVEY_FOLDER_ID = "17aM-fE8bBZqDZA1NhnWupAFan87Tpdsd"
 
@@ -44,20 +42,14 @@ class TestClassFeedbackAutomation:
         self.drive = mock_google_apis['drive']
         self.forms = mock_google_apis['forms']
 
-        # classFeedbackAutomation does `from googleapiclient.discovery import build`,
-        # so it keeps its own reference to build from the first import. The
-        # conftest fixture patches googleapiclient.discovery.build, which main()
-        # never looks up, so patch the module's name to hand main() this test's
-        # Drive and Forms mocks. (Credentials needs no extra patch: conftest
-        # patches from_service_account_file on the class, which the module shares.)
+        # The module binds `build` at import, so conftest's patch never reaches main()
         services = {'drive': self.drive, 'forms': self.forms}
         self.mock_build = mocker.patch.object(
             classFeedbackAutomation, 'build',
             side_effect=lambda serviceName, version, credentials: services[serviceName],
         )
 
-        # Default Google responses: no survey for the class in Drive yet, so
-        # getSurveyLink() copies the template and returns the new survey's URL
+        # Default: no survey in Drive yet, so getSurveyLink() copies the template
         self.drive.files.return_value.list.return_value.execute.return_value = {'files': []}
         self.drive.files.return_value.copy.return_value.execute.return_value = {'id': NEW_SURVEY_ID}
         self.forms.forms.return_value.get.return_value.execute.return_value = {
@@ -82,8 +74,7 @@ class TestClassFeedbackAutomation:
         self.mock_smtp.send_message.assert_not_called()
         self.mock_smtp.sendmail.assert_not_called()
 
-        # Verify main() built its services from this test's mocks, so the
-        # Drive assertion below can fail
+        # Verify main() used this test's mocks
         self.mock_build.assert_any_call(
             'drive', 'v3', credentials=self.mock_google_apis['credentials']
         )
