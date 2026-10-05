@@ -18,8 +18,7 @@ permissions:
   contents: read
 
 jobs:
-  # Run the pytest suite from test.yml first; the deploy job below only runs if it passes.
-  # The tests need no AWS access, so they get a read-only token instead of id-token: write.
+  # Deploy only if test.yml passes. The tests need only a read-only token.
   test:
     if: ${{ github.repository == 'asmbly-makerspace/NeonIntegrations' }}
     uses: ./.github/workflows/test.yml
