@@ -600,13 +600,10 @@ def test_new_fresh_join_adds_to_mailjet(openpath, neon_account, mailjet, params)
 
 
 # ===========================================================================
-# Event logging -- identify the webhook, never log its contents
+# Event logging -- summary line by default, redacted body with LOG_RAW_EVENTS
 # ===========================================================================
 #
-# Webhook bodies carry member contact details and payment card metadata, and the
-# Function URL envelope carries request headers and the caller's IP. By default
-# the handler logs one summary line per event; LOG_RAW_EVENTS=true adds the body
-# with sensitive fields redacted. The fakes below must never reach the logs.
+# None of these fakes may reach the logs in either mode.
 
 FAKE_SECRETS = [
     "nptoken_FAKE",  # payments[].creditCardOnline.token
@@ -619,13 +616,13 @@ FAKE_SECRETS = [
     "member@example.com",
     "123 Fake St",
     "512-555-0100",
-    "keycard_FAKE",  # accountCustomFields KeyCardID value (door fob number)
+    "keycard_FAKE",  # accountCustomFields KeyCardID value
     "Test Admin",  # timestamps.createdBy / lastModifiedBy
 ]
 
 
 def with_function_url_envelope(event):
-    """Add the request metadata a real Function URL invocation carries."""
+    """Add Function URL headers and requestContext with fake auth and IP values."""
     event["headers"] = {
         "authorization": "Basic RkFLRV9BVVRI",
         "content-type": "application/json",
@@ -636,7 +633,7 @@ def with_function_url_envelope(event):
 
 
 def contact_edit_account(account_id):
-    # editAccount carrying the contact block of Neon's individualAccount
+    # Contact block modelled on Neon's individualAccount schema, not a capture
     return make_event(
         "editAccount",
         {
@@ -703,7 +700,7 @@ def test_raw_event_log_is_redacted(openpath, caplog, monkeypatch, trigger, make,
         r.getMessage() for r in caplog.records if r.getMessage().startswith("RAW EVENT BODY")
     ]
     assert len(raw_lines) == 1
-    # Only the parsed body is logged (valid JSON), never the Lambda envelope.
+    # The parsed body is logged as JSON, without the Lambda envelope.
     logged = json.loads(raw_lines[0].split(": ", 1)[1])
     assert set(logged) == {"eventTrigger", "eventTimestamp", "organizationId", "data", "customParameters"}
     assert logged["eventTrigger"] == trigger
@@ -777,4 +774,4 @@ def test_redact_replaces_sensitive_keys_at_any_depth():
         },
         "customParameters": None,
     }
-    assert body == original  # the handler keeps using the unredacted body
+    assert body == original  # input is not modified

@@ -27,14 +27,9 @@ logger.setLevel(logging.INFO)
 
 TZ = zoneinfo.ZoneInfo("America/Chicago")
 
-# Webhook bodies carry member contact details and payment card metadata (Neon
-# Pay token, last four digits, cardholder name), so lambda_handler logs only a
-# one-line summary of each event. Setting LOG_RAW_EVENTS=true on the Lambda also
-# logs the body, with the whole value of any key containing one of these parts
-# (case-insensitive) replaced by "[REDACTED]"; e.g. "payments" hides every card
-# field inside it. Custom fields are hidden as a whole because their values (e.g.
-# KeyCardID, the door fob number) sit under generic "name"/"value" keys. This is
-# a denylist that can miss new fields, so only turn the flag on while debugging.
+# With LOG_RAW_EVENTS set, the value of any body key containing one of these
+# (case-insensitive) is logged as "[REDACTED]". A denylist can miss new fields,
+# so only enable the flag while debugging.
 REDACTED_KEY_PARTS = (
     "card",
     "payment",
@@ -46,7 +41,7 @@ REDACTED_KEY_PARTS = (
     "primarycontact",
     "firstname",
     "lastname",
-    "customfield",
+    "customfield",  # hidden whole, since values sit under generic "value" keys
     "createdby",
     "modifiedby",
     "login",
@@ -92,10 +87,7 @@ def find_key_bfs(d: dict, target_key: str) -> Any:
 
 
 def redact(value: Any) -> Any:
-    """
-    Return a copy of a parsed webhook body with the values of sensitive keys
-    (see REDACTED_KEY_PARTS) replaced by "[REDACTED]", at any depth.
-    """
+    """Return a copy with values of REDACTED_KEY_PARTS keys replaced, at any depth."""
     if isinstance(value, dict):
         return {
             key: (
@@ -111,10 +103,7 @@ def redact(value: Any) -> Any:
 
 
 def log_event(neon_response: dict) -> None:
-    """
-    Log which webhook arrived without logging its contents. The Lambda event
-    itself (headers, requestContext) is never logged.
-    """
+    """Log a one-line summary, plus the redacted body if LOG_RAW_EVENTS is set."""
     parameters = neon_response.get("customParameters")
     if not isinstance(parameters, dict):
         parameters = {}
