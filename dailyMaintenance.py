@@ -44,15 +44,12 @@ def main():
     failedPhases = []
 
     # we're going to run this multiple times per day, but we don't want to send a zillion emails
+    # Compare local wall-clock time. Don't pass a pytz zone as tzinfo= (e.g. to datetime.time):
+    # it gets the zone's 1800s local mean time offset (-5:51) instead of CST/CDT.
     now = datetime.datetime.now(pytz.timezone("America/Chicago"))
-    mailcutoff = datetime.datetime.combine(
-        datetime.datetime.now(pytz.timezone("America/Chicago")),
-        datetime.time(6, 0, tzinfo=pytz.timezone("America/Chicago")),
-    )
-
 
     try:
-        if now < mailcutoff:
+        if now.time() < datetime.time(6, 0):
             openPathFailures = openPathUpdateAll(neonAccounts, mailSummary=True)
         else:
             openPathFailures = openPathUpdateAll(neonAccounts, mailSummary=False)

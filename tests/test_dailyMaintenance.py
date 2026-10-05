@@ -4,8 +4,11 @@ Unit tests for dailyMaintenance.py
 Tests the main() function by mocking only network interactions (HTTP requests).
 """
 
+import datetime
 import pytest
+import pytz
 import requests
+from types import SimpleNamespace
 from openPathUtil import O_baseURL
 from discourseUtil import D_baseURL, GROUP_IDS, USERS_PER_PAGE
 from neonUtil import MEMBERSHIP_ID_REGULAR, N_baseURL
@@ -177,3 +180,32 @@ class TestDailyMaintenance:
         assert not self.mock_discourse['users'].called
         assert not self.mock_discourse['makers'].called
         assert not self.mock_mailjet.contactslist.get.called
+
+    @pytest.mark.parametrize("localTime, sendsSummary", [
+        (datetime.datetime(2026, 1, 15, 5, 55), True),   # winter, CST (UTC-6)
+        (datetime.datetime(2026, 1, 15, 6, 5), False),
+        (datetime.datetime(2026, 7, 15, 5, 55), True),   # summer, CDT (UTC-5)
+        (datetime.datetime(2026, 7, 15, 6, 30), False),
+    ], ids=["winter-0555", "winter-0605", "summer-0555", "summer-0630"])
+    def test_summary_emails_only_go_out_before_6am_chicago_time(
+            self, requests_mock, mock_smtp, monkeypatch, localTime, sendsSummary):
+        """The membership@ and membership.committee@ summaries are only sent before
+        6:00 local time, in both standard and daylight time."""
+        NeonUserMock.mock_search(requests_mock, [])
+        requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
+
+        frozenNow = pytz.timezone("America/Chicago").localize(localTime)
+
+        class FrozenDatetime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return frozenNow.astimezone(tz)
+
+        import dailyMaintenance
+        # freeze the clock dailyMaintenance sees without patching the real datetime module
+        monkeypatch.setattr(dailyMaintenance, "datetime",
+            SimpleNamespace(datetime=FrozenDatetime, time=datetime.time))
+
+        dailyMaintenance.main()
+
+        assert mock_smtp.sendmail.call_count == (2 if sendsSummary else 0)
