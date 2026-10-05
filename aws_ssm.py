@@ -2,14 +2,8 @@ import boto3
 
 
 def _get_parameters(names: list[str]) -> dict[str, str]:
-    """
-    Fetch decrypted SSM parameters and return them as {name: value}.
-
-    GetParameters returns the parameters it found in alphabetical order and
-    moves any name it could not find to InvalidParameters, so values must be
-    looked up by name, not by position. Raises RuntimeError naming any
-    parameter SSM did not return. GetParameters accepts at most 10 names.
-    """
+    """Fetch decrypted SSM parameters as {name: value}. Raises if any are missing."""
+    # GetParameters accepts at most 10 names
     response = boto3.client("ssm").get_parameters(Names=names, WithDecryption=True)
     values = {p["Name"]: p["Value"] for p in response["Parameters"]}
     missing = [name for name in names if name not in values]

@@ -1,13 +1,6 @@
 """
-Tests for reading secrets from AWS SSM Parameter Store.
-
-aws_ssm.py only runs on EC2 and in the Lambda, and conftest.py replaces it with
-a stub so other tests never reach AWS. These tests execute the real file under
-a different module name, with boto3.client patched.
-
-The Mailjet keys are read from SSM separately, by
-mailjetUtil.get_mailjet_credentials, which both the daily maintenance job and
-the Lambda call. They are covered here too.
+Tests for the real aws_ssm.py (conftest.py stubs it out) and
+mailjetUtil.get_mailjet_credentials, with boto3.client patched.
 """
 
 import datetime
@@ -28,7 +21,7 @@ sys.path.insert(0, str(REPO_ROOT / "alta_open_lambda"))
 import lambda_function as lf
 
 
-# What SSM holds for aws_ssm.py, in the alphabetical order GetParameters uses
+# Parameters aws_ssm.py requests, in alphabetical order
 SSM_VALUES = {
     "/altaopen/api_key": "altaopen-key",
     "/altaopen/api_user": "altaopen-user",
@@ -40,7 +33,7 @@ SSM_VALUES = {
     "/neon/api_user": "neon-user",
 }
 
-# Each name aws_ssm.py exports, and the SSM parameter it must come from
+# aws_ssm export -> SSM parameter
 AWS_SSM_EXPORTS = {
     "N_APIkey": "/neon/api_key",
     "N_APIuser": "/neon/api_user",
@@ -62,12 +55,11 @@ MAILJET_CREDENTIALS = MJCredentials(
 
 
 class _StopHere(Exception):
-    """Raised by a patched MJService once it has received the credentials."""
+    """Raised by the patched MJService to stop the run."""
 
 
 def ssm_response(values, invalid=()):
-    """Build a GetParameters response. SSM leaves out any name it cannot find
-    and lists it under InvalidParameters instead."""
+    """Fake GetParameters response."""
     return {
         "Parameters": [{"Name": name, "Value": value} for name, value in values.items()],
         "InvalidParameters": list(invalid),
@@ -82,8 +74,7 @@ def mock_ssm_client(mocker, response):
 
 
 def load_real_aws_ssm():
-    """Execute aws_ssm.py as a new module. Importing it by name would return
-    the stub conftest.py puts in sys.modules."""
+    """Run aws_ssm.py as a new module, bypassing the conftest stub."""
     spec = importlib.util.spec_from_file_location(
         "aws_ssm_under_test", REPO_ROOT / "aws_ssm.py"
     )
@@ -126,7 +117,7 @@ def test_aws_ssm_missing_parameters_fail_naming_them(mocker):
     message = str(excinfo.value)
     for name in missing:
         assert name in message
-    # The error names parameters, never the secrets that were found
+    # Names only, never secret values
     for value in found.values():
         assert value not in message
 
@@ -137,7 +128,6 @@ def test_aws_ssm_missing_parameters_fail_naming_them(mocker):
 
 def test_daily_maintenance_reads_mailjet_credentials_by_name(mocker):
     mock_ssm_client(mocker, ssm_response(reversed_order(MAILJET_VALUES)))
-    # Stop the run as soon as MJService gets its credentials
     mj_service = mocker.patch.object(mailjetUtil, "MJService", side_effect=_StopHere)
 
     with pytest.raises(_StopHere):

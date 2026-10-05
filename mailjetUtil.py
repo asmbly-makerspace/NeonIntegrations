@@ -187,14 +187,8 @@ class MJCredentials:
 
 
 def get_mailjet_credentials() -> MJCredentials:
-    """
-    Fetch the Mailjet API key pair from AWS SSM Parameter Store.
-
-    Values are looked up by parameter name, not by their position in the
-    response (SSM leaves out any name it cannot find). Raises RuntimeError
-    naming any parameter SSM did not return. This mirrors aws_ssm.py, which is
-    not imported here because it fetches every other secret at import time.
-    """
+    """Fetch the Mailjet keys from SSM by name. Raises if either is missing."""
+    # Not shared with aws_ssm, which fetches every other secret on import
     names = ["/mailjet/api_key", "/mailjet/api_secret"]
     response = boto3.client("ssm").get_parameters(Names=names, WithDecryption=True)
     values = {p["Name"]: p["Value"] for p in response["Parameters"]}
