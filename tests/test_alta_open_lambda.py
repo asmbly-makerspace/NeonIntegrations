@@ -597,3 +597,181 @@ def test_new_fresh_join_adds_to_mailjet(openpath, neon_account, mailjet, params)
     account_id = str(rand_id())
     lf.lambda_handler(new_create_membership("JOIN", "SUCCEEDED", account_id, params), {})
     mailjet.assert_called_once()
+
+
+# ===========================================================================
+# Event logging -- summary line by default, redacted body with LOG_RAW_EVENTS
+# ===========================================================================
+#
+# None of these fakes may reach the logs in either mode.
+
+FAKE_SECRETS = [
+    "nptoken_FAKE",  # payments[].creditCardOnline.token
+    "Test Cardholder",  # payments[].creditCardOnline.cardHolderName
+    "npcharge_FAKE",  # payments[].creditCardOnline.transactionNumber
+    "cardNumberLastFour",
+    "Basic RkFLRV9BVVRI",  # Authorization header
+    "203.0.113.7",  # requestContext.http.sourceIp / x-forwarded-for
+    "Testfirst",
+    "member@example.com",
+    "123 Fake St",
+    "512-555-0100",
+    "keycard_FAKE",  # accountCustomFields KeyCardID value
+    "Test Admin",  # timestamps.createdBy / lastModifiedBy
+]
+
+
+def with_function_url_envelope(event):
+    """Add Function URL headers and requestContext with fake auth and IP values."""
+    event["headers"] = {
+        "authorization": "Basic RkFLRV9BVVRI",
+        "content-type": "application/json",
+        "x-forwarded-for": "203.0.113.7",
+    }
+    event["requestContext"] = {"http": {"method": "POST", "sourceIp": "203.0.113.7"}}
+    return event
+
+
+def contact_edit_account(account_id):
+    # Contact block modelled on Neon's individualAccount schema, not a capture
+    return make_event(
+        "editAccount",
+        {
+            "individualAccount": {
+                "accountId": account_id,
+                "primaryContact": {
+                    "contactId": str(rand_id()),
+                    "firstName": "Testfirst",
+                    "lastName": "Testlast",
+                    "email1": "member@example.com",
+                    "addresses": [{"addressLine1": "123 Fake St", "zipCode": "78701"}],
+                    "phones": [{"number": "512-555-0100", "type": "Mobile"}],
+                },
+                "accountCustomFields": [{"id": "88", "name": "KeyCardID", "value": "keycard_FAKE"}],
+            }
+        },
+        NEW_PARAMS,
+    )
+
+
+def renew_create_membership(account_id):
+    return new_create_membership("RENEW", "SUCCEEDED", account_id)
+
+
+LOGGED_EVENTS = [
+    pytest.param("createMembership", renew_create_membership, id="createMembership"),
+    pytest.param("editAccount", contact_edit_account, id="editAccount"),
+]
+
+
+@pytest.mark.parametrize("trigger, make", LOGGED_EVENTS)
+def test_default_log_identifies_event_without_payload(openpath, caplog, monkeypatch, trigger, make):
+    monkeypatch.delenv("LOG_RAW_EVENTS", raising=False)
+    account_id = str(rand_id())
+    with caplog.at_level(logging.INFO):
+        lf.lambda_handler(with_function_url_envelope(make(account_id)), {})
+    assert (
+        f"Received webhook: eventTrigger={trigger} "
+        "eventTimestamp=2026-06-10T12:00:00.000-05:00 "
+        f"webhook_name=NewMembership legacy=false accountId={account_id}"
+    ) in caplog.text
+    for secret in FAKE_SECRETS + ["Regular Membership", "RAW EVENT BODY"]:
+        assert secret not in caplog.text
+    openpath.assert_called_once_with(account_id)
+
+
+def test_event_without_body_logs_no_request_metadata(openpath, caplog):
+    with caplog.at_level(logging.INFO):
+        lf.lambda_handler(with_function_url_envelope({}), {})
+    assert "Ignoring event with no body" in caplog.text
+    for secret in FAKE_SECRETS:
+        assert secret not in caplog.text
+    openpath.assert_not_called()
+
+
+@pytest.mark.parametrize("flag", ["true", "1"])
+@pytest.mark.parametrize("trigger, make", LOGGED_EVENTS)
+def test_raw_event_log_is_redacted(openpath, caplog, monkeypatch, trigger, make, flag):
+    monkeypatch.setenv("LOG_RAW_EVENTS", flag)
+    account_id = str(rand_id())
+    with caplog.at_level(logging.INFO):
+        lf.lambda_handler(with_function_url_envelope(make(account_id)), {})
+    raw_lines = [
+        r.getMessage() for r in caplog.records if r.getMessage().startswith("RAW EVENT BODY")
+    ]
+    assert len(raw_lines) == 1
+    # The parsed body is logged as JSON, without the Lambda envelope.
+    logged = json.loads(raw_lines[0].split(": ", 1)[1])
+    assert set(logged) == {"eventTrigger", "eventTimestamp", "organizationId", "data", "customParameters"}
+    assert logged["eventTrigger"] == trigger
+    if trigger == "createMembership":
+        assert logged["data"]["membershipLevel"] == {"id": "1", "name": "Regular Membership"}
+        assert logged["data"]["payments"] == "[REDACTED]"
+    else:
+        assert logged["data"]["individualAccount"]["accountId"] == account_id
+        assert logged["data"]["individualAccount"]["primaryContact"] == "[REDACTED]"
+        assert logged["data"]["individualAccount"]["accountCustomFields"] == "[REDACTED]"
+    for secret in FAKE_SECRETS:
+        assert secret not in caplog.text
+
+
+@pytest.mark.parametrize("flag", ["", "false", "0"])
+def test_raw_event_log_is_off_unless_enabled(openpath, caplog, monkeypatch, flag):
+    monkeypatch.setenv("LOG_RAW_EVENTS", flag)
+    with caplog.at_level(logging.INFO):
+        lf.lambda_handler(renew_create_membership(str(rand_id())), {})
+    assert "RAW EVENT BODY" not in caplog.text
+
+
+def test_redact_replaces_sensitive_keys_at_any_depth():
+    body = {
+        "eventTrigger": "updateEventRegistration",
+        "data": {
+            "id": "42",
+            "tickets": [
+                {
+                    "attendees": [
+                        {"accountId": "7", "FirstName": "Testfirst", "Email": "member@example.com"}
+                    ]
+                }
+            ],
+            "transaction": {
+                "transactionStatus": "SUCCEEDED",
+                "payments": {"payment": [{"amount": 95.0}]},
+            },
+            "individualAccount": {"accountId": "7", "primaryContact": {"contactId": "8"}},
+            "creditCardOnline": {"token": "nptoken_FAKE"},
+            "transactionNumber": "npcharge_FAKE",
+            "addresses": [{"addressLine1": "123 Fake St"}],
+            "phone1": "512-555-0100",
+            "customFieldDataList": {"customFieldData": [{"fieldId": "88", "fieldValue": "keycard_FAKE"}]},
+            "timestamps": {"createdBy": "Test Admin", "createdDateTime": "2026-06-10T12:00:00Z"},
+            "login": {"username": "member@example.com"},
+        },
+        "customParameters": None,
+    }
+    original = json.loads(json.dumps(body))
+    assert lf.redact(body) == {
+        "eventTrigger": "updateEventRegistration",
+        "data": {
+            "id": "42",
+            "tickets": [
+                {
+                    "attendees": [
+                        {"accountId": "7", "FirstName": "[REDACTED]", "Email": "[REDACTED]"}
+                    ]
+                }
+            ],
+            "transaction": {"transactionStatus": "SUCCEEDED", "payments": "[REDACTED]"},
+            "individualAccount": {"accountId": "7", "primaryContact": "[REDACTED]"},
+            "creditCardOnline": "[REDACTED]",
+            "transactionNumber": "[REDACTED]",
+            "addresses": "[REDACTED]",
+            "phone1": "[REDACTED]",
+            "customFieldDataList": "[REDACTED]",
+            "timestamps": {"createdBy": "[REDACTED]", "createdDateTime": "2026-06-10T12:00:00Z"},
+            "login": "[REDACTED]",
+        },
+        "customParameters": None,
+    }
+    assert body == original  # input is not modified

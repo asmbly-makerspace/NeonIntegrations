@@ -2,6 +2,7 @@
 
 import logging
 import json
+import os
 import datetime
 import zoneinfo
 import requests
@@ -25,6 +26,27 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 TZ = zoneinfo.ZoneInfo("America/Chicago")
+
+# With LOG_RAW_EVENTS set, the value of any body key containing one of these
+# (case-insensitive) is logged as "[REDACTED]". A denylist can miss new fields,
+# so only enable the flag while debugging.
+REDACTED_KEY_PARTS = (
+    "card",
+    "payment",
+    "token",
+    "transactionnumber",
+    "address",
+    "phone",
+    "email",
+    "primarycontact",
+    "firstname",
+    "lastname",
+    "customfield",  # hidden whole, since values sit under generic "value" keys
+    "createdby",
+    "modifiedby",
+    "login",
+    "password",
+)
 
 
 def find_key_bfs(d: dict, target_key: str) -> Any:
@@ -62,6 +84,43 @@ def find_key_bfs(d: dict, target_key: str) -> Any:
                         queue.append((item, path + [key, f"[{i}]"]))
 
     return None
+
+
+def redact(value: Any) -> Any:
+    """Return a copy with values of REDACTED_KEY_PARTS keys replaced, at any depth."""
+    if isinstance(value, dict):
+        return {
+            key: (
+                "[REDACTED]"
+                if any(part in str(key).lower() for part in REDACTED_KEY_PARTS)
+                else redact(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact(item) for item in value]
+    return value
+
+
+def log_event(neon_response: dict) -> None:
+    """Log a one-line summary, plus the redacted body if LOG_RAW_EVENTS is set."""
+    parameters = neon_response.get("customParameters")
+    if not isinstance(parameters, dict):
+        parameters = {}
+    logger.info(
+        "Received webhook: eventTrigger=%s eventTimestamp=%s webhook_name=%s "
+        "legacy=%s accountId=%s membershipId=%s matchedAccountId=%s",
+        neon_response.get("eventTrigger"),
+        neon_response.get("eventTimestamp"),
+        parameters.get("webhook_name"),
+        parameters.get("legacy"),
+        find_key_bfs(neon_response, "accountId"),
+        find_key_bfs(neon_response, "membershipId"),
+        find_key_bfs(neon_response, "matchedAccountId"),
+    )
+
+    if os.environ.get("LOG_RAW_EVENTS", "").strip().lower() in {"1", "true", "yes"}:
+        logger.info("RAW EVENT BODY (redacted): %s", json.dumps(redact(neon_response)))
 
 
 def add_member_to_mailjet(
@@ -221,12 +280,12 @@ def lambda_handler(event: dict, _: dict) -> None:
         logger.info("Skipping run between 2:30 and 5:00 AM")
         return
 
-    logger.info("EVENT INFO: %s", event)
-
     if not (body := event.get("body")):
+        logger.info("Ignoring event with no body")
         return
 
     neon_response: dict = json.loads(body)
+    log_event(neon_response)
     if not (event_trigger := neon_response.get("eventTrigger")):
         return
 
