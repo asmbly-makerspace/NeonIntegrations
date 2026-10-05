@@ -271,13 +271,7 @@ class TestBulkUpdateSubscribersInLists:
         assert mock_mailjet_client.contact_managemanycontacts.create.call_count == 1
 
     def test_bulk_update_does_not_send_exclusion_flag(self, mj_service, mock_mailjet_client):
-        """The upsert must not send IsExcludedFromCampaigns.
-
-        Mailjet treats IsExcludedFromCampaigns=False as "remove this contact
-        from the exclusion list", so sending it on every run would undo any
-        do-not-email exclusion made in Mailjet. The rest of the payload must
-        be unchanged.
-        """
+        """Test that the payload omits IsExcludedFromCampaigns and is otherwise unchanged."""
         mock_response = Mock()
         mock_response.status_code = 201
         mock_response.json.return_value = {"Data": [{"JobID": 54321}]}
