@@ -120,8 +120,7 @@ class TestDailyMaintenance:
         assert not modify['rm_stewards'].called
 
     def test_openpath_failure_does_not_skip_the_later_phases(self, requests_mock):
-        """An OpenPath error used to end the run before Discourse and Mailjet were
-        synced. The later phases should still run, and the run should exit non-zero."""
+        """An OpenPath error should not stop the Discourse and Mailjet phases"""
         NeonUserMock.mock_search(requests_mock, [NeonUserMock()])
         requests_mock.get(f'{O_baseURL}/users', status_code=503)
 
@@ -135,7 +134,7 @@ class TestDailyMaintenance:
         assert self.mock_mailjet.contactslist.get.called, "Mailjet sync should still run"
 
     def test_discourse_failure_does_not_skip_mailjet(self, requests_mock):
-        """Discourse logs bad status codes itself, but a dropped connection raises."""
+        """Discourse logs bad status codes itself, but a dropped connection raises"""
         NeonUserMock.mock_search(requests_mock, [NeonUserMock()])
         requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
         requests_mock.get(f'{D_baseURL}/groups/makers/members.json?limit={USERS_PER_PAGE}&offset=0',
@@ -148,12 +147,26 @@ class TestDailyMaintenance:
         assert excinfo.value.code == 1
         assert self.mock_mailjet.contactslist.get.called, "Mailjet sync should still run"
 
+    def test_discourse_id_failure_does_not_skip_the_group_sync(self, requests_mock):
+        """The group sync can still run with the DiscourseIDs the accounts already have"""
+        NeonUserMock.mock_search(requests_mock, [NeonUserMock()])
+        requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
+        # no query string, so any page of the user list matches
+        requests_mock.get(f'{D_baseURL}/admin/users/list/active.json',
+            exc=requests.exceptions.ConnectionError)
+
+        import dailyMaintenance
+        with pytest.raises(SystemExit) as excinfo:
+            dailyMaintenance.main()
+
+        assert excinfo.value.code == 1
+        assert self.mock_discourse['makers'].called, "Discourse group sync should still run"
+        assert self.mock_mailjet.contactslist.get.called, "Mailjet sync should still run"
+
     def test_openpath_account_failures_fail_the_run(self, requests_mock, mocker):
-        """openPathUpdateAll may report the accounts it couldn't update instead of
-        raising. That should still mark the run as failed."""
+        """A non-empty failure list from openPathUpdateAll also fails the run"""
         import dailyMaintenance
         NeonUserMock.mock_search(requests_mock, [NeonUserMock()])
-        # only whether the list is empty matters here, not what is in it
         mocker.patch.object(dailyMaintenance, 'openPathUpdateAll', return_value=["1234"])
 
         with pytest.raises(SystemExit) as excinfo:
@@ -163,12 +176,11 @@ class TestDailyMaintenance:
         assert self.mock_mailjet.contactslist.get.called, "Mailjet sync should still run"
 
     def test_neon_fetch_failure_stops_before_any_sync(self, requests_mock):
-        """Without the complete account list nothing is safe to sync: a member whose
-        record failed to load would look expired and lose door access."""
+        """If the Neon account fetch fails, no phase runs"""
         member = NeonUserMock(5001).add_membership(
             MEMBERSHIP_ID_REGULAR, today_plus(-365), today_plus(365), fee=100.0)
         NeonUserMock.mock_search(requests_mock, [member])
-        requests_mock.get(f'{N_baseURL}/accounts/5001/memberships', status_code=500)
+        requests_mock.get(f'{N_baseURL}/accounts/5001/memberships', status_code=404)
         openpath_mock = requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
 
         import dailyMaintenance
@@ -189,8 +201,7 @@ class TestDailyMaintenance:
     ], ids=["winter-0555", "winter-0605", "summer-0555", "summer-0630"])
     def test_summary_emails_only_go_out_before_6am_chicago_time(
             self, requests_mock, mock_smtp, monkeypatch, localTime, sendsSummary):
-        """The membership@ and membership.committee@ summaries are only sent before
-        6:00 local time, in both standard and daylight time."""
+        """Summary emails go out only before 6:00 Chicago time, in both CST and CDT"""
         NeonUserMock.mock_search(requests_mock, [])
         requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
 
@@ -202,7 +213,7 @@ class TestDailyMaintenance:
                 return frozenNow.astimezone(tz)
 
         import dailyMaintenance
-        # freeze the clock dailyMaintenance sees without patching the real datetime module
+        # freeze dailyMaintenance's clock without patching the real datetime module
         monkeypatch.setattr(dailyMaintenance, "datetime",
             SimpleNamespace(datetime=FrozenDatetime, time=datetime.time))
 

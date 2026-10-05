@@ -26,9 +26,7 @@ def main():
     try:
         neonAccounts = neonUtil.getRealAccounts()
     except Exception:
-        # The OpenPath and Discourse phases need the complete account list. Syncing from
-        # a partial one could revoke door access or demote Makers. Mailjet doesn't need
-        # the list, but it queries the same Neon API, so skip it too and stop here.
+        # syncing from an incomplete account list could revoke door access, so stop here
         logging.exception("Failed to fetch Neon accounts; skipping the whole sync cycle.")
         sys.exit(1)
 
@@ -38,14 +36,11 @@ def main():
     #     for account in neonAccountJson:
     #         neonAccounts[neonAccountJson[account]["Account ID"]] = neonAccountJson[account]
 
-    # Each phase below runs even if an earlier one failed, so one bad account or a
-    # flaky API can't skip the rest of the sync. We remember what failed and exit
-    # non-zero at the end so the systemd unit shows up as failed.
+    # run every phase even if an earlier one fails, then exit 1 if any failed
     failedPhases = []
 
     # we're going to run this multiple times per day, but we don't want to send a zillion emails
-    # Compare local wall-clock time. Don't pass a pytz zone as tzinfo= (e.g. to datetime.time):
-    # it gets the zone's 1800s local mean time offset (-5:51) instead of CST/CDT.
+    # compare wall-clock time; a pytz zone passed as tzinfo= gets local mean time (-5:51), not CST/CDT
     now = datetime.datetime.now(pytz.timezone("America/Chicago"))
 
     try:
@@ -53,7 +48,7 @@ def main():
             openPathFailures = openPathUpdateAll(neonAccounts, mailSummary=True)
         else:
             openPathFailures = openPathUpdateAll(neonAccounts, mailSummary=False)
-        # openPathUpdateAll may hand back a list of the accounts it couldn't update
+        # openPathUpdateAll may return the accounts it couldn't update
         if openPathFailures:
             logging.error("OpenPath sync failed for %s account(s).", len(openPathFailures))
             failedPhases.append("OpenPath sync")
