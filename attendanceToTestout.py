@@ -119,11 +119,15 @@ def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str)
                 shortName,
             )
         else:
+            # Neon's response body holds the reason for the failure (see #57)
             logging.error(
-                "%s FAILED!  \n\tAccount ID %s \n\tClass '%s'",
+                "%s FAILED!  \n\tAccount ID %s \n\tClass '%s' \n\tField %s = %s \n\tResponse: %s",
                 patch.status_code,
                 neonId,
                 shortName,
+                fieldId,
+                date,
+                patch.text[:1000],
             )
 
     except Exception:
