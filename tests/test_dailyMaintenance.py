@@ -5,9 +5,10 @@ Tests the main() function by mocking only network interactions (HTTP requests).
 """
 
 import pytest
+import requests
 from openPathUtil import O_baseURL
 from discourseUtil import D_baseURL, GROUP_IDS, USERS_PER_PAGE
-from neonUtil import MEMBERSHIP_ID_REGULAR
+from neonUtil import MEMBERSHIP_ID_REGULAR, N_baseURL
 from neon_mocker import NeonUserMock, today_plus
 
 
@@ -114,3 +115,65 @@ class TestDailyMaintenance:
         # only the newsteward is added, not BobSmith
         assert modify['add_stewards'].last_request.body == "usernames=newsteward"
         assert not modify['rm_stewards'].called
+
+    def test_openpath_failure_does_not_skip_the_later_phases(self, requests_mock):
+        """An OpenPath error used to end the run before Discourse and Mailjet were
+        synced. The later phases should still run, and the run should exit non-zero."""
+        NeonUserMock.mock_search(requests_mock, [NeonUserMock()])
+        requests_mock.get(f'{O_baseURL}/users', status_code=503)
+
+        import dailyMaintenance
+        with pytest.raises(SystemExit) as excinfo:
+            dailyMaintenance.main()
+
+        assert excinfo.value.code == 1
+        assert self.mock_discourse['users'].called, "DiscourseID sync should still run"
+        assert self.mock_discourse['makers'].called, "Discourse group sync should still run"
+        assert self.mock_mailjet.contactslist.get.called, "Mailjet sync should still run"
+
+    def test_discourse_failure_does_not_skip_mailjet(self, requests_mock):
+        """Discourse logs bad status codes itself, but a dropped connection raises."""
+        NeonUserMock.mock_search(requests_mock, [NeonUserMock()])
+        requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
+        requests_mock.get(f'{D_baseURL}/groups/makers/members.json?limit={USERS_PER_PAGE}&offset=0',
+            exc=requests.exceptions.ConnectionError)
+
+        import dailyMaintenance
+        with pytest.raises(SystemExit) as excinfo:
+            dailyMaintenance.main()
+
+        assert excinfo.value.code == 1
+        assert self.mock_mailjet.contactslist.get.called, "Mailjet sync should still run"
+
+    def test_openpath_account_failures_fail_the_run(self, requests_mock, mocker):
+        """openPathUpdateAll may report the accounts it couldn't update instead of
+        raising. That should still mark the run as failed."""
+        import dailyMaintenance
+        NeonUserMock.mock_search(requests_mock, [NeonUserMock()])
+        # only whether the list is empty matters here, not what is in it
+        mocker.patch.object(dailyMaintenance, 'openPathUpdateAll', return_value=["1234"])
+
+        with pytest.raises(SystemExit) as excinfo:
+            dailyMaintenance.main()
+
+        assert excinfo.value.code == 1
+        assert self.mock_mailjet.contactslist.get.called, "Mailjet sync should still run"
+
+    def test_neon_fetch_failure_stops_before_any_sync(self, requests_mock):
+        """Without the complete account list nothing is safe to sync: a member whose
+        record failed to load would look expired and lose door access."""
+        member = NeonUserMock(5001).add_membership(
+            MEMBERSHIP_ID_REGULAR, today_plus(-365), today_plus(365), fee=100.0)
+        NeonUserMock.mock_search(requests_mock, [member])
+        requests_mock.get(f'{N_baseURL}/accounts/5001/memberships', status_code=500)
+        openpath_mock = requests_mock.get(f'{O_baseURL}/users', json={"data": [], "totalCount": 0})
+
+        import dailyMaintenance
+        with pytest.raises(SystemExit) as excinfo:
+            dailyMaintenance.main()
+
+        assert excinfo.value.code == 1
+        assert not openpath_mock.called
+        assert not self.mock_discourse['users'].called
+        assert not self.mock_discourse['makers'].called
+        assert not self.mock_mailjet.contactslist.get.called
