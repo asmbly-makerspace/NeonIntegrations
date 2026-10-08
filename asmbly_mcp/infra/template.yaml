@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Asmbly MCP server: lets the Asmbly org on claude.ai troubleshoot member door
+  access. Read-only against Neon and Alta Open. Sign-in is Google, one domain only.
+
+# -----------------------------------------------------------------------------
+# KEYS THIS SERVER NEEDS
+#
+# No key values are stored in this file or anywhere in the repo. Each setting
+# below is the NAME of a parameter in AWS Systems Manager Parameter Store.
+# The server reads the values at startup, and is given permission to read
+# these six parameters and nothing else.
+#
+# Deployment fails with a clear error if any of them doesn't exist yet.
+# -----------------------------------------------------------------------------
+Parameters:
+  NeonApiUserParam:
+    Type: AWS::SSM::Parameter::Name
+    Default: /neon/api_user
+    Description: Parameter holding the Neon API user (org ID).
+  NeonApiKeyParam:
+    Type: AWS::SSM::Parameter::Name
+    Default: /neon/api_key
+    Description: >
+      Parameter holding the Neon API key. The default is the key the door sync uses.
+      This server only reads, so point it at a read-only key if you have one.
+  AltaApiUserParam:
+    Type: AWS::SSM::Parameter::Name
+    Default: /altaopen/api_user
+    Description: Parameter holding the Alta Open API user.
+  AltaApiKeyParam:
+    Type: AWS::SSM::Parameter::Name
+    Default: /altaopen/api_key
+    Description: >
+      Parameter holding the Alta Open API key. The default is the key the door sync uses.
+      This server only reads, so point it at a read-only key if you have one.
+  GoogleClientIdParam:
+    Type: AWS::SSM::Parameter::Name
+    Default: /asmbly-mcp/google_client_id
+    Description: Parameter holding the Google OAuth client ID used for sign-in (see DEPLOY.md).
+  GoogleClientSecretParam:
+    Type: AWS::SSM::Parameter::Name
+    Default: /asmbly-mcp/google_client_secret
+    Description: Parameter holding the Google OAuth client secret. Store it as a SecureString.
+
+  AllowedEmailDomain:
+    Type: String
+    Default: asmbly.org
+    Description: Only Google accounts with a verified email at this domain can use the server.
+  PublicUrl:
+    Type: String
+    Default: ''
+    Description: >
+      Leave empty. Set only if the server is put behind a custom domain
+      (for example https://mcp.asmbly.org), so sign-in links use that address.
+
+Resources:
+  McpFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      # paths are relative to this file: build from the repo root
+      DockerContext: ../..
+      Dockerfile: asmbly_mcp/Dockerfile
+      DockerTag: latest
+    Properties:
+      # Named explicitly so the permissions below can refer to the function
+      # without CloudFormation seeing a circular reference.
+      FunctionName: !Ref AWS::StackName
+      Description: Asmbly MCP server for claude.ai (door access troubleshooting)
+      PackageType: Image
+      Architectures: [arm64]
+      MemorySize: 1024
+      Timeout: 30
+      LoggingConfig:
+        LogGroup: !Ref McpLogGroup
+      # Public HTTPS address. It has to be reachable from the internet because
+      # Claude connects from Anthropic's servers. AuthType NONE means AWS itself
+      # doesn't check who is calling; the server does, by requiring Google sign-in
+      # on every MCP request (asmbly_mcp/auth.py).
+      FunctionUrlConfig:
+        AuthType: NONE
+      Environment:
+        Variables:
+          NEON_API_USER_PARAM: !Ref NeonApiUserParam
+          NEON_API_KEY_PARAM: !Ref NeonApiKeyParam
+          ALTA_API_USER_PARAM: !Ref AltaApiUserParam
+          ALTA_API_KEY_PARAM: !Ref AltaApiKeyParam
+          GOOGLE_CLIENT_ID_PARAM: !Ref GoogleClientIdParam
+          GOOGLE_CLIENT_SECRET_PARAM: !Ref GoogleClientSecretParam
+          ALLOWED_EMAIL_DOMAIN: !Ref AllowedEmailDomain
+          SIGN_IN_STATE_TABLE: !Ref SignInStateTable
+          ASMBLY_MCP_PUBLIC_URL: !Ref PublicUrl
+      # Everything the server is allowed to do in AWS. Nothing else.
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Sid: ReadOnlyTheSixKeys
+              Effect: Allow
+              Action: ssm:GetParameters
+              Resource:
+                - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${NeonApiUserParam}
+                - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${NeonApiKeyParam}
+                - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${AltaApiUserParam}
+                - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${AltaApiKeyParam}
+                - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GoogleClientIdParam}
+                - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GoogleClientSecretParam}
+            - Sid: KeepSignInState
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+                - dynamodb:DescribeTable
+                - dynamodb:DescribeTimeToLive
+              Resource: !GetAtt SignInStateTable.Arn
+            - Sid: LookUpItsOwnPublicUrl
+              Effect: Allow
+              Action: lambda:GetFunctionUrlConfig
+              Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}
+
+  # Who is signed in. Holds registered Claude clients and (encrypted) sign-in
+  # tokens so people stay signed in between Lambda runs. No member data.
+  # Safe to delete: everyone just signs in again.
+  SignInStateTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: collection
+          AttributeType: S
+        - AttributeName: key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: collection
+          KeyType: HASH
+        - AttributeName: key
+          KeyType: RANGE
+      # expired sign-ins are removed automatically
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  McpLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}
+      RetentionInDays: 90
+
+Outputs:
+  ConnectorUrl:
+    Description: Paste this into claude.ai (Organization settings > Connectors > Add > Custom).
+    Value: !Sub ${McpFunctionUrl.FunctionUrl}mcp
+  GoogleRedirectUri:
+    Description: Add this to the Google OAuth client under "Authorized redirect URIs".
+    Value: !Sub ${McpFunctionUrl.FunctionUrl}auth/callback
+  LogGroup:
+    Description: Where the server's logs go (CloudWatch).
+    Value: !Ref McpLogGroup

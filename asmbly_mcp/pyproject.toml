@@ -1,0 +1,35 @@
+# Dependencies for the Asmbly MCP server only.
+# Kept apart from the repo's root pyproject.toml so nothing here can change
+# what the door sync (Lambda + adminbot) installs.
+[project]
+name = "asmbly-mcp"
+version = "0.1.0"
+description = "MCP server that lets Claude answer Asmbly questions (door access troubleshooting)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=4.0,<5",
+    # stores sign-in state in DynamoDB when hosted on AWS
+    "py-key-value-aio[dynamodb]>=0.4.6",
+    "uvicorn>=0.30",
+    # needed by the shared repo code this server reuses (neonUtil, openPathUtil)
+    "boto3>=1.40",
+    "pytz>=2025.2",
+    "requests>=2.32.5",
+    "tenacity>=9.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "pytest-asyncio>=1.0",
+    "requests-mock>=1.12",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+# repo root (neonUtil, openPathUtil, the asmbly_mcp package) and the shared Neon mock helpers
+pythonpath = ["..", "../tests"]
+testpaths = ["tests"]
+asyncio_mode = "auto"

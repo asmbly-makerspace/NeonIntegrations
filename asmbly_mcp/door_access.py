@@ -4,12 +4,12 @@
 # Walks through every reason a member's door access might not work and
 # reports a pass/fail checklist with a suggested fix for each failure.
 #
-# Usage from the command line:
-#   uv run doorAccessCheck.py 1234                 (Neon account ID)
-#   uv run doorAccessCheck.py jane@example.com     (email)
-#   uv run doorAccessCheck.py "Jane Doe"           (name)
+# Usage from the command line (run from the repo root):
+#   uv run --project asmbly_mcp python -m asmbly_mcp.door_access 1234
+#   uv run --project asmbly_mcp python -m asmbly_mcp.door_access jane@example.com
+#   uv run --project asmbly_mcp python -m asmbly_mcp.door_access "Jane Doe"
 #
-# The same functions back the Claude MCP server in doorAccessMcp.py
+# The same functions back the MCP tools in tools.py
 ###############################################################################
 
 import datetime
@@ -50,7 +50,7 @@ ALTA_STATUS = {"A": "Active", "I": "Inactive", "S": "Suspended", "P": "Pending"}
 
 # Account types that get door access without meeting any of the member requirements.
 # Keep in step with neonUtil.accountHasFacilityAccess() and openPathUtil.getOpGroups()
-# (tests/test_doorAccessCheck.py fails if these drift apart).
+# (asmbly_mcp/tests/test_door_access.py fails if these drift apart).
 EXEMPT_TYPES = (
     neonUtil.STAFF_TYPE,
     neonUtil.LEAD_TYPE,
@@ -411,7 +411,7 @@ def checkMember(query: str):
 def main():
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
     if len(sys.argv) < 2:
-        print(f'Usage: {sys.argv[0]} <Neon ID | email | "First Last">')
+        print('Usage: python -m asmbly_mcp.door_access <Neon ID | email | "First Last">')
         sys.exit(1)
     print(checkMember(" ".join(sys.argv[1:])))
 

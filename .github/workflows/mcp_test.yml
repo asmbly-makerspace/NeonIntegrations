@@ -1,0 +1,23 @@
+name: Test Asmbly MCP server
+
+# Runs the tests in asmbly_mcp/ with that folder's own dependencies.
+# (The repo-wide "Run pytest" workflow also collects them, but skips the
+# ones that need the MCP libraries.)
+on:
+  pull_request:
+    branches:
+    - main
+  push:
+    branches:
+    - '*'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Run pytest
+        working-directory: asmbly_mcp
+        run: uv run pytest

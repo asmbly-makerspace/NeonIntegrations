@@ -2,10 +2,10 @@ import itertools
 
 import pytest
 
-import doorAccessCheck
 import neonUtil
 import openPathUtil
-from doorAccessCheck import PASS, FAIL, WARN, SKIP
+from asmbly_mcp import door_access
+from asmbly_mcp.door_access import PASS, FAIL, WARN, SKIP
 from neon_mocker import NeonUserMock, today_plus
 from neonUtil import (
     MEMBERSHIP_ID_REGULAR, N_baseURL, STAFF_TYPE, LEAD_TYPE, DIRECTOR_TYPE, SUPER_TYPE,
@@ -45,7 +45,7 @@ def test_everything_ok(requests_mock):
     account.mock(requests_mock)
     mock_alta(requests_mock, groups=[{"id": GROUP_SUBSCRIBERS, "name": "Subscribers"}], creds=MOBILE)
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
 
     assert set(statuses(result).values()) == {PASS}
     assert "Everything checks out" in result["verdict"]
@@ -60,7 +60,7 @@ def test_suspended_member_flags_suspension_and_extra_group(requests_mock):
     account.mock(requests_mock)
     mock_alta(requests_mock, groups=[{"id": GROUP_SUBSCRIBERS, "name": "Subscribers"}], creds=MOBILE)
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
     s = statuses(result)
 
     assert s["Access not suspended"] == FAIL
@@ -73,7 +73,7 @@ def test_missing_waiver_and_tour_without_alta_account(requests_mock):
     account = NeonUserMock().add_membership(MEMBERSHIP_ID_REGULAR, start, end, fee=100.0)
     account.mock(requests_mock)
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
     s = statuses(result)
 
     assert s["Membership paid and current"] == PASS
@@ -89,7 +89,7 @@ def test_failed_payment_is_explained(requests_mock):
     account.mock(requests_mock)
     mock_alta(requests_mock, creds=MOBILE)
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
     membership = result["checks"][0]
 
     assert membership["status"] == FAIL
@@ -101,19 +101,19 @@ def test_valid_member_missing_group_and_credential(requests_mock):
     account.mock(requests_mock)
     mock_alta(requests_mock, groups=[{"id": GROUP_SPECIAL_EVENT, "name": "Special Event"}])
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
     s = statuses(result)
 
     assert s["Alta Open groups correct"] == FAIL
     assert s["Has a door credential"] == FAIL
-    assert "openPathUpdateSingle.py" in doorAccessCheck.formatReport(result)
+    assert "openPathUpdateSingle.py" in door_access.formatReport(result)
 
 
 def test_valid_member_without_alta_account(requests_mock):
     account = good_member(open_path_id=None)
     account.mock(requests_mock)
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
 
     assert statuses(result)["Alta Open account exists"] == FAIL
 
@@ -123,7 +123,7 @@ def test_inactive_alta_user(requests_mock):
     account.mock(requests_mock)
     mock_alta(requests_mock, status="I", groups=[{"id": GROUP_SUBSCRIBERS}], creds=MOBILE)
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
 
     assert statuses(result)["Alta Open account active"] == FAIL
 
@@ -140,7 +140,7 @@ def test_staff_without_membership_is_ok(requests_mock):
     account = NeonUserMock(open_path_id=ALTA_ID, individualTypes=[STAFF_TYPE])
     mock_alta_with_expected_groups(requests_mock, account.mock(requests_mock))
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
     s = statuses(result)
 
     assert s["Membership paid and current"] == SKIP
@@ -150,7 +150,7 @@ def test_staff_without_membership_is_ok(requests_mock):
     assert result["shouldHaveDoorAccess"]
     assert "Everything checks out" in result["verdict"]
 
-    report = doorAccessCheck.formatReport(result)
+    report = door_access.formatReport(result)
     assert f"Account type: {STAFF_TYPE}" in report
     assert f"a {STAFF_TYPE} account doesn't need a paid membership" in report
 
@@ -161,7 +161,7 @@ def test_leader_gets_management_without_membership(requests_mock):
     assert openPathUtil.getOpGroups(neonAccount) == [GROUP_MANAGEMENT]
     mock_alta_with_expected_groups(requests_mock, neonAccount)
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
 
     assert FAIL not in statuses(result).values()
     assert result["shouldHaveDoorAccess"]
@@ -171,7 +171,7 @@ def test_suspended_staff_is_a_warning_not_a_failure(requests_mock):
     account = NeonUserMock(open_path_id=ALTA_ID, individualTypes=[STAFF_TYPE], access_suspended=True)
     mock_alta_with_expected_groups(requests_mock, account.mock(requests_mock))
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
 
     assert statuses(result)["Access not suspended"] == WARN
     assert "still have access" in result["checks"][1]["detail"]
@@ -184,7 +184,7 @@ def test_coworking_tenant_can_have_lapsed_membership(requests_mock):
         .add_membership(MEMBERSHIP_ID_REGULAR, today_plus(-90), today_plus(-60), fee=100.0)
     mock_alta_with_expected_groups(requests_mock, account.mock(requests_mock))
 
-    result = doorAccessCheck.diagnose(account.account_id)
+    result = door_access.diagnose(account.account_id)
     s = statuses(result)
 
     assert s["Membership paid and current"] == SKIP
@@ -195,7 +195,7 @@ def test_coworking_tenant_still_needs_waiver(requests_mock):
     account = NeonUserMock(facility_tour_date=tour, individualTypes=[COWORKING_TYPE])
     account.mock(requests_mock)
 
-    s = statuses(doorAccessCheck.diagnose(account.account_id))
+    s = statuses(door_access.diagnose(account.account_id))
 
     assert s["Membership paid and current"] == SKIP
     assert s["Waiver signed"] == FAIL
@@ -206,7 +206,7 @@ def test_regular_member_report_names_account_type(requests_mock):
     account.mock(requests_mock)
     mock_alta(requests_mock, groups=[{"id": GROUP_SUBSCRIBERS}], creds=MOBILE)
 
-    report = doorAccessCheck.formatReport(doorAccessCheck.diagnose(account.account_id))
+    report = door_access.formatReport(door_access.diagnose(account.account_id))
 
     assert "Account type: regular member" in report
 
@@ -231,7 +231,7 @@ def test_report_agrees_with_real_sync_rules(requests_mock, accountType):
         syncGrantsAccess = (neonUtil.accountHasFacilityAccess(neonAccount)
                             or GROUP_MANAGEMENT in openPathUtil.getOpGroups(neonAccount))
 
-        s = statuses(doorAccessCheck.diagnose(account.account_id))
+        s = statuses(door_access.diagnose(account.account_id))
         reportSaysOk = all(s[name] != FAIL for name in NEON_CHECKS)
 
         assert reportSaysOk == syncGrantsAccess, (accountType, paid, waiver, toured, suspended, s)
@@ -243,7 +243,7 @@ def test_check_member_asks_when_several_match(requests_mock):
         {"Account ID": "2", "First Name": "Jane", "Last Name": "Doer", "Email 1": "b@x.com"},
     ]})
 
-    report = doorAccessCheck.checkMember("Jane Doe")
+    report = door_access.checkMember("Jane Doe")
 
     assert "Found 2" in report
     assert "Neon #1" in report and "Neon #2" in report
@@ -258,7 +258,7 @@ def test_check_member_by_email_runs_full_check(requests_mock):
     search = requests_mock.post(f"{N_baseURL}/accounts/search",
                                 json={"searchResults": [account.search_result()]})
 
-    report = doorAccessCheck.checkMember(account.email)
+    report = door_access.checkMember(account.email)
 
     assert search.last_request.json()["searchFields"][0]["field"] == "Email"
     assert "Verdict: Everything checks out" in report
@@ -267,11 +267,11 @@ def test_check_member_by_email_runs_full_check(requests_mock):
 def test_check_member_none_found(requests_mock):
     requests_mock.post(f"{N_baseURL}/accounts/search", json={"searchResults": []})
 
-    assert "No Neon account found" in doorAccessCheck.checkMember("nobody@example.com")
+    assert "No Neon account found" in door_access.checkMember("nobody@example.com")
 
 
 def test_bad_api_key_explained(requests_mock):
     requests_mock.post(f"{N_baseURL}/accounts/search", status_code=401, text="Unauthorized")
-    doorAccessCheck.neonUtil._neon_search.retry.sleep = lambda _: None
+    door_access.neonUtil._neon_search.retry.sleep = lambda _: None
 
-    assert "API key" in doorAccessCheck.checkMember("someone@example.com")
+    assert "API key" in door_access.checkMember("someone@example.com")

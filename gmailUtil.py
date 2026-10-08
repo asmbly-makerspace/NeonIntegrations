@@ -4,7 +4,7 @@ import os
 if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
     from aws_ssm import G_user, G_password
 else:
-    # Gmail creds are optional so read-only tools (doorAccessCheck) work without them
+    # Gmail creds are optional so read-only tools (asmbly_mcp) work without them
     import config
     G_user = getattr(config, "G_user", None)
     G_password = getattr(config, "G_password", None)

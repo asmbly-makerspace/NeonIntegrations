@@ -1,0 +1,56 @@
+name: Deploy Asmbly MCP server
+
+# Started by hand: Actions tab > "Deploy Asmbly MCP server" > Run workflow.
+# It is not automatic because the first deploy needs one-time setup
+# (see asmbly_mcp/DEPLOY.md). To deploy on every merge once that's done,
+# add a `push: branches: [main]` trigger with `paths: [asmbly_mcp/**]`.
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-2
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    # only ever deploy reviewed code from main
+    if: ${{ github.repository == 'asmbly-makerspace/NeonIntegrations' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    name: Build and deploy the Asmbly MCP server
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # The role needs permission to deploy the asmbly-mcp stack (see asmbly_mcp/DEPLOY.md)
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v5
+      with:
+        role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    # the Lambda runs on arm64; this lets the x86 runner build for it
+    - name: Setup QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: arm64
+
+    - name: Setup SAM CLI
+      uses: aws-actions/setup-sam@v2
+      with:
+        use-installer: true
+
+    - name: Build
+      working-directory: asmbly_mcp/infra
+      run: sam build
+
+    - name: Deploy
+      working-directory: asmbly_mcp/infra
+      run: sam deploy --no-confirm-changeset --no-fail-on-empty-changeset

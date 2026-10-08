@@ -1,7 +1,8 @@
 ###############################################################################
-# One-time guided setup for the Claude door access tool.
+# One-time guided setup for using the Asmbly MCP server on your own computer.
+# Run it from the repo root:
 #
-#   uv run --group door-access setup_door_access.py
+#   uv run --project asmbly_mcp asmbly_mcp/setup_local.py
 #
 # It will:
 #   1. Ask for your Neon and Alta Open API keys (only if config.py lacks them)
@@ -23,9 +24,11 @@ from pathlib import Path
 
 import requests
 
-REPO = Path(__file__).resolve().parent
+MCP_DIR = Path(__file__).resolve().parent
+REPO = MCP_DIR.parent
 CONFIG = REPO / "config.py"
-SERVER_NAME = "asmbly-door-access"
+SERVER_NAME = "asmbly"
+OLD_SERVER_NAMES = ["asmbly-door-access"]  # what earlier versions of this setup registered
 
 NEEDED = {
     "N_APIuser": "Neon API user (your Neon org ID, e.g. 'asmbly')",
@@ -93,7 +96,7 @@ def step_keys():
     with open(CONFIG, "a") as f:
         if new:
             f.write("# API keys - this file is ignored by git. Never commit or share it.\n")
-        f.write("\n# Added by setup_door_access.py\n" + "\n".join(lines) + "\n")
+        f.write("\n# Added by asmbly_mcp/setup_local.py\n" + "\n".join(lines) + "\n")
     os.chmod(CONFIG, 0o600)
     ok(f"Saved to {CONFIG}")
     return values
@@ -155,9 +158,10 @@ def server_command():
     # Claude Desktop doesn't see your shell's PATH, so use the full path to uv
     uv = shutil.which("uv")
     if not uv:
-        bad("Can't find 'uv'. Install it (see DOOR_ACCESS_SETUP.md) and run this again.")
+        bad("Can't find 'uv'. Install it (see asmbly_mcp/LOCAL_SETUP.md) and run this again.")
         sys.exit(1)
-    return uv, ["--directory", str(REPO), "run", "--group", "door-access", "doorAccessMcp.py"]
+    # run from the repo root (so neonUtil and config.py are found) with this folder's own dependencies
+    return uv, ["--directory", str(REPO), "--project", str(MCP_DIR), "run", "python", "-m", "asmbly_mcp.local"]
 
 
 def step_install():
@@ -177,7 +181,10 @@ def step_install():
             if data is not None:
                 shutil.copy(path, path.with_suffix(".json.bak"))
         if data is not None:
-            data.setdefault("mcpServers", {})[SERVER_NAME] = {"command": uv, "args": args}
+            servers = data.setdefault("mcpServers", {})
+            for old in OLD_SERVER_NAMES:
+                servers.pop(old, None)
+            servers[SERVER_NAME] = {"command": uv, "args": args}
             path.write_text(json.dumps(data, indent=2) + "\n")
             ok("Added to Claude Desktop")
             say("     → Fully QUIT Claude Desktop (Cmd+Q on Mac, not just close the window) and reopen it.")
@@ -190,7 +197,8 @@ def step_install():
     question = "  Add the tool to Claude Code?" if not installed else "  Add the tool to Claude Code too?"
     if claude and ask_yes(question, default=not installed):
         # remove any earlier copy first so running setup twice doesn't fail
-        subprocess.run([claude, "mcp", "remove", "--scope", "user", SERVER_NAME], capture_output=True, text=True)
+        for name in [SERVER_NAME, *OLD_SERVER_NAMES]:
+            subprocess.run([claude, "mcp", "remove", "--scope", "user", name], capture_output=True, text=True)
         result = subprocess.run(
             [claude, "mcp", "add", "--scope", "user", SERVER_NAME, "--", uv, *args],
             capture_output=True, text=True,
@@ -208,7 +216,7 @@ def step_install():
 
 
 def main():
-    say("Asmbly door access tool setup")
+    say("Asmbly MCP server: local setup")
     say("=" * 30)
     values = step_keys()
     step_test(values)
@@ -216,7 +224,7 @@ def main():
     say("\nAll done! In Claude, try:")
     say('  "Check door access for jane@example.com"')
     say("\nYou can also run a check without Claude:")
-    say("  uv run doorAccessCheck.py jane@example.com")
+    say("  uv run --project asmbly_mcp python -m asmbly_mcp.door_access jane@example.com")
 
 
 if __name__ == "__main__":

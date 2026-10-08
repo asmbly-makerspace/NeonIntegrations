@@ -1,0 +1,18 @@
+# Deploy settings for `sam build` / `sam deploy`. Run both from this folder.
+# Nothing secret belongs in this file.
+version = 0.1
+
+[default.global.parameters]
+stack_name = "asmbly-mcp"
+region = "us-east-2"
+
+[default.build.parameters]
+template_file = "template.yaml"
+
+[default.deploy.parameters]
+# the server's permissions are created by the template
+capabilities = "CAPABILITY_IAM"
+# SAM creates and manages the ECR repository the image is pushed to
+resolve_image_repos = true
+# show what will change and ask before changing it
+confirm_changeset = true

@@ -75,9 +75,9 @@ All logs from the scripts are recorded in AWS cloudwatch. The log group for alta
 
 For systemd timers, logging is configered by redirecting stdout and stdin to a dedicated logging file for each timer, which is then tailed and uploaded by amazon cloudwatch agent. On adminbot, see the systemd configeration files and `/home/ec2-user/robz` for how to update it.
 
-## Door access troubleshooter (Claude)
+## Asmbly MCP server (Claude)
 
-Ask Claude why a member can't get in the door and get a checklist of Neon and Alta Open checks back. Setup steps: [DOOR_ACCESS_SETUP.md](DOOR_ACCESS_SETUP.md)
+Lets Claude answer Asmbly questions, starting with "why can't this member get in the door?". It lives in its own folder, [asmbly_mcp/](asmbly_mcp/README.md), with its own dependencies, tests and AWS deployment. It only reads from Neon and Alta Open.
 
 ## Entrypoints:
 

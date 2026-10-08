@@ -1,4 +1,6 @@
-# Door Access Troubleshooter for Claude
+# Use the Asmbly MCP server on your own computer
+
+This guide sets the server up on one computer. To make it available to the whole Asmbly org on claude.ai, see [DEPLOY.md](DEPLOY.md).
 
 Ask Claude *"Why can't jane@example.com get in the door?"* and get back a checklist like this:
 
@@ -69,7 +71,7 @@ If you get `git: command not found` (common on Windows), go to the [repo on GitH
 
 ```
 cd NeonIntegrations
-uv run --group door-access setup_door_access.py
+uv run --project asmbly_mcp asmbly_mcp/setup_local.py
 ```
 
 It will:
@@ -80,7 +82,7 @@ It will:
 ### 5. Restart Claude
 
 - **Claude Desktop:** fully quit it (Mac: `Cmd + Q`. Windows: right-click the Claude icon in the system tray, then **Quit**) and open it again.
-- **Claude Code:** start a new session. Type `/mcp` to confirm `asmbly-door-access` is connected.
+- **Claude Code:** start a new session. Type `/mcp` to confirm `asmbly` is connected.
 
 ### 6. Try it
 
@@ -127,10 +129,10 @@ If everything passes, the problem is most likely the phone (Bluetooth or locatio
 |---|---|
 | `uv: command not found` | Close the terminal, open a new one, and try again. If it still fails, redo step 2. |
 | Setup says a key doesn't work | Open `config.py` in the `NeonIntegrations` folder with any text editor and fix the value, then run step 4 again. |
-| Claude doesn't seem to have the tool | Fully quit and reopen Claude Desktop. In Claude, open **Settings → Developer**: `asmbly-door-access` should be listed as **running**. If it shows an error, click it to see the log. |
+| Claude doesn't seem to have the tool | Fully quit and reopen Claude Desktop. In Claude, open **Settings → Developer**: `asmbly` should be listed as **running**. If it shows an error, click it to see the log. |
 | "API key ... wrong or lacks permission" in the chat | The key in `config.py` changed or expired. Get the new one and edit `config.py`. |
-| Claude Code doesn't have the tool | Start a new session and type `/mcp`. If `asmbly-door-access` isn't listed, run the setup again and press Enter at the Claude Code question. |
-| Run a check without Claude | `uv run doorAccessCheck.py jane@example.com` from the `NeonIntegrations` folder |
+| Claude Code doesn't have the tool | Start a new session and type `/mcp`. If `asmbly` isn't listed, run the setup again and press Enter at the Claude Code question. |
+| Run a check without Claude | `uv run --project asmbly_mcp python -m asmbly_mcp.door_access jane@example.com` from the `NeonIntegrations` folder |
 
 **Keep `config.py` private.** It holds the keys that control door access. Git already ignores it, but don't email or paste it anywhere.
 
@@ -138,9 +140,4 @@ If everything passes, the problem is most likely the phone (Bluetooth or locatio
 
 ## For developers
 
-- `doorAccessCheck.py`: the checks. Uses `neonUtil` / `openPathUtil`, so it always matches the real sync logic (`openPathUtil.getOpGroups`).
-- `doorAccessMcp.py`: the MCP server (stdio) that exposes `check_door_access` and `find_member`.
-- `setup_door_access.py`: guided setup. It merges into `claude_desktop_config.json` and saves a `.bak` copy first.
-- Tests: `tests/test_doorAccessCheck.py`
-- The `mcp` package lives in the `door-access` dependency group, so it isn't installed into the Lambda image.
-- Team-wide claude.ai connector (no local install): not built yet. It would need the server hosted remotely with authentication in front of it, plus read-only Neon and Alta Open API users.
+See [README.md](README.md) in this folder for how the code is laid out.
