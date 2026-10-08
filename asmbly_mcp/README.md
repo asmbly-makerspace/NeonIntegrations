@@ -11,7 +11,7 @@ Everything for the server lives in this folder: code, dependencies, tests, conta
 | | On your own computer | Hosted for the whole org |
 |---|---|---|
 | Status | **Works today** | **Not ready. Do not deploy.** |
-| Who can use it | You, in Claude Code or Claude Desktop | People in the Asmbly org on claude.ai whose Neon account type allows it |
+| Who can use it | You, in Claude Code or Claude Desktop | Neon Administrators and the Education Team, from claude.ai at `mcp.asmbly.org` |
 | Sign-in | None (it's your machine) | Not built yet. It waits on the Asmbly Login Service. |
 | Where the API keys come from | `config.py` at the repo root (ignored by git) | AWS Parameter Store |
 | Guide | [LOCAL_SETUP.md](LOCAL_SETUP.md) | [DEPLOY.md](DEPLOY.md) (status and plan) |

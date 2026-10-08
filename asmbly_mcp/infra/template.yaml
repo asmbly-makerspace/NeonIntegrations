@@ -65,10 +65,11 @@ Parameters:
 
   PublicUrl:
     Type: String
-    Default: ''
+    Default: https://mcp.asmbly.org
     Description: >
-      Leave empty. Set only if the server is put behind a custom domain
-      (for example https://mcp.asmbly.org), so sign-in links use that address.
+      The address people and claude.ai reach the server at. Sign-in links are built
+      from it. The certificate and DNS record that point this name at the function
+      are not in this template yet (see ../DEPLOY.md).
 
 Resources:
   McpFunction:
@@ -79,8 +80,6 @@ Resources:
       Dockerfile: asmbly_mcp/Dockerfile
       DockerTag: latest
     Properties:
-      # Named explicitly so the permissions below can refer to the function
-      # without CloudFormation seeing a circular reference.
       FunctionName: !Ref AWS::StackName
       Description: Asmbly MCP server for claude.ai (door access troubleshooting)
       PackageType: Image
@@ -124,10 +123,6 @@ Resources:
                 - dynamodb:DescribeTable
                 - dynamodb:DescribeTimeToLive
               Resource: !GetAtt SignInStateTable.Arn
-            - Sid: LookUpItsOwnPublicUrl
-              Effect: Allow
-              Action: lambda:GetFunctionUrlConfig
-              Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}
 
   # Who is signed in. Holds registered Claude clients and (encrypted) sign-in
   # tokens so people stay signed in between Lambda runs. No member data.
@@ -164,7 +159,10 @@ Resources:
 Outputs:
   ConnectorUrl:
     Description: Paste this into claude.ai (Organization settings > Connectors > Add > Custom).
-    Value: !Sub ${McpFunctionUrl.FunctionUrl}mcp
+    Value: !Sub ${PublicUrl}/mcp
+  FunctionAddress:
+    Description: The function's own AWS address, which the PublicUrl name has to be pointed at.
+    Value: !GetAtt McpFunctionUrl.FunctionUrl
   LogGroup:
     Description: Where the server's logs go (CloudWatch).
     Value: !Ref McpLogGroup

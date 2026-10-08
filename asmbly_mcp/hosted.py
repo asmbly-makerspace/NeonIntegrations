@@ -6,7 +6,7 @@
 # Asmbly Login Service (see DEPLOY.md). Use local.py in the meantime.
 #
 # What's already here and carries over:
-#   - Reached over HTTPS at  <public url>/mcp
+#   - Reached over HTTPS at  https://mcp.asmbly.org/mcp
 #   - API keys come from AWS Parameter Store (aws_keys.py), never from this repo
 #   - The AWS resources are defined in infra/template.yaml
 # The container starts it with:  uvicorn asmbly_mcp.hosted:createApp --factory
@@ -14,7 +14,6 @@
 
 import os
 
-import boto3
 from starlette.responses import PlainTextResponse
 
 MCP_PATH = "/mcp"
@@ -26,17 +25,10 @@ PARKED = (
 )
 
 
-def lookUpPublicUrl() -> str:
-    # Set this only if the server sits behind a custom domain
-    configured = os.environ.get("ASMBLY_MCP_PUBLIC_URL")
-    if configured:
-        return configured.rstrip("/")
-
-    # Otherwise ask Lambda for this function's own public URL. (It can't be passed in
-    # as a setting: the URL doesn't exist until after the function is created.)
-    functionName = os.environ["AWS_LAMBDA_FUNCTION_NAME"]
-    url = boto3.client("lambda").get_function_url_config(FunctionName=functionName)["FunctionUrl"]
-    return url.rstrip("/")
+def publicUrl() -> str:
+    # The address people reach the server at (https://mcp.asmbly.org), set in infra/template.yaml.
+    # Sign-in links are built from it.
+    return os.environ["ASMBLY_MCP_PUBLIC_URL"].rstrip("/")
 
 
 def buildApp(*, signIn):
@@ -60,5 +52,5 @@ def buildApp(*, signIn):
 
 def createApp():
     # Once sign-in exists, this loads the keys (aws_keys.load, aws_keys.installForSharedCode)
-    # and returns buildApp(signIn=...), using lookUpPublicUrl() and auth.buildStorage().
+    # and returns buildApp(signIn=...), using publicUrl() and auth.buildStorage().
     raise RuntimeError(PARKED)
