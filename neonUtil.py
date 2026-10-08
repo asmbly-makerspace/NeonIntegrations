@@ -21,8 +21,9 @@ else:
 
 # I'm not absolutely certain NeonCRM thinks it's in central time, but it's in the ballpark.
 # pacific time might be slightly more accurate.  Maybe I'll ask their support.
-today = datetime.datetime.now(pytz.timezone("America/Chicago")).date()
-yesterday = today - datetime.timedelta(days=1)
+def getToday():
+    # Don't cache this at import: the Lambda reuses this module across days
+    return datetime.datetime.now(pytz.timezone("America/Chicago")).date()
 
 
 dryRun = False
@@ -168,6 +169,9 @@ class RateLimiter:
 def appendMemberships(account: dict, detailed=False):
     # this should be a pretty thorough check for sane argument
     assert int(account.get("Account ID")) > 0
+
+    today = getToday()
+    yesterday = today - datetime.timedelta(days=1)
 
     # Neon counts a failed renewal as a valid subscription so long as automatic renewal is enabled.
     # WE only think a subscription is valid if the payment transaction was successful, so check payment status.
@@ -508,6 +512,7 @@ def getRealAccounts():
     progress = 0
     counter = 0
 
+    yesterday = getToday() - datetime.timedelta(days=1)
     accounts_to_fetch = []
     for account in neonAccountDict:
         accountCount += 1
