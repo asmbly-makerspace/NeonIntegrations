@@ -1,23 +1,29 @@
 ###############################################################################
-# Hosted server: runs on AWS Lambda so the whole org can use it from claude.ai.
+# Hosted server: meant to run on AWS Lambda so the whole org can use it from
+# claude.ai.
 #
+# PARKED. It has no sign-in yet, so it refuses to start. It waits on the
+# Asmbly Login Service (see DEPLOY.md). Use local.py in the meantime.
+#
+# What's already here and carries over:
 #   - Reached over HTTPS at  <public url>/mcp
-#   - People sign in with Google; only the allowed domain gets in (auth.py)
 #   - API keys come from AWS Parameter Store (aws_keys.py), never from this repo
-#
-# The AWS resources are defined in infra/template.yaml. See DEPLOY.md.
+#   - The AWS resources are defined in infra/template.yaml
 # The container starts it with:  uvicorn asmbly_mcp.hosted:createApp --factory
 ###############################################################################
 
-import logging
 import os
 
 import boto3
 from starlette.responses import PlainTextResponse
 
-from asmbly_mcp import auth, aws_keys
-
 MCP_PATH = "/mcp"
+
+PARKED = (
+    "Hosted mode is parked: it has no sign-in yet, so it will not start. "
+    "It waits on the Asmbly Login Service. See asmbly_mcp/DEPLOY.md. "
+    "Use the local server (asmbly_mcp/local.py) in the meantime."
+)
 
 
 def lookUpPublicUrl() -> str:
@@ -33,16 +39,14 @@ def lookUpPublicUrl() -> str:
     return url.rstrip("/")
 
 
-def buildApp(*, googleClientId: str, googleClientSecret: str, publicUrl: str, allowedDomain: str, storage):
+def buildApp(*, signIn):
+    # This server reaches member data over a public address. Never build it without sign-in.
+    if signIn is None:
+        raise ValueError("Refusing to build the hosted server without sign-in.")
+
     from asmbly_mcp.tools import buildServer
 
-    mcp = buildServer(auth=auth.buildGoogleAuth(
-        clientId=googleClientId,
-        clientSecret=googleClientSecret,
-        publicUrl=publicUrl,
-        allowedDomain=allowedDomain,
-        storage=storage,
-    ))
+    mcp = buildServer(auth=signIn)
 
     # No sign-in needed. The Lambda Web Adapter polls this to know the server is up.
     @mcp.custom_route("/health", methods=["GET"])
@@ -55,17 +59,6 @@ def buildApp(*, googleClientId: str, googleClientSecret: str, publicUrl: str, al
 
 
 def createApp():
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    # basicConfig does nothing if the host already set up logging, so set the level too
-    logging.getLogger().setLevel(logging.INFO)
-
-    keys = aws_keys.load()
-    aws_keys.installForSharedCode(keys)
-
-    return buildApp(
-        googleClientId=keys["googleClientId"],
-        googleClientSecret=keys["googleClientSecret"],
-        publicUrl=lookUpPublicUrl(),
-        allowedDomain=os.environ["ALLOWED_EMAIL_DOMAIN"],
-        storage=auth.buildStorage(os.environ["SIGN_IN_STATE_TABLE"], keys["googleClientSecret"]),
-    )
+    # Once sign-in exists, this loads the keys (aws_keys.load, aws_keys.installForSharedCode)
+    # and returns buildApp(signIn=...), using lookUpPublicUrl() and auth.buildStorage().
+    raise RuntimeError(PARKED)

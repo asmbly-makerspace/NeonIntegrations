@@ -1,9 +1,12 @@
 name: Deploy Asmbly MCP server
 
+# PARKED. The hosted server has no sign-in yet; it waits on the Asmbly Login
+# Service (see asmbly_mcp/DEPLOY.md). The first step below stops the run with
+# that message. Remove that step when sign-in is built.
+#
 # Started by hand: Actions tab > "Deploy Asmbly MCP server" > Run workflow.
-# It is not automatic because the first deploy needs one-time setup
-# (see asmbly_mcp/DEPLOY.md). To deploy on every merge once that's done,
-# add a `push: branches: [main]` trigger with `paths: [asmbly_mcp/**]`.
+# To deploy on every merge once it's live, add a `push: branches: [main]`
+# trigger with `paths: [asmbly_mcp/**]`.
 on:
   workflow_dispatch:
 
@@ -26,6 +29,11 @@ jobs:
     name: Build and deploy the Asmbly MCP server
 
     steps:
+    - name: Parked until sign-in is built
+      run: |
+        echo "::error::Hosted mode is parked: it has no sign-in yet and waits on the Asmbly Login Service. See asmbly_mcp/DEPLOY.md."
+        exit 1
+
     - name: Checkout repository
       uses: actions/checkout@v4
 

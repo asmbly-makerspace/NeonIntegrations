@@ -10,10 +10,11 @@ Everything for the server lives in this folder: code, dependencies, tests, conta
 
 | | On your own computer | Hosted for the whole org |
 |---|---|---|
-| Who can use it | You, in Claude Code or Claude Desktop | Anyone in the Asmbly org on claude.ai |
-| Sign-in | None (it's your machine) | Google, `@asmbly.org` accounts only |
+| Status | **Works today** | **Not ready. Do not deploy.** |
+| Who can use it | You, in Claude Code or Claude Desktop | People in the Asmbly org on claude.ai whose Neon account type allows it |
+| Sign-in | None (it's your machine) | Not built yet. It waits on the Asmbly Login Service. |
 | Where the API keys come from | `config.py` at the repo root (ignored by git) | AWS Parameter Store |
-| Guide | [LOCAL_SETUP.md](LOCAL_SETUP.md) | [DEPLOY.md](DEPLOY.md) |
+| Guide | [LOCAL_SETUP.md](LOCAL_SETUP.md) | [DEPLOY.md](DEPLOY.md) (status and plan) |
 
 ## Keys
 
@@ -21,11 +22,10 @@ Everything for the server lives in this folder: code, dependencies, tests, conta
 
 | Key | Used for | Local | Hosted (Parameter Store name) |
 |---|---|---|---|
-| Neon API user and key | Looking up members | `N_APIuser`, `N_APIkey` in `config.py` | `/neon/api_user`, `/neon/api_key` |
-| Alta Open API user and key | Looking up door access | `O_APIuser`, `O_APIkey` in `config.py` | `/altaopen/api_user`, `/altaopen/api_key` |
-| Google OAuth client ID and secret | "Sign in with Google" | not needed | `/asmbly-mcp/google_client_id`, `/asmbly-mcp/google_client_secret` |
+| Neon API user and key | Looking up members | `N_APIuser`, `N_APIkey` in `config.py` | `/asmbly-mcp/neon_api_user`, `/asmbly-mcp/neon_api_key` |
+| Alta Open API user and key | Looking up door access | `O_APIuser`, `O_APIkey` in `config.py` | `/asmbly-mcp/altaopen_api_user`, `/asmbly-mcp/altaopen_api_key` |
 
-The hosted names are settings at the top of [infra/template.yaml](infra/template.yaml). That file is also where the server's AWS permissions are spelled out: it can read those six parameters and nothing else.
+The hosted names are settings at the top of [infra/template.yaml](infra/template.yaml). They are meant to be read-only keys made for this server, not the door sync's keys, which can change door access. That file is also where the server's AWS permissions are spelled out: it can read those four parameters and nothing else. Sign-in settings get added there when sign-in is built.
 
 ## What's in this folder
 
@@ -35,16 +35,16 @@ The hosted names are settings at the top of [infra/template.yaml](infra/template
 | `tools.py` | The tools Claude can call. Shared by both ways of running. |
 | `local.py` | Starts the server on your own computer. |
 | `setup_local.py` | Guided one-time setup for your own computer. |
-| `hosted.py` | Starts the server on AWS. |
-| `auth.py` | Google sign-in and the `asmbly.org`-only rule. |
+| `hosted.py` | The server for AWS. Parked: it refuses to start until sign-in is built. |
+| `auth.py` | Sign-in for the hosted server. Not built yet; holds the parts that carry over. |
 | `aws_keys.py` | Reads the keys from Parameter Store when hosted. |
 | `Dockerfile` | The container image that runs on AWS Lambda. |
-| `infra/template.yaml` | The AWS resources (infrastructure as code, AWS SAM). |
+| `infra/template.yaml` | The AWS resources (infrastructure as code, AWS SAM). Parked: it refuses to deploy. |
 | `infra/samconfig.toml` | Deploy settings: stack name and region. |
 | `pyproject.toml`, `uv.lock` | This folder's own dependencies. |
 | `tests/` | Tests. |
 
-The GitHub workflows are in the repo's `.github/workflows/`: `mcp_test.yml` runs the tests and `mcp_deploy.yml` deploys.
+The GitHub workflows are in the repo's `.github/workflows/`: `mcp_test.yml` runs the tests, and `mcp_deploy.yml` is the deploy, which is parked too.
 
 ## Shared code
 

@@ -77,7 +77,7 @@ For systemd timers, logging is configered by redirecting stdout and stdin to a d
 
 ## Asmbly MCP server (Claude)
 
-Lets Claude answer Asmbly questions, starting with "why can't this member get in the door?". It lives in its own folder, [asmbly_mcp/](asmbly_mcp/README.md), with its own dependencies, tests and AWS deployment. It only reads from Neon and Alta Open.
+Lets Claude answer Asmbly questions, starting with "why can't this member get in the door?". It lives in its own folder, [asmbly_mcp/](asmbly_mcp/README.md), with its own dependencies and tests. It only reads from Neon and Alta Open. Today it runs on your own computer; hosting it for the whole org is planned but not ready.
 
 ## Entrypoints:
 

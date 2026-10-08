@@ -18,8 +18,6 @@ KEY_PARAMS = {
     "NEON_API_KEY_PARAM": "N_APIkey",
     "ALTA_API_USER_PARAM": "O_APIuser",
     "ALTA_API_KEY_PARAM": "O_APIkey",
-    "GOOGLE_CLIENT_ID_PARAM": "googleClientId",
-    "GOOGLE_CLIENT_SECRET_PARAM": "googleClientSecret",
 }
 
 

@@ -18,12 +18,14 @@ INSTRUCTIONS = (
 
 
 def _caller():
-    # Who is asking. Only known when hosted (Google sign-in); local use has no sign-in.
+    # Who is asking. Only known when hosted and signed in; local use has no sign-in.
     try:
         token = get_access_token()
     except Exception:
         return "local"
-    return (token.claims.get("email") if token else None) or "local"
+    if token is None:
+        return "local"
+    return token.claims.get("email") or token.claims.get("sub") or "signed-in user"
 
 
 def buildServer(auth=None) -> FastMCP:

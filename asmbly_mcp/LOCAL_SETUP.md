@@ -1,6 +1,6 @@
 # Use the Asmbly MCP server on your own computer
 
-This guide sets the server up on one computer. To make it available to the whole Asmbly org on claude.ai, see [DEPLOY.md](DEPLOY.md).
+This guide sets the server up on one computer. Hosting it for the whole Asmbly org on claude.ai isn't ready yet; [DEPLOY.md](DEPLOY.md) has the status and plan.
 
 Ask Claude *"Why can't jane@example.com get in the door?"* and get back a checklist like this:
 
