@@ -26,7 +26,7 @@ The tool is **read only**. It looks things up in Neon and Alta Open but never ch
 ## Setup (about 10 minutes, once per computer)
 
 You need:
-- A Mac or Windows computer with the **Claude Desktop app** installed and signed in ([download](https://claude.ai/download))
+- A Mac or Windows computer with the **Claude Desktop app** ([download](https://claude.ai/download)) or **Claude Code** installed and signed in
 - The **Neon API user and key** and the **Alta Open API user and key**. Ask the IT lead (it@asmbly.org). They're the same ones in `config.py` on adminbot.
 
 ### 1. Open a terminal
@@ -42,6 +42,8 @@ Paste each command below into that window and press Enter. Wait for each to fini
 ```
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
+
+(If you use Homebrew, `brew install uv` works too.)
 
 **Windows:**
 ```
@@ -72,11 +74,12 @@ uv run --group door-access setup_door_access.py
 It will:
 1. Ask for the 4 API values. Key typing is hidden, so nothing appears on screen while you type or paste. That's normal; just press Enter.
 2. Test that the keys work. If one fails, it says which one.
-3. Ask *"Add the tool to the Claude Desktop app?"* Press Enter for yes.
+3. Ask whether to add the tool to the Claude Desktop app and/or Claude Code, whichever you have. Press Enter for yes.
 
-### 5. Restart Claude Desktop
+### 5. Restart Claude
 
-**Fully quit** Claude Desktop (Mac: `Cmd + Q`. Windows: right-click the Claude icon in the system tray, then **Quit**) and open it again.
+- **Claude Desktop:** fully quit it (Mac: `Cmd + Q`. Windows: right-click the Claude icon in the system tray, then **Quit**) and open it again.
+- **Claude Code:** start a new session. Type `/mcp` to confirm `asmbly-door-access` is connected.
 
 ### 6. Try it
 
@@ -116,7 +119,7 @@ If everything passes, the problem is most likely the phone (Bluetooth or locatio
 | Setup says a key doesn't work | Open `config.py` in the `NeonIntegrations` folder with any text editor and fix the value, then run step 4 again. |
 | Claude doesn't seem to have the tool | Fully quit and reopen Claude Desktop. In Claude, open **Settings → Developer**: `asmbly-door-access` should be listed as **running**. If it shows an error, click it to see the log. |
 | "API key ... wrong or lacks permission" in the chat | The key in `config.py` changed or expired. Get the new one and edit `config.py`. |
-| Using Claude Code (the terminal app) instead | Run the setup again and answer **y** to the Claude Code question. |
+| Claude Code doesn't have the tool | Start a new session and type `/mcp`. If `asmbly-door-access` isn't listed, run the setup again and press Enter at the Claude Code question. |
 | Run a check without Claude | `uv run doorAccessCheck.py jane@example.com` from the `NeonIntegrations` folder |
 
 **Keep `config.py` private.** It holds the keys that control door access. Git already ignores it, but don't email or paste it anywhere.

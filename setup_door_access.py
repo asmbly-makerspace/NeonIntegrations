@@ -185,14 +185,19 @@ def step_install():
     elif not path.parent.exists():
         say("  Claude Desktop isn't installed on this computer (skipping).")
 
+    # Claude Code is the main choice when there's no Desktop app, otherwise an extra
     claude = shutil.which("claude")
-    if claude and ask_yes("  Add the tool to Claude Code (the terminal app) too?", default=False):
+    question = "  Add the tool to Claude Code?" if not installed else "  Add the tool to Claude Code too?"
+    if claude and ask_yes(question, default=not installed):
+        # remove any earlier copy first so running setup twice doesn't fail
+        subprocess.run([claude, "mcp", "remove", "--scope", "user", SERVER_NAME], capture_output=True, text=True)
         result = subprocess.run(
             [claude, "mcp", "add", "--scope", "user", SERVER_NAME, "--", uv, *args],
             capture_output=True, text=True,
         )
         if result.returncode == 0:
             ok("Added to Claude Code")
+            say("     → Start a NEW Claude Code session to see it (type /mcp to confirm it's connected).")
             installed = True
         else:
             bad(f"Claude Code said: {(result.stderr or result.stdout).strip()}")
