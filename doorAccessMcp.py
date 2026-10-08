@@ -30,6 +30,8 @@ def check_door_access(member: str) -> str:
 
     Returns a checklist with ✅/❌/⚠️ per item, a suggested fix for each
     problem, and an overall verdict. Present the checklist to the user as-is.
+    ➖ means the item isn't met but isn't required for this account type
+    (e.g. Paid Staff don't need a paid membership), so it is not a problem.
 
     Args:
         member: Neon account ID, email address, or "First Last" name.

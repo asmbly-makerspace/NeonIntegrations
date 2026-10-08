@@ -48,6 +48,18 @@ GROUP_NAMES = {
 # Alta Open user status codes
 ALTA_STATUS = {"A": "Active", "I": "Inactive", "S": "Suspended", "P": "Pending"}
 
+# Account types that get door access without meeting any of the member requirements.
+# Keep in step with neonUtil.accountHasFacilityAccess() and openPathUtil.getOpGroups()
+# (tests/test_doorAccessCheck.py fails if these drift apart).
+EXEMPT_TYPES = (
+    neonUtil.STAFF_TYPE,
+    neonUtil.LEAD_TYPE,
+    neonUtil.DIRECTOR_TYPE,
+    neonUtil.SUPER_TYPE,
+)
+# CoWorking tenants keep access through a lapsed membership, but still need everything else
+MEMBERSHIP_OPTIONAL_TYPES = EXEMPT_TYPES + (neonUtil.COWORKING_TYPE,)
+
 SEARCH_OUTPUT_FIELDS = [
     "Account ID",
     "First Name",
@@ -69,6 +81,10 @@ def _refreshToday():
 
 def _groupName(groupId):
     return GROUP_NAMES.get(groupId, f"group {groupId}")
+
+
+def _typesIn(account, wanted):
+    return [t.get("name") for t in account.get("individualTypes") or [] if t.get("name") in wanted]
 
 
 def _check(name, status, detail, fix=None):
@@ -129,9 +145,10 @@ def findMembers(query: str):
 ####################################################################
 def _neonChecks(account):
     checks = []
+    exempt = " / ".join(_typesIn(account, EXEMPT_TYPES))
+    membershipOptional = " / ".join(_typesIn(account, MEMBERSHIP_OPTIONAL_TYPES))
 
     # Membership paid and current (our definition, not just Neon's "Active" label)
-    neonStatus = account.get("Account Current Membership Status") or "unknown"
     expiration = account.get("Membership Expiration Date")
     currentStatuses = [
         m.get("status")
@@ -154,11 +171,23 @@ def _neonChecks(account):
         else:
             detail = "No paid membership found in Neon."
             fix = "Member needs to purchase a membership."
-        checks.append(_check("Membership paid and current", FAIL, detail, fix))
+        if membershipOptional:
+            checks.append(_check(
+                "Membership paid and current", SKIP,
+                f"{detail} That's OK: a {membershipOptional} account doesn't need a paid membership."))
+        else:
+            checks.append(_check("Membership paid and current", FAIL, detail, fix))
 
     # Access suspended
     suspended = account.get("AccessSuspended")
-    if suspended:
+    if suspended and exempt:
+        checks.append(_check(
+            "Access not suspended", WARN,
+            f"AccessSuspended is set in Neon: \"{suspended}\", but the door sync ignores it "
+            f"for a {exempt} account, so they still have access.",
+            "If they really should be locked out, remove that account type in Neon "
+            "or deactivate them in Alta Open."))
+    elif suspended:
         checks.append(_check(
             "Access not suspended", FAIL,
             f"AccessSuspended is set in Neon: \"{suspended}\"",
@@ -170,6 +199,9 @@ def _neonChecks(account):
     # Waiver
     if account.get("WaiverDate"):
         checks.append(_check("Waiver signed", PASS, f"WaiverDate {account.get('WaiverDate')}"))
+    elif exempt:
+        checks.append(_check(
+            "Waiver signed", SKIP, f"WaiverDate is blank. That's OK: not required for a {exempt} account."))
     else:
         checks.append(_check(
             "Waiver signed", FAIL, "WaiverDate is blank",
@@ -179,6 +211,10 @@ def _neonChecks(account):
     if account.get("FacilityTourDate"):
         checks.append(_check(
             "Orientation completed", PASS, f"FacilityTourDate {account.get('FacilityTourDate')}"))
+    elif exempt:
+        checks.append(_check(
+            "Orientation completed", SKIP,
+            f"FacilityTourDate is blank. That's OK: not required for a {exempt} account."))
     else:
         checks.append(_check(
             "Orientation completed", FAIL, "FacilityTourDate is blank",
@@ -289,16 +325,11 @@ def diagnose(neonId):
     account = neonUtil.getMemberById(int(neonId), detailed=True)
 
     checks = _neonChecks(account)
-    shouldHaveAccess = neonUtil.accountHasFacilityAccess(account)
     expectedGroups = openPathUtil.getOpGroups(account)
-
-    # Staff/leads/coworking can have access even if a subscriber check fails
-    subscriberOk = all(c["status"] == PASS for c in checks)
+    # What the real sync would grant: general access, or the 24x7 Management group
+    shouldHaveAccess = (neonUtil.accountHasFacilityAccess(account)
+                        or openPathUtil.GROUP_MANAGEMENT in expectedGroups)
     types = [t.get("name") for t in account.get("individualTypes") or []]
-    if shouldHaveAccess and not subscriberOk:
-        checks.append(_check(
-            "Account type override", PASS,
-            f"Has facility access anyway because of account type: {', '.join(types)}"))
 
     checks.extend(_altaChecks(account, shouldHaveAccess, expectedGroups))
 
@@ -321,7 +352,7 @@ def diagnose(neonId):
         "email": account.get("Email 1"),
         "accountTypes": types,
         "openPathId": account.get("OpenPathID"),
-        "shouldHaveFacilityAccess": shouldHaveAccess,
+        "shouldHaveDoorAccess": shouldHaveAccess,
         "expectedAltaGroups": [_groupName(g) for g in sorted(expectedGroups)],
         "checks": checks,
         "verdict": verdict,
@@ -332,7 +363,11 @@ def diagnose(neonId):
 # Turn a diagnose() result into a readable checklist
 ####################################################################
 def formatReport(result):
-    lines = [f"Door access check: {result['name']} (Neon #{result['neonId']}, {result['email']})", ""]
+    lines = [
+        f"Door access check: {result['name']} (Neon #{result['neonId']}, {result['email']})",
+        f"Account type: {', '.join(result['accountTypes']) or 'regular member (no special type)'}",
+        "",
+    ]
     for c in result["checks"]:
         lines.append(f"{ICONS[c['status']]} {c['check']}: {c['detail']}")
         if c["fix"] and c["status"] in (FAIL, WARN):

@@ -1,8 +1,17 @@
+import itertools
+
+import pytest
+
 import doorAccessCheck
+import neonUtil
+import openPathUtil
 from doorAccessCheck import PASS, FAIL, WARN, SKIP
 from neon_mocker import NeonUserMock, today_plus
-from neonUtil import MEMBERSHIP_ID_REGULAR, N_baseURL, STAFF_TYPE
-from openPathUtil import GROUP_SUBSCRIBERS, GROUP_SPECIAL_EVENT, O_baseURL
+from neonUtil import (
+    MEMBERSHIP_ID_REGULAR, N_baseURL, STAFF_TYPE, LEAD_TYPE, DIRECTOR_TYPE, SUPER_TYPE,
+    COWORKING_TYPE, STEWARD_TYPE, INSTRUCTOR_TYPE, ONDUTY_TYPE,
+)
+from openPathUtil import GROUP_SUBSCRIBERS, GROUP_SPECIAL_EVENT, GROUP_MANAGEMENT, O_baseURL
 
 
 ALTA_ID = 456
@@ -119,15 +128,113 @@ def test_inactive_alta_user(requests_mock):
     assert statuses(result)["Alta Open account active"] == FAIL
 
 
-def test_staff_override_noted(requests_mock):
+NEON_CHECKS = ["Membership paid and current", "Access not suspended", "Waiver signed", "Orientation completed"]
+
+
+def mock_alta_with_expected_groups(rm, neonAccount):
+    groups = [{"id": g} for g in openPathUtil.getOpGroups(neonAccount)]
+    mock_alta(rm, groups=groups, creds=MOBILE)
+
+
+def test_staff_without_membership_is_ok(requests_mock):
     account = NeonUserMock(open_path_id=ALTA_ID, individualTypes=[STAFF_TYPE])
-    account.mock(requests_mock)
-    mock_alta(requests_mock, groups=[], creds=MOBILE)
+    mock_alta_with_expected_groups(requests_mock, account.mock(requests_mock))
+
+    result = doorAccessCheck.diagnose(account.account_id)
+    s = statuses(result)
+
+    assert s["Membership paid and current"] == SKIP
+    assert s["Waiver signed"] == SKIP
+    assert s["Orientation completed"] == SKIP
+    assert FAIL not in s.values()
+    assert result["shouldHaveDoorAccess"]
+    assert "Everything checks out" in result["verdict"]
+
+    report = doorAccessCheck.formatReport(result)
+    assert f"Account type: {STAFF_TYPE}" in report
+    assert f"a {STAFF_TYPE} account doesn't need a paid membership" in report
+
+
+def test_leader_gets_management_without_membership(requests_mock):
+    account = NeonUserMock(open_path_id=ALTA_ID, individualTypes=[DIRECTOR_TYPE])
+    neonAccount = account.mock(requests_mock)
+    assert openPathUtil.getOpGroups(neonAccount) == [GROUP_MANAGEMENT]
+    mock_alta_with_expected_groups(requests_mock, neonAccount)
 
     result = doorAccessCheck.diagnose(account.account_id)
 
-    assert statuses(result)["Account type override"] == PASS
-    assert result["shouldHaveFacilityAccess"]
+    assert FAIL not in statuses(result).values()
+    assert result["shouldHaveDoorAccess"]
+
+
+def test_suspended_staff_is_a_warning_not_a_failure(requests_mock):
+    account = NeonUserMock(open_path_id=ALTA_ID, individualTypes=[STAFF_TYPE], access_suspended=True)
+    mock_alta_with_expected_groups(requests_mock, account.mock(requests_mock))
+
+    result = doorAccessCheck.diagnose(account.account_id)
+
+    assert statuses(result)["Access not suspended"] == WARN
+    assert "still have access" in result["checks"][1]["detail"]
+    assert result["verdict"].startswith("Should work")
+
+
+def test_coworking_tenant_can_have_lapsed_membership(requests_mock):
+    account = NeonUserMock(waiver_date=start, facility_tour_date=tour, open_path_id=ALTA_ID,
+                           individualTypes=[COWORKING_TYPE])\
+        .add_membership(MEMBERSHIP_ID_REGULAR, today_plus(-90), today_plus(-60), fee=100.0)
+    mock_alta_with_expected_groups(requests_mock, account.mock(requests_mock))
+
+    result = doorAccessCheck.diagnose(account.account_id)
+    s = statuses(result)
+
+    assert s["Membership paid and current"] == SKIP
+    assert FAIL not in s.values()
+
+
+def test_coworking_tenant_still_needs_waiver(requests_mock):
+    account = NeonUserMock(facility_tour_date=tour, individualTypes=[COWORKING_TYPE])
+    account.mock(requests_mock)
+
+    s = statuses(doorAccessCheck.diagnose(account.account_id))
+
+    assert s["Membership paid and current"] == SKIP
+    assert s["Waiver signed"] == FAIL
+
+
+def test_regular_member_report_names_account_type(requests_mock):
+    account = good_member()
+    account.mock(requests_mock)
+    mock_alta(requests_mock, groups=[{"id": GROUP_SUBSCRIBERS}], creds=MOBILE)
+
+    report = doorAccessCheck.formatReport(doorAccessCheck.diagnose(account.account_id))
+
+    assert "Account type: regular member" in report
+
+
+# The report's exemptions are written out by hand, so make sure they always agree with
+# what the real sync would grant (neonUtil.accountHasFacilityAccess / openPathUtil.getOpGroups).
+@pytest.mark.parametrize("accountType", [
+    None, STAFF_TYPE, LEAD_TYPE, DIRECTOR_TYPE, SUPER_TYPE, COWORKING_TYPE,
+    STEWARD_TYPE, INSTRUCTOR_TYPE, ONDUTY_TYPE,
+])
+def test_report_agrees_with_real_sync_rules(requests_mock, accountType):
+    for paid, waiver, toured, suspended in itertools.product([True, False], repeat=4):
+        account = NeonUserMock(
+            waiver_date=start if waiver else None,
+            facility_tour_date=tour if toured else None,
+            access_suspended=suspended,
+            individualTypes=[accountType] if accountType else None,
+        )
+        if paid:
+            account.add_membership(MEMBERSHIP_ID_REGULAR, start, end, fee=100.0)
+        neonAccount = account.mock(requests_mock)
+        syncGrantsAccess = (neonUtil.accountHasFacilityAccess(neonAccount)
+                            or GROUP_MANAGEMENT in openPathUtil.getOpGroups(neonAccount))
+
+        s = statuses(doorAccessCheck.diagnose(account.account_id))
+        reportSaysOk = all(s[name] != FAIL for name in NEON_CHECKS)
+
+        assert reportSaysOk == syncGrantsAccess, (accountType, paid, waiver, toured, suspended, s)
 
 
 def test_check_member_asks_when_several_match(requests_mock):

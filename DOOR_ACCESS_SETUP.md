@@ -4,6 +4,7 @@ Ask Claude *"Why can't jane@example.com get in the door?"* and get back a checkl
 
 ```
 Door access check: Jane Doe (Neon #1234, jane@example.com)
+Account type: regular member (no special type)
 
 ✅ Membership paid and current: Regular membership, paid through 2026-11-06
 ❌ Access not suspended: AccessSuspended is set in Neon: "Facility Access Suspended"
@@ -105,7 +106,16 @@ The first time, Claude asks permission to use the tool. Click **Allow** (or **Al
 | 6 | The Alta Open groups match what Neon says they should have (e.g. **Subscribers**, which grants General Member Access) | Alta Open |
 | 7 | They have a door credential (mobile or card) | Alta Open |
 
-Staff, Space Leads and CoWorking tenants can have access even if a member check fails. The report says when that applies.
+What the icons mean: ✅ good, ❌ problem, ⚠️ worth a look, ➖ not met but not required for this account.
+
+**Staff and other special accounts.** The top of the report shows the person's Neon account type. Some types get door access without meeting the member requirements, so those lines show ➖ and "That's OK" in place of ❌:
+
+| Neon account type | What isn't required |
+|---|---|
+| Paid Staff, Space Lead, Leader, Super Steward | Membership, waiver and orientation. A suspension shows as ⚠️ because the door sync ignores it for these accounts. |
+| CoWorking Tenant | Membership only. They still need the waiver and orientation, and must not be suspended. |
+
+These follow the same rules the door sync uses (`neonUtil.accountHasFacilityAccess` and `openPathUtil.getOpGroups`).
 
 If everything passes, the problem is most likely the phone (Bluetooth or location off, not logged in to the Avigilon Alta app) or the door reader.
 
