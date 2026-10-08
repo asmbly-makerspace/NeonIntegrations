@@ -75,6 +75,10 @@ All logs from the scripts are recorded in AWS cloudwatch. The log group for alta
 
 For systemd timers, logging is configered by redirecting stdout and stdin to a dedicated logging file for each timer, which is then tailed and uploaded by amazon cloudwatch agent. On adminbot, see the systemd configeration files and `/home/ec2-user/robz` for how to update it.
 
+## Door access troubleshooter (Claude)
+
+Ask Claude why a member can't get in the door and get a checklist of Neon and Alta Open checks back. Setup steps: [DOOR_ACCESS_SETUP.md](DOOR_ACCESS_SETUP.md)
+
 ## Entrypoints:
 
 Here are the scripts that are currently being executed by our automation. Note that the triggers for these automations are configered in asmbly's AWS account, not in this repo.

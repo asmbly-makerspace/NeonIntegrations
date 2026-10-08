@@ -18,6 +18,9 @@ dev = [
     "types-boto3>=1.40.64",
     "types-requests>=2.32.4.20250913",
 ]
+door-access = [
+    "mcp>=1.9,<2",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
