@@ -30,7 +30,7 @@ def assert_history(requests_mock, fn, expected_history):
 
 def today_plus(days_offset):
     """Return a date string relative to today."""
-    return str(neonUtil.today + timedelta(days=days_offset))
+    return str(neonUtil.getToday() + timedelta(days=days_offset))
 
 
 def build_membership_response(
@@ -184,7 +184,7 @@ class NeonEventMock:
         self.event_id = event_id if event_id is not None else random.randint(10000, 99999)
         self.event_name = event_name
         self.teacher = teacher
-        self.date = date or str(neonUtil.today)
+        self.date = date or str(neonUtil.getToday())
         self.start_time = start_time
         self.end_time = end_time
         self.capacity = capacity
