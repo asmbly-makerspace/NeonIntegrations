@@ -7,19 +7,37 @@
 ###############################################################################
 
 import logging
+import re
 
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_access_token
 
+# -----------------------------------------------------------------------------
+# WHAT MAY GO IN THE LOGS
+#
+# When hosted, everything logged is kept in CloudWatch for 90 days. No personal
+# details go there: no names, emails, phone numbers, nothing a person typed, and
+# no report contents. People are identified by ID number only.
+#
+# That includes error messages. Neon's error text can quote back the name or
+# email that was searched for, so log the kind of error, never its message.
+# -----------------------------------------------------------------------------
+log = logging.getLogger("asmbly_mcp")
+
 # Audit trail: one line per lookup saying who looked, with which tool, and which Neon
-# account numbers they were shown. Never names, emails or what was typed.
-# The hosted server turns this on (hosted.py); the lines go to CloudWatch for 90 days.
+# account numbers they were shown. The hosted server turns this on (hosted.py).
 AUDIT_LOGGER = "asmbly_mcp.audit"
 
 
 def _audit(tool: str, neonIds: list):
     logging.getLogger(AUDIT_LOGGER).info(
         "AUDIT tool=%s by=%s neon_accounts=%s", tool, _caller(), ",".join(neonIds) or "none")
+
+
+def _errorKind(err: Exception) -> str:
+    # e.g. "ValueError (status 401)". The status code is safe; the rest of the message isn't.
+    status = re.search(r"status code (\d{3})", str(err))
+    return type(err).__name__ + (f" (status {status.group(1)})" if status else "")
 
 
 INSTRUCTIONS = (
@@ -29,14 +47,18 @@ INSTRUCTIONS = (
 
 
 def _caller():
-    # Who is asking. Only known when hosted and signed in; local use has no sign-in.
+    # Who is asking, as an ID. Never their name or email: this goes in the audit log.
+    # Only known when hosted and signed in; local use has no sign-in.
+    #
+    # "sub" is the ID every sign-in system provides. When sign-in is built, switch this
+    # to the person's Neon account number, so an audit line can be traced in Neon.
     try:
         token = get_access_token()
     except Exception:
         return "local"
     if token is None:
         return "local"
-    return token.claims.get("email") or token.claims.get("sub") or "signed-in user"
+    return str(token.claims.get("sub") or "unknown")
 
 
 def buildServer(auth=None) -> FastMCP:
@@ -68,7 +90,7 @@ def buildServer(auth=None) -> FastMCP:
         try:
             report, neonIds = door_access.lookUp(member)
         except Exception as err:
-            logging.exception("check_door_access failed")
+            log.error("check_door_access failed: %s", _errorKind(err))
             _audit("check_door_access", [])
             return f"The check crashed: {door_access._explainHttpError(err)}"
         _audit("check_door_access", neonIds)
@@ -83,12 +105,13 @@ def buildServer(auth=None) -> FastMCP:
         """
         try:
             matches = door_access.findMembers(query)
+            neonIds = door_access.accountIds(matches)
+            found = door_access.formatMatches(matches)
         except Exception as err:
+            log.error("find_member failed: %s", _errorKind(err))
             _audit("find_member", [])
             return f"Couldn't search Neon: {door_access._explainHttpError(err)}"
-        _audit("find_member", door_access.accountIds(matches))
-        if not matches:
-            return f"No Neon account found for \"{query}\"."
-        return door_access.formatMatches(matches)
+        _audit("find_member", neonIds)
+        return found if matches else f"No Neon account found for \"{query}\"."
 
     return mcp

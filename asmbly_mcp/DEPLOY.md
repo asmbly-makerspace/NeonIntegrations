@@ -15,6 +15,7 @@ The hosted server would sit at a public address and can look up any member's doo
 | **Who gets in** | People whose Neon member account has the **Paid Staff** account type, and who can sign in to that member account. Nobody else. |
 | **Staying signed in** | Indefinitely. Nobody is signed out on a timer. |
 | **Audit trail** | Every lookup is logged: who looked, with which tool, and the Neon account numbers they were shown. Kept 90 days. |
+| **Personal details in logs** | None. People appear in the logs as ID numbers only. |
 | **Keys** | Separate Neon and Alta Open keys made for this server, not the door sync's keys. Neither system offers read-only keys, so these can change things. The server's code only reads. |
 
 ## The plan
@@ -42,10 +43,24 @@ Access is then managed in Neon, where the Paid Staff type is already kept up to 
 
 - **Where it lives:** AWS CloudWatch Logs in the Asmbly AWS account (region us-east-2), in the log group `/aws/lambda/asmbly-mcp`. It is not in this repo, in Neon, or on anyone's computer.
 - **How long:** 90 days, then AWS deletes it. That's `RetentionInDays` in [infra/template.yaml](infra/template.yaml).
-- **What a line looks like:** `AUDIT tool=check_door_access by=<who> neon_accounts=1234`
-- **What's left out:** names, emails, what the person typed, and the report itself. To see who an account number is, look it up in Neon.
+- **What a line looks like:** `AUDIT tool=check_door_access by=<ID of the person looking> neon_accounts=1234`
+- **What's left out:** names, emails, what the person typed, and the report itself. That goes for the person looking as well as the members they looked up. To see who an account number is, look it up in Neon.
 - **How to read it:** AWS console > CloudWatch > Log groups > `/aws/lambda/asmbly-mcp`, and search for `AUDIT`. Anyone who can read CloudWatch logs in that AWS account can see it.
 - **Only the hosted server writes it.** Use on your own computer isn't logged.
+
+### Keeping personal details out of the logs
+
+The log group holds everything the server prints, not only the audit lines, and all of it is kept for 90 days. The rule: **no names, emails, phone numbers, typed text or report contents. ID numbers only.** An account number is not a name, but it does point to a person for anyone who can look it up in Neon, so the log still deserves the same care as other member data.
+
+What enforces the rule:
+
+- **The server's own messages** record the kind of error, never its text. Neon's error text can quote back the name or email that was searched for.
+- **The door sync's shared code** (`neonUtil.py`, `openPathUtil.py`) writes member names and emails into its log messages. In the hosted server those messages are replaced with a note saying where they came from. See `WithholdSharedCodeMessages` in `hosted.py`.
+- **The web server's request log is off**, because request addresses carry sign-in codes.
+- **The server library logs warnings and errors only**, not routine activity.
+- **Tests check it.** One runs a whole door check for a made-up member and fails if that member's name or email appears anywhere in the logs.
+
+When the sign-in is built, it has to follow the same rule: it handles each person's name, so it must not log it.
 
 ## Open questions
 
@@ -60,6 +75,7 @@ Access is then managed in Neon, where the Paid Staff type is already kept up to 
   - signed-out page `https://mcp.asmbly.org/signed-out`
   - the longest sign-in lifetime it allows
 - [ ] Build the sign-in in `auth.py` and wire it up in `hosted.py`. The "is this person allowed" rule is already there.
+- [ ] Make the audit line's `by=` the person's Neon account number (`_caller()` in `tools.py`), and check the sign-in code logs no names or emails.
 - [ ] Point `mcp.asmbly.org` at the server: a certificate and a DNS record, added to `infra/template.yaml`. asmbly.org's DNS is in the same AWS account, so both can be infrastructure as code.
 - [ ] Create separate API users for this server in Neon and Alta Open, with the narrowest permissions each allows, and store their keys in Parameter Store under the names in [infra/template.yaml](infra/template.yaml).
 - [ ] Add the small "signed out" page.

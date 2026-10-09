@@ -41,6 +41,8 @@ ENV PYTHONPATH=/opt/deps \
     # Lambda's disk is read-only except /tmp
     HOME=/tmp \
     PORT=8080 \
+    # the server library only logs warnings and errors, not routine activity
+    FASTMCP_LOG_LEVEL=WARNING \
     # the adapter waits for this to answer before sending requests
     AWS_LWA_READINESS_CHECK_PATH=/health
 

@@ -14,10 +14,27 @@ from fastmcp.server.auth.oauth_proxy import OAuthProxy
 from key_value.aio.stores.memory import MemoryStore
 from starlette.testclient import TestClient
 
+from neon_mocker import NeonUserMock, today_plus
+from neonUtil import COWORKING_TYPE, N_baseURL
+
 from asmbly_mcp import auth, aws_keys, hosted, tools
 
 PUBLIC_URL = "https://mcp.example.test"
 CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback"
+
+
+@pytest.fixture(autouse=True)
+def _undoHostedLogging():
+    # hosted.setUpLogging() changes logging for the whole process; put it back after each test
+    yield
+    root = logging.getLogger()
+    audit = logging.getLogger(tools.AUDIT_LOGGER)
+    for f in [f for f in root.filters if isinstance(f, hosted.WithholdSharedCodeMessages)]:
+        root.removeFilter(f)
+    for logger in (root, audit):
+        for handler in [h for h in logger.handlers if h.get_name() == "asmbly_mcp"]:
+            logger.removeHandler(handler)
+    audit.setLevel(logging.NOTSET)
 
 
 ##### hosted mode is parked until sign-in is built #####
@@ -216,6 +233,87 @@ def test_the_hosted_server_turns_the_audit_log_on():
     audit = logging.getLogger(tools.AUDIT_LOGGER)
     assert audit.isEnabledFor(logging.INFO)
     assert audit.handlers
+
+
+##### no personal details in the logs #####
+
+async def test_the_person_looking_is_recorded_by_id_never_name_or_email(monkeypatch, caplog):
+    from asmbly_mcp import door_access
+    monkeypatch.setattr(door_access, "lookUp", lambda member: ("report", ["1234"]))
+    monkeypatch.setattr(tools, "get_access_token", lambda: SimpleNamespace(
+        claims={"sub": "abc-123", "email": "sam.staffer@asmbly.org", "name": "Sam Staffer"}))
+
+    with caplog.at_level(logging.INFO, logger=tools.AUDIT_LOGGER):
+        async with Client(tools.buildServer()) as client:
+            await client.call_tool("check_door_access", {"member": "1234"})
+
+    assert "AUDIT tool=check_door_access by=abc-123 neon_accounts=1234" in caplog.text
+    assert "sam" not in caplog.text.lower() and "staffer" not in caplog.text.lower()
+
+
+async def test_errors_are_logged_by_kind_not_by_message(monkeypatch, caplog):
+    from asmbly_mcp import door_access
+
+    def neonQuotesTheSearchBack(member):
+        raise ValueError("Post https://api.neoncrm.com/v2/accounts/search returned status code 400: "
+                         "no match for jane.doe@example.com")
+    monkeypatch.setattr(door_access, "lookUp", neonQuotesTheSearchBack)
+
+    with caplog.at_level(logging.DEBUG):
+        async with Client(tools.buildServer()) as client:
+            result = await client.call_tool("check_door_access", {"member": "jane.doe@example.com"})
+
+    assert "check_door_access failed: ValueError (status 400)" in caplog.text
+    assert "jane" not in caplog.text.lower()
+    # the person asking still gets the full explanation
+    assert "jane.doe@example.com" in result.content[0].text
+
+
+def test_shared_code_messages_are_withheld(caplog):
+    hosted.setUpLogging()
+
+    with caplog.at_level(logging.DEBUG):
+        # the door sync's code logs like this, straight to the root logger
+        logging.warning("Cowrking subscriber %s has access despite a lapsed membership.", "Jane Doe")
+        logging.debug("{'firstName': 'Jane', 'email1': 'jane.doe@example.com'}")
+        # other libraries use their own named loggers; those are left alone
+        logging.getLogger("some.library").warning("connection %s", "reset")
+
+    assert "jane" not in caplog.text.lower()
+    assert caplog.text.count("message withheld") == 2
+    assert "connection reset" in caplog.text
+
+
+def test_setting_up_hosted_logging_twice_changes_nothing():
+    hosted.setUpLogging()
+    hosted.setUpLogging()
+
+    root = logging.getLogger()
+    assert len([f for f in root.filters if isinstance(f, hosted.WithholdSharedCodeMessages)]) == 1
+    assert len(logging.getLogger(tools.AUDIT_LOGGER).handlers) == 1
+
+
+async def test_a_real_door_check_leaves_no_member_details_in_the_logs(requests_mock, caplog):
+    # A CoWorking tenant with a lapsed membership makes the shared code log the member's
+    # full name. Run a whole check through the tool and look at everything that was logged.
+    member = NeonUserMock(firstName="Zelda", lastName="Quixote", email="zelda.quixote@example.com",
+                          waiver_date=today_plus(-30), facility_tour_date=today_plus(-29),
+                          individualTypes=[COWORKING_TYPE])
+    member.mock(requests_mock)
+    requests_mock.post(f"{N_baseURL}/accounts/search", json={"searchResults": [member.search_result()]})
+    hosted.setUpLogging()
+
+    with caplog.at_level(logging.DEBUG):
+        async with Client(tools.buildServer()) as client:
+            result = await client.call_tool("check_door_access", {"member": "zelda.quixote@example.com"})
+
+    # the person asking sees the member's details; that's the point of the tool
+    assert "Zelda Quixote" in result.content[0].text
+
+    logged = caplog.text.lower()
+    assert "zelda" not in logged and "quixote" not in logged
+    assert f"AUDIT tool=check_door_access by=local neon_accounts={member.account_id}" in caplog.text
+    assert "message withheld" in caplog.text      # the shared code did try to log something
 
 
 def test_logs_are_kept_for_90_days():
