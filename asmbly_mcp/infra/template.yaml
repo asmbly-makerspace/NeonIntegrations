@@ -35,9 +35,11 @@ Rules:
 # The server reads the values at startup, and is given permission to read
 # these four parameters and nothing else.
 #
-# They are this server's OWN read-only keys, not the door sync's keys (which
-# can change door access). Deployment fails with a clear error if any of them
-# doesn't exist yet.
+# They are this server's OWN keys, from API users made for it, not the door
+# sync's keys. That way they can be shut off without touching the door sync.
+# Neon and Alta Open don't offer read-only keys, so give those API users the
+# narrowest permissions each system allows. Deployment fails with a clear
+# error if any of the four doesn't exist yet.
 #
 # Sign-in settings will be added here when sign-in is built.
 # -----------------------------------------------------------------------------
@@ -50,18 +52,18 @@ Parameters:
     Type: AWS::SSM::Parameter::Name
     Default: /asmbly-mcp/neon_api_key
     Description: >
-      Parameter holding a read-only Neon API key made for this server.
-      Never the door sync's key: that one can change door access.
+      Parameter holding the API key of a Neon system user made for this server.
+      Not the door sync's key.
   AltaApiUserParam:
     Type: AWS::SSM::Parameter::Name
     Default: /asmbly-mcp/altaopen_api_user
-    Description: Parameter holding a read-only Alta Open API user made for this server.
+    Description: Parameter holding an Alta Open API user made for this server.
   AltaApiKeyParam:
     Type: AWS::SSM::Parameter::Name
     Default: /asmbly-mcp/altaopen_api_key
     Description: >
-      Parameter holding that read-only Alta Open user's API key.
-      Never the door sync's key: that one can change door access.
+      Parameter holding that Alta Open user's API key.
+      Not the door sync's key.
 
   AllowedNeonAccountTypes:
     Type: String

@@ -25,7 +25,7 @@ Everything for the server lives in this folder: code, dependencies, tests, conta
 | Neon API user and key | Looking up members | `N_APIuser`, `N_APIkey` in `config.py` | `/asmbly-mcp/neon_api_user`, `/asmbly-mcp/neon_api_key` |
 | Alta Open API user and key | Looking up door access | `O_APIuser`, `O_APIkey` in `config.py` | `/asmbly-mcp/altaopen_api_user`, `/asmbly-mcp/altaopen_api_key` |
 
-The hosted names are settings at the top of [infra/template.yaml](infra/template.yaml). They are meant to be read-only keys made for this server, not the door sync's keys, which can change door access. That file is also where the server's AWS permissions are spelled out: it can read those four parameters and nothing else. Sign-in settings get added there when sign-in is built.
+The hosted names are settings at the top of [infra/template.yaml](infra/template.yaml). They are separate keys made for this server, not the door sync's keys, so they can be shut off on their own. Neon and Alta Open don't offer read-only keys, so these can still change things; the server's code only reads. That file is also where the server's AWS permissions are spelled out: it can read those four parameters and nothing else. Sign-in settings get added there when sign-in is built.
 
 ## What's in this folder
 

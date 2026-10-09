@@ -35,6 +35,9 @@ def allowedAccountTypes() -> list:
 def mayUseServer(neonAccount: dict, allowedTypes: list) -> bool:
     # neonAccount is the signed-in person's own Neon member account, as neonUtil returns it.
     # An empty list lets nobody in.
+    #
+    # Run this on every request, not only at sign-in. People stay signed in indefinitely,
+    # so this check is what cuts someone off when they stop being Paid Staff.
     import neonUtil  # here, not at the top: neonUtil reads the API keys when it's imported
 
     return any(neonUtil.accountIsType(neonAccount, name) for name in allowedTypes)
