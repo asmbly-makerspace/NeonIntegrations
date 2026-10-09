@@ -14,6 +14,7 @@ The hosted server would sit at a public address and can look up any member's doo
 | **Sign-in** | With a Neon account, through the Asmbly Login Service. |
 | **Who gets in** | People whose Neon member account has the **Paid Staff** account type, and who can sign in to that member account. Nobody else. |
 | **Staying signed in** | Indefinitely. Nobody is signed out on a timer. |
+| **Audit trail** | Every lookup is logged: who looked, with which tool, and the Neon account numbers they were shown. Kept 90 days. |
 | **Keys** | Separate Neon and Alta Open keys made for this server, not the door sync's keys. Neither system offers read-only keys, so these can change things. The server's code only reads. |
 
 ## The plan
@@ -37,10 +38,18 @@ Access is then managed in Neon, where the Paid Staff type is already kept up to 
 - **Signing everyone out at once:** empty the sign-in table (`SignInStateTable` in the template). Everyone then has to click **Connect** again.
 - **How long a sign-in can last is capped by the login service**, which sets that for each app. Ask for the longest it allows when registering.
 
+### The audit trail, in more detail
+
+- **Where it lives:** AWS CloudWatch Logs in the Asmbly AWS account (region us-east-2), in the log group `/aws/lambda/asmbly-mcp`. It is not in this repo, in Neon, or on anyone's computer.
+- **How long:** 90 days, then AWS deletes it. That's `RetentionInDays` in [infra/template.yaml](infra/template.yaml).
+- **What a line looks like:** `AUDIT tool=check_door_access by=<who> neon_accounts=1234`
+- **What's left out:** names, emails, what the person typed, and the report itself. To see who an account number is, look it up in Neon.
+- **How to read it:** AWS console > CloudWatch > Log groups > `/aws/lambda/asmbly-mcp`, and search for `AUDIT`. Anyone who can read CloudWatch logs in that AWS account can see it.
+- **Only the hosted server writes it.** Use on your own computer isn't logged.
+
 ## Open questions
 
-1. **Should the logs record who was looked up?** Today they record who used which tool, and leave out who they looked up, to keep member details out of the logs. Recording the looked-up Neon ID would make misuse traceable.
-2. **Is it acceptable for this server to hold keys that can change door access?** Read-only keys aren't available, so a server at a public address would hold keys that can do more than it needs. The login service expects apps not to hold such keys. Confirm this before going live, or find a narrower permission in Neon and Alta Open.
+1. **Is it acceptable for this server to hold keys that can change door access?** Read-only keys aren't available, so a server at a public address would hold keys that can do more than it needs. The login service expects apps not to hold such keys. Confirm this before going live, or find a narrower permission in Neon and Alta Open.
 
 ## What has to happen first
 

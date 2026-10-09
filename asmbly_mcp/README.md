@@ -70,6 +70,6 @@ uv run --project asmbly_mcp python -m asmbly_mcp.door_access jane@example.com
 cd asmbly_mcp/infra && sam validate --lint && sam build
 ```
 
-**Adding a tool:** add a function inside `buildServer()` in `tools.py`. Both the local and hosted servers pick it up. Keep tools read-only unless the name makes a write obvious.
+**Adding a tool:** add a function inside `buildServer()` in `tools.py`. Both the local and hosted servers pick it up. Keep tools read-only unless the name makes a write obvious. Call `_audit()` with the Neon account numbers the tool shows, so the hosted server's audit trail covers it.
 
 **Upgrading libraries:** the sign-in storage library marks its DynamoDB support as subject to change. `uv.lock` pins exact versions, so nothing changes until someone runs `uv lock --upgrade`. After an upgrade, run the tests and try a sign-in before relying on it.

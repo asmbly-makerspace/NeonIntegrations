@@ -387,25 +387,35 @@ def formatMatches(matches):
     return "\n".join(lines)
 
 
+def accountIds(matches):
+    return [str(m.get("Account ID")) for m in matches]
+
+
 ####################################################################
-# Look someone up and check them, or explain why we couldn't
+# Look someone up and check them, or explain why we couldn't.
+# Returns the text to show, and the Neon account IDs that text is
+# about (for the audit log).
 ####################################################################
-def checkMember(query: str):
+def lookUp(query: str):
     try:
         matches = findMembers(query)
     except (ValueError, requests.RequestException, tenacity.RetryError) as err:
-        return f"Couldn't search Neon: {_explainHttpError(err)}"
+        return f"Couldn't search Neon: {_explainHttpError(err)}", []
 
     if not matches:
-        return f"No Neon account found for \"{query}\". Try an email address or the Neon account ID."
+        return f"No Neon account found for \"{query}\". Try an email address or the Neon account ID.", []
     if len(matches) > 1:
         return (f"Found {len(matches)} Neon accounts matching \"{query}\". "
-                f"Which one?\n{formatMatches(matches)}")
+                f"Which one?\n{formatMatches(matches)}"), accountIds(matches)
 
     try:
-        return formatReport(diagnose(matches[0]["Account ID"]))
+        return formatReport(diagnose(matches[0]["Account ID"])), accountIds(matches)
     except (ValueError, requests.RequestException, tenacity.RetryError) as err:
-        return f"Couldn't finish the check: {_explainHttpError(err)}"
+        return f"Couldn't finish the check: {_explainHttpError(err)}", accountIds(matches)
+
+
+def checkMember(query: str):
+    return lookUp(query)[0]
 
 
 def main():

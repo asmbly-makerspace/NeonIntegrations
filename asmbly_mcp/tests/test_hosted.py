@@ -1,3 +1,4 @@
+import logging
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -156,7 +157,7 @@ def test_only_claude_can_be_registered_as_the_place_to_send_people_back_to(web):
 
 async def test_server_offers_the_door_access_tools(monkeypatch):
     from asmbly_mcp import door_access
-    monkeypatch.setattr(door_access, "checkMember", lambda member: f"checked {member}")
+    monkeypatch.setattr(door_access, "lookUp", lambda member: (f"checked {member}", ["1234"]))
 
     async with Client(tools.buildServer()) as client:
         names = {tool.name for tool in await client.list_tools()}
@@ -164,6 +165,63 @@ async def test_server_offers_the_door_access_tools(monkeypatch):
 
     assert names == {"check_door_access", "find_member"}
     assert result.content[0].text == "checked jane@example.com"
+
+
+##### the audit trail #####
+
+async def test_a_door_check_is_audited_by_account_number_only(monkeypatch, caplog):
+    from asmbly_mcp import door_access
+    monkeypatch.setattr(door_access, "lookUp", lambda member: ("the report for Jane Doe", ["1234"]))
+
+    with caplog.at_level(logging.INFO, logger=tools.AUDIT_LOGGER):
+        async with Client(tools.buildServer()) as client:
+            await client.call_tool("check_door_access", {"member": "jane@example.com"})
+
+    lines = [r.getMessage() for r in caplog.records if r.name == tools.AUDIT_LOGGER]
+    assert lines == ["AUDIT tool=check_door_access by=local neon_accounts=1234"]
+    # what was typed, and anything from the report, stays out of the log
+    assert "jane" not in lines[0].lower()
+
+
+async def test_a_search_is_audited_with_every_account_it_showed(monkeypatch, caplog):
+    from asmbly_mcp import door_access
+    monkeypatch.setattr(door_access, "findMembers", lambda query: [
+        {"Account ID": "11", "First Name": "Jane", "Last Name": "Doe", "Email 1": "a@x.com"},
+        {"Account ID": "22", "First Name": "Jane", "Last Name": "Doer", "Email 1": "b@x.com"},
+    ])
+
+    with caplog.at_level(logging.INFO, logger=tools.AUDIT_LOGGER):
+        async with Client(tools.buildServer()) as client:
+            await client.call_tool("find_member", {"query": "Jane"})
+
+    lines = [r.getMessage() for r in caplog.records if r.name == tools.AUDIT_LOGGER]
+    assert lines == ["AUDIT tool=find_member by=local neon_accounts=11,22"]
+
+
+async def test_a_lookup_that_finds_nobody_is_still_audited(monkeypatch, caplog):
+    from asmbly_mcp import door_access
+    monkeypatch.setattr(door_access, "findMembers", lambda query: [])
+
+    with caplog.at_level(logging.INFO, logger=tools.AUDIT_LOGGER):
+        async with Client(tools.buildServer()) as client:
+            await client.call_tool("find_member", {"query": "nobody"})
+
+    lines = [r.getMessage() for r in caplog.records if r.name == tools.AUDIT_LOGGER]
+    assert lines == ["AUDIT tool=find_member by=local neon_accounts=none"]
+
+
+def test_the_hosted_server_turns_the_audit_log_on():
+    hosted.buildApp(signIn=standInSignIn())
+
+    audit = logging.getLogger(tools.AUDIT_LOGGER)
+    assert audit.isEnabledFor(logging.INFO)
+    assert audit.handlers
+
+
+def test_logs_are_kept_for_90_days():
+    template = (Path(__file__).resolve().parents[1] / "infra" / "template.yaml").read_text()
+
+    assert "RetentionInDays: 90\n" in template
 
 
 ##### loading keys on AWS #####

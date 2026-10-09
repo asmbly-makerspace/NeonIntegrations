@@ -264,6 +264,23 @@ def test_check_member_by_email_runs_full_check(requests_mock):
     assert "Verdict: Everything checks out" in report
 
 
+def test_look_up_reports_which_accounts_it_showed(requests_mock):
+    requests_mock.post(f"{N_baseURL}/accounts/search", json={"searchResults": [
+        {"Account ID": "1", "First Name": "Jane", "Last Name": "Doe", "Email 1": "a@x.com"},
+        {"Account ID": "2", "First Name": "Jane", "Last Name": "Doer", "Email 1": "b@x.com"},
+    ]})
+    assert door_access.lookUp("Jane Doe")[1] == ["1", "2"]
+
+    account = good_member()
+    account.mock(requests_mock)
+    mock_alta(requests_mock, groups=[{"id": GROUP_SUBSCRIBERS}], creds=MOBILE)
+    requests_mock.post(f"{N_baseURL}/accounts/search", json={"searchResults": [account.search_result()]})
+    assert door_access.lookUp(account.email)[1] == [str(account.account_id)]
+
+    requests_mock.post(f"{N_baseURL}/accounts/search", json={"searchResults": []})
+    assert door_access.lookUp("nobody@example.com")[1] == []
+
+
 def test_check_member_none_found(requests_mock):
     requests_mock.post(f"{N_baseURL}/accounts/search", json={"searchResults": []})
 

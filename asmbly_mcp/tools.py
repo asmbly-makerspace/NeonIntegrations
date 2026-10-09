@@ -11,6 +11,17 @@ import logging
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_access_token
 
+# Audit trail: one line per lookup saying who looked, with which tool, and which Neon
+# account numbers they were shown. Never names, emails or what was typed.
+# The hosted server turns this on (hosted.py); the lines go to CloudWatch for 90 days.
+AUDIT_LOGGER = "asmbly_mcp.audit"
+
+
+def _audit(tool: str, neonIds: list):
+    logging.getLogger(AUDIT_LOGGER).info(
+        "AUDIT tool=%s by=%s neon_accounts=%s", tool, _caller(), ",".join(neonIds) or "none")
+
+
 INSTRUCTIONS = (
     "Tools for Asmbly Makerspace staff and volunteers. "
     "Use check_door_access when someone can't get in the door."
@@ -54,13 +65,14 @@ def buildServer(auth=None) -> FastMCP:
                 If several people match, a list is returned so the user can pick;
                 call again with the chosen Neon account ID.
         """
-        # log who asked, but not who they asked about (member PII stays out of the logs)
-        logging.info("check_door_access called by %s", _caller())
         try:
-            return door_access.checkMember(member)
+            report, neonIds = door_access.lookUp(member)
         except Exception as err:
             logging.exception("check_door_access failed")
+            _audit("check_door_access", [])
             return f"The check crashed: {door_access._explainHttpError(err)}"
+        _audit("check_door_access", neonIds)
+        return report
 
     @mcp.tool
     def find_member(query: str) -> str:
@@ -69,11 +81,12 @@ def buildServer(auth=None) -> FastMCP:
         Use this when the user isn't sure who they mean, then pass the Neon
         account ID to check_door_access.
         """
-        logging.info("find_member called by %s", _caller())
         try:
             matches = door_access.findMembers(query)
         except Exception as err:
+            _audit("find_member", [])
             return f"Couldn't search Neon: {door_access._explainHttpError(err)}"
+        _audit("find_member", door_access.accountIds(matches))
         if not matches:
             return f"No Neon account found for \"{query}\"."
         return door_access.formatMatches(matches)
