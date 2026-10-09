@@ -11,7 +11,7 @@ Everything for the server lives in this folder: code, dependencies, tests, conta
 | | On your own computer | Hosted for the whole org |
 |---|---|---|
 | Status | **Works today** | **Not ready. Do not deploy.** |
-| Who can use it | You, in Claude Code or Claude Desktop | Neon Administrators and the Education Team, from claude.ai at `mcp.asmbly.org` |
+| Who can use it | You, in Claude Code or Claude Desktop | People with the Paid Staff account type in Neon, from claude.ai at `mcp.asmbly.org` |
 | Sign-in | None (it's your machine) | Not built yet. It waits on the Asmbly Login Service. |
 | Where the API keys come from | `config.py` at the repo root (ignored by git) | AWS Parameter Store |
 | Guide | [LOCAL_SETUP.md](LOCAL_SETUP.md) | [DEPLOY.md](DEPLOY.md) (status and plan) |
@@ -36,7 +36,7 @@ The hosted names are settings at the top of [infra/template.yaml](infra/template
 | `local.py` | Starts the server on your own computer. |
 | `setup_local.py` | Guided one-time setup for your own computer. |
 | `hosted.py` | The server for AWS. Parked: it refuses to start until sign-in is built. |
-| `auth.py` | Sign-in for the hosted server. Not built yet; holds the parts that carry over. |
+| `auth.py` | Sign-in for the hosted server. Sign-in itself isn't built yet. Holds the rule for who is allowed (Paid Staff) and the parts that carry over. |
 | `aws_keys.py` | Reads the keys from Parameter Store when hosted. |
 | `Dockerfile` | The container image that runs on AWS Lambda. |
 | `infra/template.yaml` | The AWS resources (infrastructure as code, AWS SAM). Parked: it refuses to deploy. |

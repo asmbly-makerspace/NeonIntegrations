@@ -12,24 +12,29 @@ The hosted server would sit at a public address and can look up any member's doo
 |---|---|
 | **Address** | `https://mcp.asmbly.org`. claude.ai connects to `https://mcp.asmbly.org/mcp`. |
 | **Sign-in** | With a Neon account, through the Asmbly Login Service. |
-| **Who should get in** | The people in Neon's **Administrator** (`SA`) and **Education Team** (`STAFF-EDU`) user groups. How the server recognizes them is an [open question](#open-questions). |
+| **Who gets in** | People whose Neon member account has the **Paid Staff** account type. Nobody else. |
 | **Keys** | Read-only Neon and Alta Open keys made for this server, never the door sync's keys. |
 
 ## The plan
 
 1. A person clicks **Connect** in claude.ai and signs in with their Neon account, through the Asmbly Login Service.
 2. The login service tells this server who they are. It does not decide what they may do.
-3. This server looks up that person in Neon and checks that they're allowed. Anyone else is refused.
+3. This server looks up that person's Neon member account and checks its account type. Anyone who isn't Paid Staff is refused.
 
-Access is then managed in Neon, where roles are already managed.
+Access is then managed in Neon, where the Paid Staff type is already kept up to date because it controls door access.
+
+### Who gets in, in more detail
+
+- **The rule is a setting.** `AllowedNeonAccountTypes` in [infra/template.yaml](infra/template.yaml) lists the allowed account types, and defaults to `Paid Staff`. Adding another type later, such as `Leader`, is a change to that one line. The check itself is `mayUseServer()` in `auth.py`.
+- **Never give someone a type just to let them use this server.** These account types also control door access. Paid Staff gets into every area at any hour, without a membership or waiver. If someone needs the lookup but shouldn't be Paid Staff, create a separate account type for that and add it to the setting.
+- **Why not Neon's user groups?** Groups such as Administrator belong to Neon staff logins. Sign-in goes through member accounts, which are a separate thing, and Neon's API doesn't expose user groups at all.
 
 ## Open questions
 
-1. **How does the server recognize an Administrator or Education Team member?** Those are *user groups* on Neon staff logins. Neon's API doesn't expose them: it lists staff logins by name only, with no group and no email. The login service signs people in with their Neon *member* account, which is a separate thing from a staff login. So the server needs a marker it can read on the member account. The likely answer is an account type (Neon's "Individual Type") given to the member accounts of those people, either a new one made for this or existing ones.
-2. **Does everyone who should get in have a Neon member account?** Sign-in goes through member accounts. A staff login alone won't work.
-3. **How long may someone stay signed in?** The login service suggests 30 minutes idle and 8 hours at most for member apps. A connector in claude.ai that signs people out that often may be annoying; one that never does is a risk for a tool that reads member data.
-4. **Should the logs record who was looked up?** Today they record who used which tool, and leave out who they looked up, to keep member details out of the logs. Recording the looked-up Neon ID would make misuse traceable.
-5. **Can Neon and Alta Open issue read-only API keys?** The server should hold keys that can't change anything. Whether each system can restrict a key that far needs checking with whoever administers it.
+1. **Can every Paid Staff person sign in to their member account?** Sign-in goes through the member account that carries the Paid Staff type, not a Neon staff login. Someone who has never used their member login will need to set a password first.
+2. **How long may someone stay signed in?** The login service suggests 30 minutes idle and 8 hours at most for member apps. A connector in claude.ai that signs people out that often may be annoying; one that never does is a risk for a tool that reads member data.
+3. **Should the logs record who was looked up?** Today they record who used which tool, and leave out who they looked up, to keep member details out of the logs. Recording the looked-up Neon ID would make misuse traceable.
+4. **Can Neon and Alta Open issue read-only API keys?** The server should hold keys that can't change anything. Whether each system can restrict a key that far needs checking with whoever administers it.
 
 ## What has to happen first
 
@@ -38,7 +43,7 @@ Access is then managed in Neon, where roles are already managed.
 - [ ] Register this server with the login service as an app:
   - callback `https://mcp.asmbly.org/auth/callback`
   - signed-out page `https://mcp.asmbly.org/signed-out`
-- [ ] Build the sign-in and the "is this person allowed" check in `auth.py`, and wire them up in `hosted.py`.
+- [ ] Build the sign-in in `auth.py` and wire it up in `hosted.py`. The "is this person allowed" rule is already there.
 - [ ] Point `mcp.asmbly.org` at the server: a certificate and a DNS record, added to `infra/template.yaml`. asmbly.org's DNS is in the same AWS account, so both can be infrastructure as code.
 - [ ] Create the read-only API users in Neon and Alta Open, and store their keys in Parameter Store under the names in [infra/template.yaml](infra/template.yaml).
 - [ ] Add the small "signed out" page.

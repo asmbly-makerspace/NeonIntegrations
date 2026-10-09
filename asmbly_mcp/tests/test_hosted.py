@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -28,6 +29,54 @@ def test_parked_server_refuses_to_start():
 def test_hosted_server_cannot_be_built_without_sign_in():
     with pytest.raises(ValueError, match="without sign-in"):
         hosted.buildApp(signIn=None)
+
+
+##### who is allowed: Paid Staff only #####
+
+def account(*typeNames):
+    return {"individualTypes": [{"name": name} for name in typeNames]}
+
+
+@pytest.mark.parametrize("neonAccount, allowed", [
+    (account("Paid Staff"), True),
+    (account("Instructor", "Paid Staff"), True),
+    (account("Leader"), False),
+    (account("Instructor", "Steward", "Volunteer"), False),
+    (account("paid staff"), False),                  # names must match Neon exactly
+    (account(), False),
+    ({}, False),                                     # a member with no account type at all
+])
+def test_only_paid_staff_may_use_the_server(neonAccount, allowed):
+    assert auth.mayUseServer(neonAccount, ["Paid Staff"]) is allowed
+
+
+def test_an_empty_list_lets_nobody_in():
+    assert auth.mayUseServer(account("Paid Staff"), []) is False
+
+
+@pytest.mark.parametrize("setting, expected", [
+    ("Paid Staff", ["Paid Staff"]),
+    ("Paid Staff, Leader", ["Paid Staff", "Leader"]),
+    (" Paid Staff ,, ", ["Paid Staff"]),
+    ("", []),
+])
+def test_allowed_types_come_from_the_setting(monkeypatch, setting, expected):
+    monkeypatch.setenv("ALLOWED_NEON_ACCOUNT_TYPES", setting)
+
+    assert auth.allowedAccountTypes() == expected
+
+
+def test_no_setting_means_nobody(monkeypatch):
+    monkeypatch.delenv("ALLOWED_NEON_ACCOUNT_TYPES", raising=False)
+
+    assert auth.allowedAccountTypes() == []
+
+
+def test_the_template_default_is_paid_staff_only():
+    template = (Path(__file__).resolve().parents[1] / "infra" / "template.yaml").read_text()
+    setting = template.split("AllowedNeonAccountTypes:")[1].split("Description:")[0]
+
+    assert "Default: Paid Staff\n" in setting
 
 
 ##### the parts that carry over, exercised with a stand-in sign-in #####

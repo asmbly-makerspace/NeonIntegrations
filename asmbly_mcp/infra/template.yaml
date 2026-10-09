@@ -63,6 +63,15 @@ Parameters:
       Parameter holding that read-only Alta Open user's API key.
       Never the door sync's key: that one can change door access.
 
+  AllowedNeonAccountTypes:
+    Type: String
+    Default: Paid Staff
+    Description: >
+      Who may use the server: people whose Neon member account has one of these
+      account types ("Individual Type" in Neon). Separate several with commas,
+      for example "Paid Staff, Leader". The names must match Neon exactly.
+      These types also control door access, so never give someone a type just
+      to let them use this server.
   PublicUrl:
     Type: String
     Default: https://mcp.asmbly.org
@@ -100,6 +109,7 @@ Resources:
           NEON_API_KEY_PARAM: !Ref NeonApiKeyParam
           ALTA_API_USER_PARAM: !Ref AltaApiUserParam
           ALTA_API_KEY_PARAM: !Ref AltaApiKeyParam
+          ALLOWED_NEON_ACCOUNT_TYPES: !Ref AllowedNeonAccountTypes
           SIGN_IN_STATE_TABLE: !Ref SignInStateTable
           ASMBLY_MCP_PUBLIC_URL: !Ref PublicUrl
       # Everything the server is allowed to do in AWS. Nothing else.
