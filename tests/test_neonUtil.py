@@ -1,3 +1,5 @@
+import datetime
+
 import neonUtil
 from neon_mocker import NeonUserMock, today_plus
 
@@ -146,6 +148,40 @@ def test_appendMemberships_non_succeeded_status_ignored(requests_mock):
         'Account ID': account.account_id,
         'membershipDates': {},
         'validMembership': False,
+    }
+
+
+# A PENDING payment counts as valid once it's PENDING_MIN_AGE + NEON_TIMESTAMP_OFFSET
+# old by Neon's createdDateTime.
+
+def pending_account(requests_mock, age):
+    created = datetime.datetime.now(datetime.timezone.utc) - age
+    account = NeonUserMock().add_membership(
+        REGULAR, today_plus(0), today_plus(30), status='PENDING', fee=95.0,
+        createdDateTime=created.strftime('%Y-%m-%dT%H:%M:%SZ'),
+    )
+    account.mock(requests_mock)
+    return account
+
+
+def test_appendMemberships_pending_under_min_age_not_valid(requests_mock):
+    account = pending_account(requests_mock, datetime.timedelta(hours=5, minutes=4))
+
+    assert neonUtil.appendMemberships({'Account ID': account.account_id}) == {
+        'Account ID': account.account_id,
+        'membershipDates': {},
+        'validMembership': False,
+    }
+
+
+def test_appendMemberships_pending_at_min_age_is_provisional(requests_mock):
+    account = pending_account(requests_mock, datetime.timedelta(hours=5, minutes=5))
+
+    assert neonUtil.appendMemberships({'Account ID': account.account_id}) == {
+        'Account ID': account.account_id,
+        'membershipDates': {},
+        'validMembership': True,
+        'provisionalMembership': True,
     }
 
 

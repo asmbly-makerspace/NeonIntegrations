@@ -26,6 +26,10 @@ logger.setLevel(logging.INFO)
 
 TZ = zoneinfo.ZoneInfo("America/Chicago")
 
+# SQS queue that redelivers PENDING-payment re-checks to this Lambda after a
+# delivery delay set on the queue.
+PENDING_CHECK_QUEUE = "alta-open-pending-check"
+
 
 def find_key_bfs(d: dict, target_key: str) -> Any:
     """
@@ -209,6 +213,38 @@ def get_neon_id_from_membership_id(membership_id: int) -> int | None:
     return neon_id
 
 
+def queue_pending_check(neon_id: int | str, membership_id: str | None) -> None:
+    """
+    Ask SQS to send this account back to the Lambda once its PENDING payment is
+    old enough to grant provisional access. A failure is logged, not raised:
+    the member then gets access at the next sync instead.
+    """
+    try:
+        sqs = boto3.client("sqs")
+        queue_url = sqs.get_queue_url(QueueName=PENDING_CHECK_QUEUE)["QueueUrl"]
+        sqs.send_message(
+            QueueUrl=queue_url,
+            MessageBody=json.dumps({"accountId": neon_id, "membershipId": membership_id}),
+        )
+        logger.info("Queued pending check for Neon ID %s (membership %s)", neon_id, membership_id)
+    except Exception:
+        logger.exception("Failed to queue pending check for Neon ID %s (membership %s)", neon_id, membership_id)
+
+
+def handle_pending_checks(event: dict) -> None:
+    """
+    Re-sync each account from the pending-check queue. Failures are logged and
+    not retried, so the member gets access at the next sync instead.
+    """
+    for record in event["Records"]:
+        try:
+            check = json.loads(record["body"])
+            logger.info("Pending check for Neon ID %s (membership %s)", check["accountId"], check.get("membershipId"))
+            openPathUpdateSingle(check["accountId"])
+        except Exception:
+            logger.exception("Pending check failed for message %s: %s", record.get("messageId"), record.get("body"))
+
+
 def lambda_handler(event: dict, _: dict) -> None:
     """
     Main lambda handler.
@@ -219,6 +255,10 @@ def lambda_handler(event: dict, _: dict) -> None:
     # Don't run between 2:30 AM and 4:59 AM (inclusive)
     if (now.hour == 2 and now.minute >= 30) or (3 <= now.hour < 5):
         logger.info("Skipping run between 2:30 and 5:00 AM")
+        return
+
+    if any(record.get("eventSource") == "aws:sqs" for record in event.get("Records", [])):
+        handle_pending_checks(event)
         return
 
     logger.info("EVENT INFO: %s", event)
@@ -242,6 +282,7 @@ def lambda_handler(event: dict, _: dict) -> None:
         logger.warning('This type of webhook will be deprecated soon - please update your webhook.')
 
     neon_id = None
+    transaction_status = None
 
     match event_trigger:
         case "createMembership":
@@ -313,6 +354,10 @@ def lambda_handler(event: dict, _: dict) -> None:
     if not neon_id:
         logger.warning("No Neon ID found")
         return
+
+    # Queue before syncing, so a sync failure doesn't also lose the re-check
+    if transaction_status == "PENDING":
+        queue_pending_check(neon_id, (neon_response.get("data") or {}).get("id"))
 
     logger.info("Updating Alta Open for Neon ID: %s", neon_id)
 

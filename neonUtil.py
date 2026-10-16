@@ -24,6 +24,18 @@ else:
 today = datetime.datetime.now(pytz.timezone("America/Chicago")).date()
 yesterday = today - datetime.timedelta(days=1)
 
+# A membership whose payment is still PENDING counts as valid once it's past the
+# window where Neon reports declines (all within ~3 minutes in our logs), until
+# it's been pending so long that the payment is probably stuck.
+PENDING_MIN_AGE = datetime.timedelta(minutes=5)
+PENDING_MAX_AGE = datetime.timedelta(days=3)
+# Neon's timestamps appear to be Central time labeled as UTC, which makes
+# memberships look 5 hours older than they are during daylight saving time.
+# Temporary correction: set to zero once timestamps are parsed correctly. After
+# daylight saving ends (Nov 1, 2026), Central is UTC-6 and this would need to be
+# 6 hours instead.
+NEON_TIMESTAMP_OFFSET = datetime.timedelta(hours=5)
+
 
 dryRun = False
 
@@ -163,6 +175,33 @@ class RateLimiter:
 
 
 ####################################################################
+# Find a current membership whose PENDING payment counts as valid
+####################################################################
+def findProvisionalMembership(memberships: list, accountId=None):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for membership in memberships:
+        if membership["status"] != "PENDING":
+            continue
+
+        termStart = datetime.datetime.strptime(membership["termStartDate"], "%Y-%m-%d").date()
+        termEnd = datetime.datetime.strptime(membership["termEndDate"], "%Y-%m-%d").date()
+        if not termStart <= today <= termEnd:
+            continue
+
+        created = membership["timestamps"]["createdDateTime"]
+        age = now - datetime.datetime.fromisoformat(created)
+        if PENDING_MIN_AGE + NEON_TIMESTAMP_OFFSET <= age < PENDING_MAX_AGE:
+            logging.info(
+                "Provisional access for Neon %s: membership %s PENDING since %s",
+                accountId,
+                membership.get("id"),
+                created,
+            )
+            return membership
+    return None
+
+
+####################################################################
 # Update a valid Neon account to include membership information
 ####################################################################
 def appendMemberships(account: dict, detailed=False):
@@ -287,6 +326,17 @@ def appendMemberships(account: dict, detailed=False):
                     account["autoRenewal"],
                     currentMembershipStatus,
                 )
+
+        # A current membership whose payment is still settling grants access
+        # provisionally. Leave the membership dates and paid/comped flags alone,
+        # so they only ever reflect payments that cleared.
+        if not account["validMembership"]:
+            pending = findProvisionalMembership(memberships, account.get("Account ID"))
+            if pending:
+                account["validMembership"] = True
+                account["provisionalMembership"] = True
+                if int(pending.get("membershipLevel").get("id")) == MEMBERSHIP_ID_CERAMICS:
+                    account["ceramicsMembership"] = True
 
         if detailed:
             account["MembershipDetails"] = memberships
