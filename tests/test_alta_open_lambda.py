@@ -608,9 +608,8 @@ def test_new_fresh_join_adds_to_mailjet(openpath, neon_account, mailjet, params)
 
 
 @pytest.fixture
-def sqs(mocker, monkeypatch):
-    """Mock the SQS client and clear the cached queue URL between tests."""
-    monkeypatch.setattr(lf, "_pending_check_queue_url", None)
+def sqs(mocker):
+    """Mock the SQS client."""
     client = mocker.patch.object(lf.boto3, "client").return_value
     client.get_queue_url.return_value = {"QueueUrl": "https://sqs.example/alta-open-pending-check"}
     return client

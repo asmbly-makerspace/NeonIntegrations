@@ -29,7 +29,6 @@ TZ = zoneinfo.ZoneInfo("America/Chicago")
 # SQS queue that redelivers PENDING-payment re-checks to this Lambda after a
 # delivery delay set on the queue.
 PENDING_CHECK_QUEUE = "alta-open-pending-check"
-_pending_check_queue_url: str | None = None
 
 
 def find_key_bfs(d: dict, target_key: str) -> Any:
@@ -220,13 +219,11 @@ def queue_pending_check(neon_id: int | str, membership_id: str | None) -> None:
     old enough to grant provisional access. A failure is logged, not raised:
     the member then gets access at the next sync instead.
     """
-    global _pending_check_queue_url
     try:
         sqs = boto3.client("sqs")
-        if _pending_check_queue_url is None:
-            _pending_check_queue_url = sqs.get_queue_url(QueueName=PENDING_CHECK_QUEUE)["QueueUrl"]
+        queue_url = sqs.get_queue_url(QueueName=PENDING_CHECK_QUEUE)["QueueUrl"]
         sqs.send_message(
-            QueueUrl=_pending_check_queue_url,
+            QueueUrl=queue_url,
             MessageBody=json.dumps({"accountId": neon_id, "membershipId": membership_id}),
         )
         logger.info("Queued pending check for Neon ID %s (membership %s)", neon_id, membership_id)
