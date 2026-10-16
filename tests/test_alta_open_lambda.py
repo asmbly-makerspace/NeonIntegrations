@@ -597,3 +597,65 @@ def test_new_fresh_join_adds_to_mailjet(openpath, neon_account, mailjet, params)
     account_id = str(rand_id())
     lf.lambda_handler(new_create_membership("JOIN", "SUCCEEDED", account_id, params), {})
     mailjet.assert_called_once()
+
+
+# ===========================================================================
+# PENDING payments -- re-check queued for after the provisional-access delay
+# ===========================================================================
+#
+# A PENDING createMembership sends the account to an SQS queue whose delivery
+# delay brings it back once the payment counts as provisional access.
+
+
+@pytest.fixture
+def sqs(mocker, monkeypatch):
+    """Mock the SQS client and clear the cached queue URL between tests."""
+    monkeypatch.setattr(lf, "_pending_check_queue_url", None)
+    client = mocker.patch.object(lf.boto3, "client").return_value
+    client.get_queue_url.return_value = {"QueueUrl": "https://sqs.example/alta-open-pending-check"}
+    return client
+
+
+def sent_checks(sqs):
+    return [json.loads(c.kwargs["MessageBody"]) for c in sqs.send_message.call_args_list]
+
+
+def test_pending_create_membership_queues_check(openpath, sqs):
+    event = new_create_membership("JOIN", "PENDING")
+    data = json.loads(event["body"])["data"]
+    lf.lambda_handler(event, {})
+
+    sqs.get_queue_url.assert_called_once_with(QueueName=lf.PENDING_CHECK_QUEUE)
+    assert sqs.send_message.call_args.kwargs["QueueUrl"] == "https://sqs.example/alta-open-pending-check"
+    assert sent_checks(sqs) == [{"accountId": data["accountId"], "membershipId": data["id"]}]
+    openpath.assert_called_once_with(data["accountId"])
+
+
+@pytest.mark.parametrize("status", ["SUCCEEDED", "FAILED"])
+def test_settled_membership_does_not_queue_check(openpath, sqs, status):
+    lf.lambda_handler(new_create_membership("RENEW", status), {})
+    sqs.send_message.assert_not_called()
+
+
+def test_queue_failure_is_logged_and_sync_still_runs(openpath, sqs, caplog):
+    sqs.send_message.side_effect = RuntimeError("SQS unavailable")
+    account_id = str(rand_id())
+    lf.lambda_handler(new_create_membership("JOIN", "PENDING", account_id), {})
+    assert "Failed to queue pending check" in caplog.text
+    openpath.assert_called_once_with(account_id)
+
+
+def sqs_event(body):
+    return {"Records": [{"eventSource": "aws:sqs", "messageId": "message-0", "body": json.dumps(body)}]}
+
+
+def test_pending_check_resyncs_account(openpath):
+    account_id = str(rand_id())
+    lf.lambda_handler(sqs_event({"accountId": account_id, "membershipId": str(rand_id())}), {})
+    openpath.assert_called_once_with(account_id)
+
+
+def test_pending_check_failure_is_logged_not_raised(openpath, caplog):
+    openpath.side_effect = ValueError("Neon unavailable")
+    lf.lambda_handler(sqs_event({"accountId": str(rand_id())}), {})
+    assert "Pending check failed for message message-0" in caplog.text
