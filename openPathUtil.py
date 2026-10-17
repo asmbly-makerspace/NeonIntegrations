@@ -82,7 +82,7 @@ class AltaClient:
             return []
 
         url = self.O_baseURL + f"/users/{id}/groups"
-        response = requests.get(url, self.O_headers)
+        response = requests.get(url, headers=self.O_headers)
 
         if response.status_code != 200:
             raise ValueError(f"Get {url} returned status code {response.status_code}")
