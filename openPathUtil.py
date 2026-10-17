@@ -54,7 +54,7 @@ dryRun = False
 class AltaClient:
     def __init__(self, base_url, username, api_key):
         self.O_baseURL = base_url
-        O_auth = f"{O_APIuser}:{O_APIkey}"
+        O_auth = f"{username}:{api_key}"
         O_signature = b64encode(bytearray(O_auth.encode())).decode()
         self.O_headers = {
             "Authorization": f"Basic {O_signature}",
