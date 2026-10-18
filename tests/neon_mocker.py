@@ -41,7 +41,8 @@ def build_membership_response(
     membershipLevelId: int = 1,
     autoRenewal: bool = False,
     membershipId: Optional[int] = None,
-    membershipName: Optional[str] = None
+    membershipName: Optional[str] = None,
+    createdDateTime: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Build a single membership entry matching NeonCRM API schema.
@@ -57,11 +58,12 @@ def build_membership_response(
         autoRenewal: Whether membership auto-renews
         membershipId: Optional membership transaction ID
         membershipName: Optional membership level name
+        createdDateTime: Optional timestamps.createdDateTime, e.g. "2026-10-07T00:36:32Z"
 
     Returns:
         Dict matching NeonCRM membership API response format
     """
-    return {
+    membership = {
         'membershipId': membershipId or random.randint(10000, 99999),
         'termStartDate': termStartDate,
         'termEndDate': termEndDate,
@@ -75,6 +77,9 @@ def build_membership_response(
             )
         }
     }
+    if createdDateTime:
+        membership['timestamps'] = {'createdDateTime': createdDateTime}
+    return membership
 
 
 def build_memberships_api_response(memberships: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -326,7 +331,8 @@ class NeonUserMock:
         termEndDate: str,
         status: str = "SUCCEEDED",
         fee: float = 0.0,
-        autoRenewal: bool = False
+        autoRenewal: bool = False,
+        createdDateTime: Optional[str] = None
     ) -> 'NeonUserMock':
         self.memberships.append(build_membership_response(
             termStartDate=termStartDate,
@@ -334,7 +340,8 @@ class NeonUserMock:
             status=status,
             fee=fee,
             membershipLevelId=membershipLevelId,
-            autoRenewal=autoRenewal
+            autoRenewal=autoRenewal,
+            createdDateTime=createdDateTime
         ))
         return self
 
