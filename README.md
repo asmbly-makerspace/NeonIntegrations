@@ -29,6 +29,7 @@ NOTE: To run all the scripts in production mode, you will need to create a separ
 To run `attendanceToTestout.py` locally, also set `N_classFieldsFile` to the path of a class-to-field JSON file (see [Class-to-field table](#class-to-field-table-neonclass_fields)), for example:
 
 ```
+mkdir -p private
 python scripts/class_fields_seed.py > private/class_fields.json
 # then in config.py:
 N_classFieldsFile = "private/class_fields.json"
@@ -105,7 +106,8 @@ The whole value is rejected if any rule fails:
 - `fields` has 1 to 200 entries, each a list of exactly two strings;
 - phrase: 1 to 64 ASCII characters, made of letters, digits and `& ( ) + , . / : ' -`, with single spaces between words (regex `^[A-Za-z0-9&()+,./:'-]+( [A-Za-z0-9&()+,./:'-]+)*$`);
 - field ID: 1 to 9 digits with no leading zero (regex `^[1-9][0-9]{0,8}$`), in quotes;
-- no phrase appears twice.
+- no phrase appears twice (case-sensitive: `CSI` and `csi` are different phrases);
+- the object has no keys other than `version` and `fields`.
 
 ### Adding or changing a class
 

@@ -53,10 +53,34 @@ def test_parse_accepts_valid_values(fields):
     assert parseClassFields(value(fields)) == [tuple(f) for f in fields]
 
 
-def test_parse_allows_extra_top_level_keys():
-    # The contract only fixes "version" and "fields"
-    raw = json.dumps({"version": 1, "fields": [["A", "1"]], "note": "x"})
-    assert parseClassFields(raw) == [("A", "1")]
+@pytest.mark.parametrize("extra, message", [
+    pytest.param({"note": "x"}, 'got extra "note"', id="one-extra-key"),
+    pytest.param({"Fields": []}, 'got extra "Fields"', id="key-differs-by-case"),
+    pytest.param({"b": 1, "a": 2}, 'got extra "a", "b"', id="two-extra-keys"),
+    pytest.param({f"k{i}": i for i in range(7)}, "and 2 more", id="many-extra-keys"),
+])
+def test_parse_rejects_extra_top_level_keys(extra, message):
+    # The contract (shared with AsmblyMCPs) allows exactly "version" and "fields"
+    raw = json.dumps({"version": 1, "fields": [["A", "1"]], **extra})
+    with pytest.raises(ClassFieldsError, match="may only have the keys 'version' and 'fields'") as excinfo:
+        parseClassFields(raw)
+    assert message in str(excinfo.value)
+
+
+def test_parse_rejects_deeply_nested_json_as_invalid():
+    with pytest.raises(ClassFieldsError, match="not valid JSON"):
+        parseClassFields("[" * 100000 + "]" * 100000)
+
+
+@pytest.mark.parametrize("raw", [
+    pytest.param(value([["A", "1"], [["x" * 5000], "2"]]), id="huge-entry"),
+    pytest.param(value([["A", "1"]], version="v" * 5000), id="huge-version"),
+    pytest.param(json.dumps({"version": 1, "fields": [["A", "1"]], "k" * 5000: 1}), id="huge-extra-key"),
+])
+def test_errors_quote_bad_values_briefly(raw):
+    with pytest.raises(ClassFieldsError) as excinfo:
+        parseClassFields(raw)
+    assert len(str(excinfo.value)) < 300
 
 
 @pytest.mark.parametrize("raw, message", [
@@ -83,6 +107,18 @@ def test_parse_allows_extra_top_level_keys():
     pytest.param(value([["A", "1", "x"]]), "list of two strings", id="entry-three-items"),
     pytest.param(value([["A", 1]]), "list of two strings", id="id-number"),
     pytest.param(value([[None, "1"]]), "list of two strings", id="phrase-null"),
+    pytest.param(value([[True, "1"]]), "list of two strings", id="phrase-bool"),
+    pytest.param(value([["A", True]]), "list of two strings", id="id-bool"),
+    pytest.param(value([["A", 1.5]]), "list of two strings", id="id-float"),
+    pytest.param(value([["A", ["1"]]]), "list of two strings", id="id-nested-list"),
+    pytest.param(value([[["A"], "1"]]), "list of two strings", id="phrase-nested-list"),
+    pytest.param(value([["A", {"id": "1"}]]), "list of two strings", id="id-object"),
+    pytest.param(json.dumps({"version": 1, "fields": "A,1"}), "'fields' must be a list", id="fields-string"),
+    pytest.param(json.dumps({"version": 1, "fields": None}), "'fields' must be a list", id="fields-null"),
+    pytest.param(value([["A", "1"]], version=None), "'version' must be 1, got null", id="version-null"),
+    pytest.param(value([["A", "1"]], version=[1]), "'version' must be 1", id="version-list"),
+    pytest.param(value([["A", "1"]], version=0), "'version' must be 1", id="version-0"),
+    pytest.param('{"version": NaN, "fields": [["A", "1"]]}', "'version' must be 1", id="version-nan"),
     # phrase
     pytest.param(value([["", "1"]]), "1 to 64 ASCII", id="phrase-empty"),
     pytest.param(value([["x" * 65, "1"]]), "1 to 64 ASCII", id="phrase-65-chars"),
@@ -170,6 +206,67 @@ def test_load_reports_unreadable_ssm_parameter(ssm_stub):
     stubber, _ = ssm_stub
     stubber.add_client_error("get_parameter", service_error_code="AccessDeniedException")
     with pytest.raises(ClassFieldsError, match="could not read SSM parameter /neon/class_fields.*AccessDenied"):
+        class_fields.loadClassFields()
+
+
+@pytest.mark.parametrize("error, name", [
+    pytest.param("NoCredentialsError", "NoCredentialsError", id="no-credentials"),
+    pytest.param("EndpointConnectionError", "EndpointConnectionError", id="no-network"),
+])
+def test_load_reports_botocore_errors_from_the_call(ssm_stub, monkeypatch, error, name):
+    import botocore.exceptions
+    stubber, _ = ssm_stub
+    exc = getattr(botocore.exceptions, error)
+    instance = exc(endpoint_url="https://ssm.us-east-2.amazonaws.com") if error == "EndpointConnectionError" else exc()
+    client = boto3.client("ssm")  # the stubbed client from the fixture
+
+    def raise_(**kwargs):
+        raise instance
+
+    monkeypatch.setattr(client, "get_parameter", raise_)
+    with pytest.raises(ClassFieldsError, match=f"could not read SSM parameter /neon/class_fields: {name}"):
+        class_fields.loadClassFields()
+
+
+def test_load_reports_throttling(ssm_stub):
+    stubber, _ = ssm_stub
+    stubber.add_client_error("get_parameter", service_error_code="ThrottlingException")
+    with pytest.raises(ClassFieldsError, match="could not read SSM parameter /neon/class_fields.*ThrottlingException"):
+        class_fields.loadClassFields()
+
+
+def test_load_reports_error_creating_the_client(monkeypatch, on_ec2):
+    import botocore.exceptions
+
+    def fail(*args, **kwargs):
+        raise botocore.exceptions.ProfileNotFound(profile="missing")
+
+    monkeypatch.setattr(boto3, "client", fail)
+    with pytest.raises(ClassFieldsError, match="could not read SSM parameter /neon/class_fields: ProfileNotFound"):
+        class_fields.loadClassFields()
+
+
+def test_load_reports_missing_boto3(monkeypatch, on_ec2):
+    monkeypatch.setitem(sys.modules, "boto3", None)  # makes `import boto3` raise ImportError
+    with pytest.raises(ClassFieldsError, match="could not read SSM parameter /neon/class_fields: (Import|ModuleNotFound)Error"):
+        class_fields.loadClassFields()
+
+
+def test_load_reports_malformed_json_in_ssm(ssm_stub):
+    stubber, _ = ssm_stub
+    stubber.add_response(
+        "get_parameter",
+        {"Parameter": {"Name": "/neon/class_fields", "Type": "String", "Value": '{"version": 1, "fields": [["A", "1"],]}'}},
+    )
+    with pytest.raises(ClassFieldsError, match="SSM parameter /neon/class_fields is invalid: value is not valid JSON"):
+        class_fields.loadClassFields()
+
+
+def test_load_reports_non_utf8_local_file(monkeypatch, tmp_path):
+    path = tmp_path / "class_fields.json"
+    path.write_bytes(b"\xff\xfe{}")
+    monkeypatch.setattr(sys.modules["config"], "N_classFieldsFile", str(path))
+    with pytest.raises(ClassFieldsError, match="could not read N_classFieldsFile"):
         class_fields.loadClassFields()
 
 
@@ -261,6 +358,26 @@ def test_main_exits_nonzero_when_ssm_parameter_is_missing(ssm_stub, caplog, requ
     assert not requests_mock.called
 
 
+def test_main_exits_nonzero_when_ssm_value_has_extra_keys(ssm_stub, caplog, requests_mock):
+    stubber, _ = ssm_stub
+    raw = json.dumps({"version": 1, "fields": [["A", "1"]], "comment": "x" * 5000})
+    stubber.add_response(
+        "get_parameter",
+        {"Parameter": {"Name": "/neon/class_fields", "Type": "String", "Value": raw}},
+    )
+
+    import attendanceToTestout
+    with pytest.raises(SystemExit) as excinfo:
+        attendanceToTestout.main()
+
+    assert excinfo.value.code == 1
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(errors) == 1
+    assert 'got extra "comment"' in errors[0]
+    assert "x" * 100 not in errors[0], "the ERROR line should not dump the value"
+    assert not requests_mock.called
+
+
 def test_main_uses_field_ids_from_the_loaded_table(monkeypatch, tmp_path, requests_mock):
     from neonUtil import N_baseURL
     from neon_mocker import NeonEventMock, NeonUserMock
@@ -309,6 +426,50 @@ def test_getFieldForEvent_uses_table_loaded_by_main(monkeypatch):
     import attendanceToTestout
     monkeypatch.setattr(attendanceToTestout, "CLASS_FIELDS", [("Vinyl", "686")])
     assert attendanceToTestout.getFieldForEvent("Vinyl Cutter") == ("686", "Vinyl")
+
+
+def _oldGetFieldForEvent(className, eventFields):
+    # getFieldForEvent as it was on main before the move, verbatim
+    for name, id in eventFields.items():
+        if name in className:
+            return id, name
+    return None, None
+
+
+def _parityNames():
+    import random
+
+    phrases = [p for p, _ in class_fields_seed.SEED]
+    names = [
+        "", " ", "CSI", "csi", "Woodshop", "Safety", "Metal Shop", "Shop Safety",
+        "Metal Shop Safety", "Woodshop Safety", "Metal Shop Safety vs Woodshop Safety",
+        "Woodshop Safety vs Metal Shop Safety", "CNC Router", "Tormach CNC Router",
+        "CNC Router on the Tormach", "Tormach", "CNC", "Router", "cnc router",
+        "WOODSHOP SAFETY", "Laser", "Lasers", "Big Laser", "Small Lasers and Big Lasers",
+        "Laser Engrave Round", "Laser Engrave Rounds on Small Lasers", "Metal Lathe",
+        "Wood Lathe", "Metal Lathe/Wood Lathe", "MIG/TIG Welding", "TIG Welding & MIG Welding",
+        "Milling on the Tormach", "Resin and Filament", "Vinyl Sublimation",
+        "Ceramics Safety (CSI)", "PHYSICS", "Orientation - Woodshop Safety",
+        "Festool Domino + Shaper Origin", "Shaper Origin + Festool Domino",
+        "Woodshop SafetyCSI", "xWoodshop Safetyx", "Woodshop\u00a0Safety", "Woodshop  Safety",
+    ]
+    names += phrases + [p.lower() for p in phrases] + [p.upper() for p in phrases]
+    rng = random.Random(139)
+    pieces = phrases + [w for p in phrases for w in p.split()] + ["", " ", "-", "the", "x"]
+    for _ in range(3000):
+        names.append(" ".join(rng.choice(pieces) for _ in range(rng.randint(0, 4))))
+        names.append("".join(rng.choice(pieces) for _ in range(rng.randint(0, 3))))
+    return names
+
+
+def test_getFieldForEvent_matches_old_code_for_every_name():
+    """Same result as the old EVENT_FIELDS dict lookup, for the real phrases and tricky names"""
+    import attendanceToTestout
+
+    oldTable = dict(class_fields_seed.SEED)
+    newTable = [tuple(f) for f in class_fields_seed.SEED]
+    for name in _parityNames():
+        assert attendanceToTestout.getFieldForEvent(name, newTable) == _oldGetFieldForEvent(name, oldTable), name
 
 
 # ============================================================================

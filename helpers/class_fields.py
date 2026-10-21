@@ -27,6 +27,17 @@ FIELD_ID_PATTERN = re.compile(r"[1-9][0-9]{0,8}")
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+TOP_LEVEL_KEYS = {"version", "fields"}
+
+# Error messages quote a bad value, cut to this many characters so a broken
+# parameter never ends up whole in the log
+_MAX_QUOTE = 80
+
+
+def _quote(value) -> str:
+    text = json.dumps(value)
+    return text if len(text) <= _MAX_QUOTE else text[: _MAX_QUOTE - 3] + "..."
+
 
 class ClassFieldsError(Exception):
     """The class-to-field table could not be loaded or is invalid."""
@@ -41,17 +52,24 @@ def parseClassFields(raw: str) -> list[tuple[str, str]]:
     """
     try:
         data = json.loads(raw)
-    except (TypeError, ValueError) as e:
+    except (TypeError, ValueError, RecursionError) as e:
         raise ClassFieldsError(f"value is not valid JSON: {e}") from None
 
     if not isinstance(data, dict):
         raise ClassFieldsError("value must be a JSON object with 'version' and 'fields'")
+    extra = sorted(set(data) - TOP_LEVEL_KEYS)
+    if extra:
+        raise ClassFieldsError(
+            "value may only have the keys 'version' and 'fields', got extra "
+            + ", ".join(_quote(key) for key in extra[:5])
+            + (f" and {len(extra) - 5} more" if len(extra) > 5 else "")
+        )
 
     version = data.get("version")
     # bool is a subclass of int in Python, so rule out `true` explicitly
     if type(version) is not int or version != SUPPORTED_VERSION:
         raise ClassFieldsError(
-            f"'version' must be {SUPPORTED_VERSION}, got {json.dumps(version)}"
+            f"'version' must be {SUPPORTED_VERSION}, got {_quote(version)}"
         )
 
     fields = data.get("fields")
@@ -65,7 +83,7 @@ def parseClassFields(raw: str) -> list[tuple[str, str]]:
     result = []
     seen = set()
     for i, entry in enumerate(fields):
-        where = f"entry {i} ({json.dumps(entry)})"
+        where = f"entry {i} ({_quote(entry)})"
         if (
             not isinstance(entry, list)
             or len(entry) != 2
@@ -96,20 +114,27 @@ def parseClassFields(raw: str) -> list[tuple[str, str]]:
 
 
 def _readFromSsm() -> str:
-    import boto3
-
-    client = boto3.client("ssm", region_name=PARAMETER_REGION)
+    # Everything from importing boto3 to reading the value is inside the try,
+    # so a missing package, bad AWS config, missing credentials or throttling
+    # all end as one ClassFieldsError rather than a traceback
     try:
-        response = client.get_parameter(Name=PARAMETER_NAME)
-    except client.exceptions.ParameterNotFound:
-        raise ClassFieldsError(
-            f"SSM parameter {PARAMETER_NAME} does not exist in {PARAMETER_REGION}"
-        ) from None
+        import boto3
+
+        client = boto3.client("ssm", region_name=PARAMETER_REGION)
+        try:
+            response = client.get_parameter(Name=PARAMETER_NAME)
+        except client.exceptions.ParameterNotFound:
+            raise ClassFieldsError(
+                f"SSM parameter {PARAMETER_NAME} does not exist in {PARAMETER_REGION}"
+            ) from None
+        value = response["Parameter"]["Value"]
+    except ClassFieldsError:
+        raise
     except Exception as e:
         raise ClassFieldsError(
-            f"could not read SSM parameter {PARAMETER_NAME}: {e}"
+            f"could not read SSM parameter {PARAMETER_NAME}: {type(e).__name__}: {e}"
         ) from None
-    return response["Parameter"]["Value"]
+    return value
 
 
 def _readFromLocalFile() -> str:
@@ -129,7 +154,7 @@ def _readFromLocalFile() -> str:
     try:
         with open(path, encoding="utf-8") as f:
             return f.read()
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         raise ClassFieldsError(f"could not read N_classFieldsFile {path}: {e}") from None
 
 
