@@ -67,7 +67,7 @@ def getFieldForEvent(className: str):
 # A malformed registration is logged and counted as not attended
 def isMarkedAttended(registration, eventId):
     try:
-        return registration["tickets"][0]["attendees"][0]["markedAttended"] == True
+        attended = registration["tickets"][0]["attendees"][0]["markedAttended"] == True
     except (KeyError, IndexError, TypeError):
         logging.warning(
             "Skipping registration for Account ID %s in event %s: no ticket or attendee",
@@ -76,8 +76,26 @@ def isMarkedAttended(registration, eventId):
         )
         return False
 
+    # Only the first attendee is read; flag registrations with more so staff can check them
+    attendeeCount = sum(len(t.get("attendees") or []) for t in registration["tickets"])
+    if attendeeCount > 1:
+        logging.warning(
+            "Registration for Account ID %s in event %s has %s attendees; only the first is checked",
+            registration.get("registrantAccountId"),
+            eventId,
+            attendeeCount,
+        )
+    return attended
 
-def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str):
+
+def toolTestingUpdate(
+    fieldId: str,
+    shortName: str,
+    neonId: int,
+    inputDate: str,
+    eventId: str = None,
+    eventName: str = None,
+):
     date = datetime.datetime.strftime(
         datetime.datetime.strptime(inputDate, "%Y-%m-%d"), "%m/%d/%Y"
     )
@@ -116,22 +134,27 @@ def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str)
                 shortName,
             )
         else:
-            # Include Neon's response body to help diagnose failures like #57
+            # Neon validates the whole account on PATCH, so its errors may be about
+            # another field on the account rather than the one being set (#57)
             logging.error(
-                "%s FAILED!  \n\tAccount ID %s \n\tClass '%s' \n\tField %s = %s \n\tResponse: %s",
+                "%s FAILED!  \n\tAccount ID %s \n\tClass '%s' \n\tEvent %s (%s) \n\tField %s = %s \n\tNeon errors: %s",
                 patch.status_code,
                 neonId,
                 shortName,
+                eventName,
+                eventId,
                 fieldId,
                 date,
-                patch.text[:1000],
+                neon.neonErrorSummary(patch),
             )
 
     except Exception:
         logging.exception(
-            "Update failed for Account ID %s, Class '%s'",
+            "Update failed for Account ID %s, Class '%s', Event %s (%s)",
             neonId,
             shortName,
+            eventName,
+            eventId,
         )
 
 
@@ -186,7 +209,12 @@ def main():
                 continue
             for attendee in attendees:
                 toolTestingUpdate(
-                    fieldId, shortName, attendee["registrantAccountId"], eventDate
+                    fieldId,
+                    shortName,
+                    attendee["registrantAccountId"],
+                    eventDate,
+                    eventId,
+                    eventName,
                 )
         except Exception:
             logging.exception("Failed processing event %s (%s)", eventName, eventId)
