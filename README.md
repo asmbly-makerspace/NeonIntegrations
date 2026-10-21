@@ -26,6 +26,13 @@ Once your changes are ready, push to your fork, and then send us a pull request.
 
 NOTE: To run all the scripts in production mode, you will need to create a separate file `config.py` with API keys (this will be ignored by git). Variables used are
 `D_APIkey`, `D_APIuser`, `G_password `, `G_user`, `N_APIkey`, `N_APIuser`, `O_APIkey`, `O_APIuser`, and `S_APIkey`.
+To run `attendanceToTestout.py` locally, also set `N_classFieldsFile` to the path of a class-to-field JSON file (see [Class-to-field table](#class-to-field-table-neonclass_fields)), for example:
+
+```
+python scripts/class_fields_seed.py > private/class_fields.json
+# then in config.py:
+N_classFieldsFile = "private/class_fields.json"
+```
 
 ## Systems:
 
@@ -69,6 +76,75 @@ pip3.12 install -r requirements.txt
 (Ideally github actions should update them automatically too, but that's not working at the moment.)
 
 
+## Class-to-field table (`/neon/class_fields`)
+
+`attendanceToTestout.py` gives people a sign-off when they attend a class: it writes the class date into a Neon account custom field. Which class goes with which field comes from one SSM parameter, so adding a class type is a parameter change, not a code change or deploy. The AsmblyMCPs account checkup tool reads the same parameter to explain a missing sign-off, so both always agree.
+
+- Name `/neon/class_fields`, region `us-east-2`, Standard tier, type `String` (not secret).
+- Read once at the start of every run. A change takes effect on the next run (the timer runs every 3 hours).
+- If the parameter is missing, unreadable or invalid, the run logs one `ERROR` saying what is wrong and that no sign-offs were written, then exits with a non-zero status. There is no built-in fallback copy.
+
+### Format
+
+```json
+{
+  "version": 1,
+  "fields": [
+    ["Festool Domino", "440"],
+    ["Woodshop Safety", "84"],
+    ["CSI", "1248"]
+  ]
+}
+```
+
+Each entry is `[class phrase, Neon custom field ID]`. If an event name contains the phrase (case-sensitive), attendees get that field. **Order matters**: the first phrase in the list found in the event name wins, so put a more specific phrase before a shorter one it contains.
+
+The whole value is rejected if any rule fails:
+
+- `version` is `1`;
+- `fields` has 1 to 200 entries, each a list of exactly two strings;
+- phrase: 1 to 64 ASCII characters, made of letters, digits and `& ( ) + , . / : ' -`, with single spaces between words (regex `^[A-Za-z0-9&()+,./:'-]+( [A-Za-z0-9&()+,./:'-]+)*$`);
+- field ID: 1 to 9 digits with no leading zero (regex `^[1-9][0-9]{0,8}$`), in quotes;
+- no phrase appears twice.
+
+### Adding or changing a class
+
+**A change writes real sign-off dates to member accounts on the next run.** A wrong but valid-looking field ID sends sign-offs to the wrong field, so double-check the ID against the custom field in Neon before saving.
+
+With the AWS CLI:
+
+```
+aws ssm get-parameter --profile asmbly --region us-east-2 --name /neon/class_fields \
+  --query Parameter.Value --output text > class_fields.json
+# edit class_fields.json
+python -c "from helpers.class_fields import parseClassFields; print(len(parseClassFields(open('class_fields.json').read())), 'entries OK')"
+aws ssm put-parameter --profile asmbly --region us-east-2 --name /neon/class_fields \
+  --type String --overwrite --value file://class_fields.json
+```
+
+The `python -c` line runs the same validation the sync uses, from the repo root.
+
+In the AWS console: Systems Manager > Parameter Store (region US East (Ohio)) > `/neon/class_fields` > Edit, change the value, Save changes. Keep it valid JSON; the console does not check it.
+
+Then check the next run's log in CloudWatch (`/admin-bot/attendance-to-testout`) for `Loaded N class-to-field entries`.
+
+### History and rollback
+
+Every change is kept as a version (Standard tier keeps the last 100), and CloudTrail records who made it.
+
+```
+aws ssm get-parameter-history --profile asmbly --region us-east-2 --name /neon/class_fields \
+  --query 'Parameters[].{Version:Version,Modified:LastModifiedDate,By:LastModifiedUser}' --output table
+aws ssm get-parameter --profile asmbly --region us-east-2 --name /neon/class_fields:3 \
+  --query Parameter.Value --output text > class_fields_v3.json
+aws ssm put-parameter --profile asmbly --region us-east-2 --name /neon/class_fields \
+  --type String --overwrite --value file://class_fields_v3.json
+```
+
+Rolling back puts the old value back as a new version. Sign-offs already written by the bad version stay on the accounts and have to be fixed in Neon.
+
+`scripts/class_fields_seed.py` prints the table as it was hard-coded before the move; it was only used to create the parameter.
+
 ## Logging:
 
 All logs from the scripts are recorded in AWS cloudwatch. The log group for alta-open-update is named `/aws/lambda/alta-open-update`, and the other scripts are prefixed with `/admin-bot/` (`/admin-bot/attendance-to-testout` contains the logs for `attendanceToTestout.py`).
@@ -93,6 +169,7 @@ Here are the scripts that are currently being executed by our automation. Note t
 
 - Triggered every 3 hours by systemd timer tool-testing-update.service
 - Sets FacilityTourDate field on a user's Neon profile by checking whether they attended a recent orientation
+- Also sets the sign-off field for each tool/safety class attended, using the [class-to-field table](#class-to-field-table-neonclass_fields)
 
 ### dailyClassChecker.py
 

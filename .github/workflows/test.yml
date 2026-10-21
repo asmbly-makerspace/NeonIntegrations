@@ -7,6 +7,9 @@ jobs:
         python: ["3.12"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # tests/test_class_fields.py compares the SSM seed with the table in git history
+          fetch-depth: 0
       - name: Setup Python
         uses: actions/setup-python@v5
         with:

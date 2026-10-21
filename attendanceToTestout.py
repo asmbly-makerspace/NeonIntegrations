@@ -2,9 +2,11 @@ import base64
 import datetime
 import logging
 import os
+import sys
 
 import helpers.neon as neon
 from helpers.api import apiCall
+from helpers.class_fields import ClassFieldsError, loadClassFields
 
 if os.environ.get("USER") == "ec2-user" or os.environ.get("LAMBDA_TASK_ROOT"):
     from aws_ssm import N_APIkey, N_APIuser
@@ -32,33 +34,26 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-EVENT_FIELDS = {
-    "Festool Domino": "440",
-    "Shaper Origin": "274",
-    "Woodshop Safety": "84",
-    "Metal Shop Safety": "520",
-    "Big Lasers": "86",
-    "CNC Router": "435",
-    "Stationary Sanders": "675",
-    "Metal Lathe": "676",
-    "Wood Lathe": "677",
-    "MIG Welding": "678",
-    "TIG Welding": "679",
-    "Small Lasers": "680",
-    "Laser Engrave Round": "1007",
-    "Milling": "681",
-    "Tormach": "682",
-    "Filament": "683",
-    "Resin": "684",
-    "Sublimation": "685",
-    "Vinyl": "686",
-    "Orientation": "182",
-    "CSI": "1248" # Ceramics Safety and Information
-}
+# Ordered (class phrase, field id) pairs, loaded from SSM once per run by main().
+# See helpers/class_fields.py and the README.
+CLASS_FIELDS = None
 
 
-def getFieldForEvent(className: str):
-    for name, id in EVENT_FIELDS.items():
+def loadClassFieldsOrExit():
+    global CLASS_FIELDS
+    try:
+        CLASS_FIELDS = loadClassFields()
+    except ClassFieldsError as e:
+        logging.error(
+            "Could not load the class-to-field table: %s. No sign-offs were written.", e
+        )
+        sys.exit(1)
+    logging.info("Loaded %s class-to-field entries", len(CLASS_FIELDS))
+
+
+def getFieldForEvent(className: str, classFields=None):
+    # The first phrase found in the class name wins, in list order
+    for name, id in classFields if classFields is not None else CLASS_FIELDS:
         if name in className:
             return id, name
     return None, None
@@ -118,6 +113,7 @@ def toolTestingUpdate(fieldId: str, shortName: str, neonId: int, inputDate: str)
 
 
 def main():
+    loadClassFieldsOrExit()
     today = _get_today()
     delta_days = _get_delta_days()
 

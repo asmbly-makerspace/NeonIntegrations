@@ -1,5 +1,6 @@
 from unittest.mock import patch, MagicMock, mock_open
 from types import SimpleNamespace
+import os
 import sys
 import pytest
 
@@ -14,6 +15,8 @@ sys.modules['config'] = SimpleNamespace(
     O_APIuser="test_openpath_user",
     G_user="test_gmail_user@test.com",
     G_password="test_gmail_password",
+    # Class-to-field table for attendanceToTestout.py (SSM /neon/class_fields in production)
+    N_classFieldsFile=os.path.join(os.path.dirname(__file__), "fixtures", "class_fields.json"),
 )
 
 # Also mock aws_ssm.py which is used in EC2/Lambda environments

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "fields": [
+    ["Festool Domino", "440"],
+    ["Shaper Origin", "274"],
+    ["Woodshop Safety", "84"],
+    ["Metal Shop Safety", "520"],
+    ["Big Lasers", "86"],
+    ["CNC Router", "435"],
+    ["Stationary Sanders", "675"],
+    ["Metal Lathe", "676"],
+    ["Wood Lathe", "677"],
+    ["MIG Welding", "678"],
+    ["TIG Welding", "679"],
+    ["Small Lasers", "680"],
+    ["Laser Engrave Round", "1007"],
+    ["Milling", "681"],
+    ["Tormach", "682"],
+    ["Filament", "683"],
+    ["Resin", "684"],
+    ["Sublimation", "685"],
+    ["Vinyl", "686"],
+    ["Orientation", "182"],
+    ["CSI", "1248"]
+  ]
+}
