@@ -94,7 +94,7 @@ def updateOpenPathID(account: dict):
 
     response = requests.patch(url, json=data, headers=N_headers)
     if response.status_code != 200:
-        raise ValueError(f"Patch {url} returned status code {response.status_code}")
+        raise ValueError(f"Patch {url} returned status code {response.status_code}: {response.text}")
 
 
 ####################################################################
