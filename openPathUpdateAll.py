@@ -59,7 +59,12 @@ def openPathUpdateAll(neonAccounts, mailSummary = False):
                 account.get("Email 1"),
             )
             account["OpenPathID"] = opUser.get("id")
-            neonUtil.updateOpenPathID(account)
+            try:
+                neonUtil.updateOpenPathID(account)
+            except ValueError as e:
+                # Neon rejecting one account's write-back shouldn't abort daily maintenance;
+                # the OpenPath user still exists, so carry on and retry the write tomorrow
+                logging.error("Failed to store OpenPathID for Neon account %s: %s", accountId, e)
 
         if not account.get("paidRegular") and not account.get("paidCeramics") and not neonUtil.accountIsType(account, neonUtil.STAFF_TYPE):
             #Accounts that are neither paid nor staff might still have access
