@@ -114,17 +114,35 @@ def postEventSearch(searchFields, outputFields, page=0):
     return neonSearch(url, data, httpVerb)
 
 
-# Get registrations for a single event by event ID
+# Get registrations for a single event by event ID, following every page of results
 def getEventRegistrants(eventId):
     httpVerb = "GET"
     resourcePath = f"/events/{eventId}/eventRegistrations"
-    queryParams = "?pageSize=30"
     data = ""
 
-    url = N_baseURL + resourcePath + queryParams
-    individualEvent = apiCall(httpVerb, url, data, N_headers).json()
+    page = 0
+    individualEvent = None
+    while True:
+        queryParams = f"?pageSize=30&currentPage={page}"
+        url = N_baseURL + resourcePath + queryParams
+        response = apiCall(httpVerb, url, data, N_headers).json()
+        if not isinstance(response, dict):
+            # Error bodies are passed back to the caller as before
+            return response
 
-    return individualEvent
+        if individualEvent is None:
+            individualEvent = response
+        elif response.get("eventRegistrations"):
+            # Neon returns eventRegistrations as None, not [], when there are none
+            if individualEvent.get("eventRegistrations") is None:
+                individualEvent["eventRegistrations"] = []
+            individualEvent["eventRegistrations"].extend(response["eventRegistrations"])
+
+        # "currentPage" is 0-based, "totalPages" is 1-based
+        totalPages = (response.get("pagination") or {}).get("totalPages") or 1
+        page += 1
+        if page >= totalPages:
+            return individualEvent
 
 
 # Get event registration count (SUCCEEDED status only) from "eventRegistrations" field in individual event
@@ -232,6 +250,32 @@ def postAccountSearch(searchFields, outputFields):
 
     url = N_baseURL + resourcePath + queryParams
     return neonSearch(url, data, httpVerb)
+
+
+# Short, single-line summary of a failed Neon response for logging.
+# Neon v2 errors are usually a JSON list of {"code", "message"}; anything else
+# falls back to the raw text. Truncated so a large body can't flood the logs.
+def neonErrorSummary(response: requests.Response, limit: int = 300) -> str:
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+
+    if isinstance(body, dict):
+        body = [body]
+    if isinstance(body, list) and body and all(
+        isinstance(e, dict) and "message" in e for e in body
+    ):
+        summary = "; ".join(
+            f"{e.get('code', '?')}: {e.get('message', '')}".strip() for e in body
+        )
+    else:
+        summary = response.text or ""
+
+    summary = " ".join(summary.split()) or "(empty response body)"
+    if len(summary) > limit:
+        summary = summary[:limit] + "..."
+    return summary
 
 
 def neonSearch(url: str, data: dict[str, Any], httpVerb: str) -> Any:
