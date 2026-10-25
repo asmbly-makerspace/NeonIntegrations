@@ -661,11 +661,17 @@ def accountHasDominoAccess(account: dict):
 # Helper function: is this Neon subscriber allowed facility access?
 ####################################################################
 def subscriberHasFacilityAccess(account: dict):
+    """Whether a Neon account with a valid membership may enter the facility.
+
+    Uses the same FACILITY_REQUIREMENT_CHECKS as accountHasFacilityAccess, so
+    the ceramics door and the daily counts follow the main door's rules.
+
+    account: a Neon account dict. Returns True if the membership is valid and
+    no requirement check denies access. Raises nothing.
+    """
     if (
         account.get("validMembership") == True
-        and not account.get("AccessSuspended")
-        and account.get("WaiverDate")
-        and account.get("FacilityTourDate")
+        and firstDecision(account, FACILITY_REQUIREMENT_CHECKS) != DENY
     ):
         logging.debug(
             "Account %s is a subscriber with facility access", account.get("Account ID")
@@ -737,16 +743,78 @@ def allowCoworkingWithLapsedMembership(account: dict):
     )
     return ALLOW
 
-# Checked in order; the first answer other than PASS decides
+def allowStaff(account: dict):
+    """Facility access check: Paid Staff are allowed in.
+
+    account: a Neon account dict. Returns ALLOW or PASS. Raises nothing.
+    """
+    return ALLOW if accountIsType(account, STAFF_TYPE) else PASS
+
+def allowSpaceLead(account: dict):
+    """Facility access check: Space Leads are allowed in.
+
+    account: a Neon account dict. Returns ALLOW or PASS. Raises nothing.
+    """
+    return ALLOW if accountIsType(account, LEAD_TYPE) else PASS
+
+def denySuspended(account: dict):
+    """Facility access check: accounts with AccessSuspended set are kept out.
+
+    account: a Neon account dict. Returns DENY or PASS. Raises nothing.
+    """
+    return DENY if account.get("AccessSuspended") else PASS
+
+def denyMissingWaiver(account: dict):
+    """Facility access check: accounts without a signed waiver are kept out.
+
+    account: a Neon account dict. Returns DENY or PASS. Raises nothing.
+    """
+    return DENY if not account.get("WaiverDate") else PASS
+
+# Orientation is stored in FacilityTourDate
+def denyMissingOrientation(account: dict):
+    """Facility access check: accounts without an orientation are kept out.
+
+    account: a Neon account dict. Returns DENY or PASS. Raises nothing.
+    """
+    return DENY if not account.get("FacilityTourDate") else PASS
+
+def allowValidMembership(account: dict):
+    """Facility access check: accounts with a valid membership are allowed in.
+
+    account: a Neon account dict. Returns ALLOW or PASS. Raises nothing.
+    """
+    return ALLOW if account.get("validMembership") == True else PASS
+
+# Requirements every non-staff account must meet; shared with subscriberHasFacilityAccess
+FACILITY_REQUIREMENT_CHECKS = [
+    denySuspended,
+    denyMissingWaiver,
+    denyMissingOrientation,
+]
+
+# Checked in order; the first answer other than PASS decides.
+# allow... checks only return ALLOW or PASS; deny... checks only return DENY or PASS.
 FACILITY_ACCESS_CHECKS = [
-    lambda account: ALLOW if accountIsType(account, STAFF_TYPE) else PASS,
-    lambda account: ALLOW if accountIsType(account, LEAD_TYPE) else PASS,
-    lambda account: DENY if account.get("AccessSuspended") else PASS,
-    lambda account: DENY if not account.get("WaiverDate") else PASS,
-    lambda account: DENY if not account.get("FacilityTourDate") else PASS,
-    lambda account: ALLOW if account.get("validMembership") == True else PASS,
+    allowStaff,
+    allowSpaceLead,
+    *FACILITY_REQUIREMENT_CHECKS,
+    allowValidMembership,
     allowCoworkingWithLapsedMembership,
 ]
+
+def firstDecision(account: dict, checks: list):
+    """Run facility access checks in order and return the first real answer.
+
+    account: a Neon account dict. checks: a list of check functions, each
+    returning ALLOW, DENY or PASS. Returns the first ALLOW or DENY, or PASS if
+    every check passes. Raises nothing.
+    """
+    for check in checks:
+        decision = check(account)
+        if decision != PASS:
+            return decision
+    return PASS
 
 ####################################################################
 # Helper function: is this Neon account allowed facility access for any reason
@@ -760,8 +828,4 @@ def accountHasFacilityAccess(account: dict):
     account: a Neon account dict. Returns True if access is allowed.
     Raises nothing.
     """
-    for check in FACILITY_ACCESS_CHECKS:
-        decision = check(account)
-        if decision != PASS:
-            return decision == ALLOW
-    return False
+    return firstDecision(account, FACILITY_ACCESS_CHECKS) == ALLOW

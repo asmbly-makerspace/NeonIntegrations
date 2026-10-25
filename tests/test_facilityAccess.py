@@ -4,6 +4,7 @@ import pytest
 
 from neonUtil import (
     accountHasFacilityAccess,
+    subscriberHasFacilityAccess,
     STAFF_TYPE, DIRECTOR_TYPE, LEAD_TYPE, SUPER_TYPE, COWORKING_TYPE, STEWARD_TYPE,
     INSTRUCTOR_TYPE, WIKI_ADMIN_TYPE, ONDUTY_TYPE, ONDUTY_TYPE_CERAMICS,
 )
@@ -58,6 +59,22 @@ def currentFacilityAccessRule(account):
     )
 
 
+def currentSubscriberFacilityAccessRule(account):
+    """An independent restatement of today's subscriberHasFacilityAccess rule.
+
+    account: a Neon account dict, as built by makeAccount.
+
+    Returns True if the account has a valid membership, a waiver and a tour,
+    and isn't suspended. Account type plays no part. Raises nothing.
+    """
+    return bool(
+        account.get("validMembership") == True
+        and account.get("WaiverDate")
+        and account.get("FacilityTourDate")
+        and not account.get("AccessSuspended")
+    )
+
+
 SINGLE_TYPES = [
     STAFF_TYPE, DIRECTOR_TYPE, LEAD_TYPE, SUPER_TYPE, COWORKING_TYPE, STEWARD_TYPE,
     INSTRUCTOR_TYPE, WIKI_ADMIN_TYPE, ONDUTY_TYPE, ONDUTY_TYPE_CERAMICS,
@@ -75,14 +92,15 @@ INDIVIDUAL_TYPE_COMBINATIONS = (
 @pytest.mark.parametrize("waiver", [True, False])
 @pytest.mark.parametrize("tour", [True, False])
 @pytest.mark.parametrize("suspended", [True, False])
-def test_matches_current_rule(types, member, waiver, tour, suspended):
-    """accountHasFacilityAccess gives the same answer as today's rule.
+def test_matches_current_rules(types, member, waiver, tour, suspended):
+    """accountHasFacilityAccess and subscriberHasFacilityAccess match today's rules.
 
     Runs once for every combination of type, membership and requirement fields.
-    Fails with AssertionError on the first combination where they disagree.
+    Fails with AssertionError on the first combination where either disagrees.
     """
     account = makeAccount(types, member, waiver, tour, suspended)
     assert accountHasFacilityAccess(account) == currentFacilityAccessRule(account)
+    assert subscriberHasFacilityAccess(account) == currentSubscriberFacilityAccessRule(account)
 
 
 @pytest.mark.parametrize("account, allowed, warned", [
