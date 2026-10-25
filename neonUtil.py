@@ -715,27 +715,53 @@ def subscriberHasCeramicsAccess(account: dict):
     return False
 
 ####################################################################
+# Facility access checks: each returns ALLOW, DENY, or PASS (no opinion)
+####################################################################
+ALLOW, PASS, DENY = "allow", "pass", "deny"
+
+# CoWorking is a moderately permissive group - they can ride out subscription lapses, but not other membership requirements
+def allowCoworkingWithLapsedMembership(account: dict):
+    """Facility access check for CoWorking tenants whose membership has lapsed.
+
+    Only reached once the waiver, tour and suspension checks have passed and
+    the account has no valid membership. Logs a warning when it allows access.
+
+    account: a Neon account dict. Returns ALLOW for CoWorking tenants, PASS
+    for everyone else. Raises nothing.
+    """
+    if not accountIsType(account, COWORKING_TYPE):
+        return PASS
+    logging.warning(
+        "Cowrking subscriber %s has access despite a lapsed membership.",
+        account.get("fullName"),
+    )
+    return ALLOW
+
+# Checked in order; the first answer other than PASS decides
+FACILITY_ACCESS_CHECKS = [
+    lambda account: ALLOW if accountIsType(account, STAFF_TYPE) else PASS,
+    lambda account: ALLOW if accountIsType(account, LEAD_TYPE) else PASS,
+    lambda account: DENY if account.get("AccessSuspended") else PASS,
+    lambda account: DENY if not account.get("WaiverDate") else PASS,
+    lambda account: DENY if not account.get("FacilityTourDate") else PASS,
+    lambda account: ALLOW if account.get("validMembership") == True else PASS,
+    allowCoworkingWithLapsedMembership,
+]
+
+####################################################################
 # Helper function: is this Neon account allowed facility access for any reason
 ####################################################################
 def accountHasFacilityAccess(account: dict):
-    if (
-        accountIsType(account, STAFF_TYPE)
-        or accountIsType(account, LEAD_TYPE)
-        or subscriberHasFacilityAccess(account)
-    ):
-        return True
+    """Whether a Neon account may enter the facility.
 
-    # CoWorking is a moderately permissive group - they can ride out subscription lapses, but not other membership requirements
-    if accountIsType(account, COWORKING_TYPE):
-        if (
-            account.get("WaiverDate")
-            and account.get("FacilityTourDate")
-            and not account.get("AccessSuspended")
-        ):
-            logging.warning(
-                "Cowrking subscriber %s has access despite a lapsed membership.",
-                account.get("fullName"),
-            )
-            return True
+    Runs FACILITY_ACCESS_CHECKS in order and stops at the first check that
+    returns ALLOW or DENY. If every check passes, access is denied.
 
+    account: a Neon account dict. Returns True if access is allowed.
+    Raises nothing.
+    """
+    for check in FACILITY_ACCESS_CHECKS:
+        decision = check(account)
+        if decision != PASS:
+            return decision == ALLOW
     return False
