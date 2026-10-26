@@ -663,16 +663,14 @@ def accountHasDominoAccess(account: dict):
 def subscriberHasFacilityAccess(account: dict):
     """Whether a Neon account with a valid membership may enter the facility.
 
-    Uses the same FACILITY_REQUIREMENT_CHECKS as accountHasFacilityAccess, so
-    the ceramics door and the daily counts follow the main door's rules.
+    Runs the same FACILITY_REQUIREMENT_CHECKS as accountHasFacilityAccess, then
+    allowValidMembership, so the ceramics door and the daily counts follow the
+    main door's rules.
 
-    account: a Neon account dict. Returns True if the membership is valid and
-    no requirement check denies access. Raises nothing.
+    account: a Neon account dict. Returns True if no requirement check denies
+    access and the membership is valid. Raises nothing.
     """
-    if (
-        account.get("validMembership") == True
-        and firstDecision(account, FACILITY_REQUIREMENT_CHECKS) != DENY
-    ):
+    if decisionChain([*FACILITY_REQUIREMENT_CHECKS, allowValidMembership], account):
         logging.debug(
             "Account %s is a subscriber with facility access", account.get("Account ID")
         )
@@ -803,18 +801,20 @@ FACILITY_ACCESS_CHECKS = [
     allowCoworkingWithLapsedMembership,
 ]
 
-def firstDecision(account: dict, checks: list):
-    """Run facility access checks in order and return the first real answer.
+def decisionChain(chain: list, account: dict):
+    """Run access checks in order; the first answer other than PASS decides.
 
-    account: a Neon account dict. checks: a list of check functions, each
-    returning ALLOW, DENY or PASS. Returns the first ALLOW or DENY, or PASS if
-    every check passes. Raises nothing.
+    chain: a list of check functions, each taking a Neon account dict and
+    returning ALLOW, DENY or PASS. account: a Neon account dict.
+
+    Returns True if the first decisive check returns ALLOW, False if it returns
+    DENY or if every check passes. Raises nothing.
     """
-    for check in checks:
+    for check in chain:
         decision = check(account)
         if decision != PASS:
-            return decision
-    return PASS
+            return decision == ALLOW
+    return False
 
 ####################################################################
 # Helper function: is this Neon account allowed facility access for any reason
@@ -828,4 +828,4 @@ def accountHasFacilityAccess(account: dict):
     account: a Neon account dict. Returns True if access is allowed.
     Raises nothing.
     """
-    return firstDecision(account, FACILITY_ACCESS_CHECKS) == ALLOW
+    return decisionChain(FACILITY_ACCESS_CHECKS, account)
