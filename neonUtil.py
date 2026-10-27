@@ -661,12 +661,16 @@ def accountHasDominoAccess(account: dict):
 # Helper function: is this Neon subscriber allowed facility access?
 ####################################################################
 def subscriberHasFacilityAccess(account: dict):
-    if (
-        account.get("validMembership") == True
-        and not account.get("AccessSuspended")
-        and account.get("WaiverDate")
-        and account.get("FacilityTourDate")
-    ):
+    """Whether a Neon account with a valid membership may enter the facility.
+
+    Runs the same FACILITY_REQUIREMENT_CHECKS as accountHasFacilityAccess, then
+    allowValidMembership, so the ceramics door and the daily counts follow the
+    main door's rules.
+
+    account: a Neon account dict. Returns True if no requirement check denies
+    access and the membership is valid. Raises nothing.
+    """
+    if decisionChain([*FACILITY_REQUIREMENT_CHECKS, allowValidMembership], account):
         logging.debug(
             "Account %s is a subscriber with facility access", account.get("Account ID")
         )
@@ -715,27 +719,113 @@ def subscriberHasCeramicsAccess(account: dict):
     return False
 
 ####################################################################
+# Facility access checks: each returns ALLOW, DENY, or PASS (no opinion)
+####################################################################
+ALLOW, PASS, DENY = "allow", "pass", "deny"
+
+# CoWorking is a moderately permissive group - they can ride out subscription lapses, but not other membership requirements
+def allowCoworkingWithLapsedMembership(account: dict):
+    """Facility access check for CoWorking tenants whose membership has lapsed.
+
+    Only reached once the waiver, tour and suspension checks have passed and
+    the account has no valid membership. Logs a warning when it allows access.
+
+    account: a Neon account dict. Returns ALLOW for CoWorking tenants, PASS
+    for everyone else. Raises nothing.
+    """
+    if not accountIsType(account, COWORKING_TYPE):
+        return PASS
+    logging.warning(
+        "Cowrking subscriber %s has access despite a lapsed membership.",
+        account.get("fullName"),
+    )
+    return ALLOW
+
+def allowStaff(account: dict):
+    """Facility access check: Paid Staff are allowed in.
+
+    account: a Neon account dict. Returns ALLOW or PASS. Raises nothing.
+    """
+    return ALLOW if accountIsType(account, STAFF_TYPE) else PASS
+
+def allowSpaceLead(account: dict):
+    """Facility access check: Space Leads are allowed in.
+
+    account: a Neon account dict. Returns ALLOW or PASS. Raises nothing.
+    """
+    return ALLOW if accountIsType(account, LEAD_TYPE) else PASS
+
+def denySuspended(account: dict):
+    """Facility access check: accounts with AccessSuspended set are kept out.
+
+    account: a Neon account dict. Returns DENY or PASS. Raises nothing.
+    """
+    return DENY if account.get("AccessSuspended") else PASS
+
+def denyMissingWaiver(account: dict):
+    """Facility access check: accounts without a signed waiver are kept out.
+
+    account: a Neon account dict. Returns DENY or PASS. Raises nothing.
+    """
+    return DENY if not account.get("WaiverDate") else PASS
+
+# Orientation is stored in FacilityTourDate
+def denyMissingOrientation(account: dict):
+    """Facility access check: accounts without an orientation are kept out.
+
+    account: a Neon account dict. Returns DENY or PASS. Raises nothing.
+    """
+    return DENY if not account.get("FacilityTourDate") else PASS
+
+def allowValidMembership(account: dict):
+    """Facility access check: accounts with a valid membership are allowed in.
+
+    account: a Neon account dict. Returns ALLOW or PASS. Raises nothing.
+    """
+    return ALLOW if account.get("validMembership") == True else PASS
+
+# Requirements every non-staff account must meet; shared with subscriberHasFacilityAccess
+FACILITY_REQUIREMENT_CHECKS = [
+    denySuspended,
+    denyMissingWaiver,
+    denyMissingOrientation,
+]
+
+# Checked in order; the first answer other than PASS decides.
+# allow... checks only return ALLOW or PASS; deny... checks only return DENY or PASS.
+FACILITY_ACCESS_CHECKS = [
+    allowStaff,
+    allowSpaceLead,
+    *FACILITY_REQUIREMENT_CHECKS,
+    allowValidMembership,
+    allowCoworkingWithLapsedMembership,
+]
+
+def decisionChain(chain: list, account: dict):
+    """Run access checks in order; the first answer other than PASS decides.
+
+    chain: a list of check functions, each taking a Neon account dict and
+    returning ALLOW, DENY or PASS. account: a Neon account dict.
+
+    Returns True if the first decisive check returns ALLOW, False if it returns
+    DENY or if every check passes. Raises nothing.
+    """
+    for check in chain:
+        decision = check(account)
+        if decision != PASS:
+            return decision == ALLOW
+    return False
+
+####################################################################
 # Helper function: is this Neon account allowed facility access for any reason
 ####################################################################
 def accountHasFacilityAccess(account: dict):
-    if (
-        accountIsType(account, STAFF_TYPE)
-        or accountIsType(account, LEAD_TYPE)
-        or subscriberHasFacilityAccess(account)
-    ):
-        return True
+    """Whether a Neon account may enter the facility.
 
-    # CoWorking is a moderately permissive group - they can ride out subscription lapses, but not other membership requirements
-    if accountIsType(account, COWORKING_TYPE):
-        if (
-            account.get("WaiverDate")
-            and account.get("FacilityTourDate")
-            and not account.get("AccessSuspended")
-        ):
-            logging.warning(
-                "Cowrking subscriber %s has access despite a lapsed membership.",
-                account.get("fullName"),
-            )
-            return True
+    Runs FACILITY_ACCESS_CHECKS in order and stops at the first check that
+    returns ALLOW or DENY. If every check passes, access is denied.
 
-    return False
+    account: a Neon account dict. Returns True if access is allowed.
+    Raises nothing.
+    """
+    return decisionChain(FACILITY_ACCESS_CHECKS, account)
