@@ -57,4 +57,7 @@ jobs:
         package-type: Image
         architectures: arm64
         image-uri: ${{ steps.login-ecr.outputs.registry }}/${{ env.ALTA_OPEN_LAMBDA_ECR_REPO }}:latest
-        timeout: 20
+        # A new member's first sync creates their Alta user, sets groups and
+        # creates the mobile credential in one run; slow Neon/Alta APIs made
+        # that overrun 20s and skip the credential (Nov 2026).
+        timeout: 60
